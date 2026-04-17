@@ -1078,7 +1078,7 @@ async function driveLoad(fileId){
     });
     const data = await res.json();
     document.getElementById('projName').value = data.projName||'';
-    document.getElementById('projOwner').value = data.projOwner||'';
+    document.getElementById('projClient').value = data.projClient||'';
     document.getElementById('projAddr').value = data.projAddr||'';
     document.getElementById('projDate').value = data.projDate||'';
     document.getElementById('mgmtFee').value = data.mgmtFee||5;
@@ -1097,7 +1097,7 @@ async function driveDeleteFile(fileId){
 function getQuoteData(){
   return {
     projName: document.getElementById('projName').value,
-    projOwner: document.getElementById('projOwner').value,
+    projClient: document.getElementById('projClient').value,
     projAddr: document.getElementById('projAddr').value,
     projDate: document.getElementById('projDate').value,
     mgmtFee: document.getElementById('mgmtFee').value,
