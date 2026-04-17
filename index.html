@@ -155,6 +155,20 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
 </head>
 <body>
 
+<!-- 登入驗證畫面 -->
+<div id="loginScreen" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f5f4f0">
+  <div style="background:#fff;border-radius:16px;padding:48px 40px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.08);max-width:400px;width:90%">
+    <div style="font-size:32px;margin-bottom:12px">🏠</div>
+    <h1 style="font-size:20px;font-weight:700;color:#1a1a1a;margin-bottom:6px">宇德室內裝修</h1>
+    <p style="font-size:14px;color:#888;margin-bottom:32px">報價系統</p>
+    <button id="btnLogin" onclick="startLogin()" style="background:#4285f4;color:#fff;border:none;border-radius:8px;padding:14px 32px;font-size:15px;font-weight:600;cursor:pointer;width:100%">使用公司帳號登入</button>
+    <p id="loginError" style="margin-top:16px;font-size:13px;color:#e53935;display:none"></p>
+    <p style="margin-top:24px;font-size:12px;color:#bbb">僅限 @yutesign.com 帳號使用</p>
+  </div>
+</div>
+
+<!-- 主系統畫面 -->
+<div id="mainApp" style="display:none">
 <div class="screen-ui">
 <div class="layout">
 
@@ -981,13 +995,6 @@ let driveAccessToken = null;
 const SHARED_FOLDER_ID = '17fGaw38tzYoQ3kPXnMN8bOhCSpjkjqwX';
 let driveFolderId = SHARED_FOLDER_ID;
 
-function loadGsi(){
-  const s = document.createElement('script');
-  s.src = 'https://accounts.google.com/gsi/client';
-  s.onload = initGsi;
-  document.head.appendChild(s);
-}
-
 function initGsi(){
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
@@ -1107,6 +1114,80 @@ function getQuoteData(){
 }
 
 loadGsi();
+
+// ===== 登入驗證 =====
+const ALLOWED_DOMAIN = 'yutesign.com';
+let loginTokenClient;
+
+function startLogin(){
+  if(!loginTokenClient){ alert('Google 模組尚未載入，請稍候再試'); return; }
+  document.getElementById('btnLogin').textContent = '登入中...';
+  document.getElementById('btnLogin').disabled = true;
+  loginTokenClient.requestAccessToken({prompt: 'select_account'});
+}
+
+function initLoginGsi(){
+  loginTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/userinfo.email ' + SCOPES,
+    callback: async (resp) => {
+      if(resp.error){
+        document.getElementById('btnLogin').textContent = '使用公司帳號登入';
+        document.getElementById('btnLogin').disabled = false;
+        showLoginError('授權失敗，請再試一次');
+        return;
+      }
+      // 取得使用者email
+      try {
+        const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: {'Authorization': 'Bearer ' + resp.access_token}
+        });
+        const user = await res.json();
+        if(!user.email || !user.email.endsWith('@' + ALLOWED_DOMAIN)){
+          showLoginError('此帳號無使用權限，請使用 @yutesign.com 帳號');
+          document.getElementById('btnLogin').textContent = '使用公司帳號登入';
+          document.getElementById('btnLogin').disabled = false;
+          google.accounts.oauth2.revoke(resp.access_token);
+          return;
+        }
+        // 驗證通過，進入系統
+        driveAccessToken = resp.access_token;
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainApp').style.display = '';
+        // 更新Drive按鈕狀態
+        const btn = document.getElementById('btnDriveAuth');
+        btn.textContent = '☁️ 已連線 Drive';
+        btn.style.background = '#e8f5e9';
+        btn.style.color = '#2e7d32';
+        btn.style.borderColor = '#a5d6a7';
+        document.getElementById('btnDriveSave').style.display = '';
+        await driveListFiles();
+      } catch(e){
+        showLoginError('驗證失敗：' + e.message);
+        document.getElementById('btnLogin').textContent = '使用公司帳號登入';
+        document.getElementById('btnLogin').disabled = false;
+      }
+    }
+  });
+}
+
+function showLoginError(msg){
+  const el = document.getElementById('loginError');
+  el.textContent = msg;
+  el.style.display = '';
+}
+
+// 覆寫loadGsi，同時初始化登入用tokenClient
+function loadGsi(){
+  const s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.onload = () => {
+    initGsi();
+    initLoginGsi();
+  };
+  document.head.appendChild(s);
+}
 </script>
+</div><!-- end mainApp -->
 </body>
 </html>
