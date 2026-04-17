@@ -232,6 +232,12 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
       <button class="btn" onclick="exportJSON()" style="background:#f0fff4;border-color:#b8e4c5;color:#1a7a4a">💾 儲存報價</button>
       <button class="btn btn-primary" onclick="doPrint()">列印 PDF</button>
       <button class="btn" onclick="exportToExcel()" style="background:#1a7a4a;color:#fff;border-color:#1a7a4a">匯出 Excel</button>
+      <button class="btn" id="btnDriveAuth" onclick="driveAuth()" style="background:#fff;border-color:#4285f4;color:#4285f4">☁️ 連線 Google Drive</button>
+      <button class="btn" id="btnDriveSave" onclick="driveSave()" style="display:none;background:#4285f4;color:#fff">☁️ 存至 Drive</button>
+    </div>
+    <div id="driveFileList" style="display:none;margin-top:8px;padding:8px;background:#f0f7ff;border-radius:6px;border:1px solid #b8d4f5">
+      <div style="font-size:12px;color:#555;margin-bottom:6px">☁️ 雲端已儲存的報價：</div>
+      <div id="driveFiles"></div>
     </div>
     <div class="total-block">
       <div class="lbl">報價總金額（含稅）</div>
@@ -965,6 +971,146 @@ function importJSON(){
 }
 
 init();
+
+// ===== Google Drive 功能 =====
+const CLIENT_ID = '239869421522-cqs68t3pnahjbmv9ld1k08b4p79s34k4.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const FOLDER_NAME = '宇德報價系統';
+let tokenClient;
+let driveAccessToken = null;
+let driveFolderId = null;
+
+function loadGapiAndGsi(){
+  const s1 = document.createElement('script');
+  s1.src = 'https://apis.google.com/js/api.js';
+  s1.onload = () => gapi.load('client', initGapiClient);
+  document.head.appendChild(s1);
+  const s2 = document.createElement('script');
+  s2.src = 'https://accounts.google.com/gsi/client';
+  s2.onload = initGsi;
+  document.head.appendChild(s2);
+}
+
+async function initGapiClient(){
+  await gapi.client.init({});
+}
+
+function initGsi(){
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: async (resp) => {
+      if(resp.error){ alert('授權失敗：'+resp.error); return; }
+      driveAccessToken = resp.access_token;
+      gapi.client.setToken({access_token: driveAccessToken});
+      document.getElementById('btnDriveAuth').textContent = '☁️ 已連線 Drive';
+      document.getElementById('btnDriveAuth').style.background = '#e8f5e9';
+      document.getElementById('btnDriveAuth').style.color = '#2e7d32';
+      document.getElementById('btnDriveSave').style.display = '';
+      await ensureDriveFolder();
+      await driveListFiles();
+    }
+  });
+}
+
+function driveAuth(){
+  if(!tokenClient){ alert('Google 授權模組尚未載入，請稍候再試'); return; }
+  tokenClient.requestAccessToken({prompt: driveAccessToken ? '' : 'consent'});
+}
+
+async function ensureDriveFolder(){
+  const res = await gapi.client.request({
+    path: 'https://www.googleapis.com/drive/v3/files',
+    params: { q: `name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`, fields: 'files(id,name)' }
+  });
+  const files = res.result.files;
+  if(files && files.length > 0){
+    driveFolderId = files[0].id;
+  } else {
+    const cr = await gapi.client.request({
+      path: 'https://www.googleapis.com/drive/v3/files',
+      method: 'POST',
+      body: JSON.stringify({ name: FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
+    });
+    driveFolderId = cr.result.id;
+  }
+}
+
+async function driveSave(){
+  if(!driveAccessToken){ alert('請先連線 Google Drive'); return; }
+  const projName = document.getElementById('projName').value || '未命名報價';
+  const projDate = document.getElementById('projDate').value || new Date().toISOString().slice(0,10);
+  const fileName = `${projName}_${projDate}.json`;
+  const data = getQuoteData();
+  const content = JSON.stringify(data, null, 2);
+  const boundary = '-------314159265358979323846';
+  const delimiter = '\r\n--' + boundary + '\r\n';
+  const close_delim = '\r\n--' + boundary + '--';
+  const metadata = { name: fileName, mimeType: 'application/json', parents: driveFolderId ? [driveFolderId] : [] };
+  const multipartBody = delimiter +
+    'Content-Type: application/json\r\n\r\n' + JSON.stringify(metadata) +
+    delimiter + 'Content-Type: application/json\r\n\r\n' + content + close_delim;
+  await gapi.client.request({
+    path: 'https://www.googleapis.com/upload/drive/v3/files',
+    method: 'POST',
+    params: { uploadType: 'multipart' },
+    headers: { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
+    body: multipartBody
+  });
+  alert('✅ 已儲存至 Google Drive：' + fileName);
+  await driveListFiles();
+}
+
+async function driveListFiles(){
+  if(!driveAccessToken || !driveFolderId) return;
+  const res = await gapi.client.request({
+    path: 'https://www.googleapis.com/drive/v3/files',
+    params: { q: `'${driveFolderId}' in parents and trashed=false`, fields: 'files(id,name,modifiedTime)', orderBy: 'modifiedTime desc' }
+  });
+  const files = res.result.files || [];
+  const container = document.getElementById('driveFiles');
+  const listDiv = document.getElementById('driveFileList');
+  if(!files.length){ container.innerHTML = '<span style="font-size:12px;color:#888">尚無已儲存的報價</span>'; listDiv.style.display=''; return; }
+  listDiv.style.display = '';
+  container.innerHTML = files.map(f => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span style="font-size:12px;flex:1;color:#333">${f.name}</span>
+      <button onclick="driveLoad('${f.id}')" style="font-size:11px;padding:2px 8px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;cursor:pointer;color:#2e7d32">載入</button>
+      <button onclick="driveDeleteFile('${f.id}')" style="font-size:11px;padding:2px 8px;background:#fff3f3;border:1px solid #ffcdd2;border-radius:4px;cursor:pointer;color:#c62828">刪除</button>
+    </div>`).join('');
+}
+
+async function driveLoad(fileId){
+  const res = await gapi.client.request({ path: `https://www.googleapis.com/drive/v3/files/${fileId}`, params: { alt: 'media' } });
+  const data = typeof res.result === 'string' ? JSON.parse(res.result) : res.result;
+  document.getElementById('projName').value = data.projName||'';
+  document.getElementById('projOwner').value = data.projOwner||'';
+  document.getElementById('projAddr').value = data.projAddr||'';
+  document.getElementById('projDate').value = data.projDate||'';
+  document.getElementById('mgmtFee').value = data.mgmtFee||5;
+  quoteItems = data.quoteItems||[];
+  renderQuote();
+  alert('✅ 報價已載入');
+}
+
+async function driveDeleteFile(fileId){
+  if(!confirm('確定要刪除這份報價嗎？')) return;
+  await gapi.client.request({ path: `https://www.googleapis.com/drive/v3/files/${fileId}`, method: 'DELETE' });
+  await driveListFiles();
+}
+
+function getQuoteData(){
+  return {
+    projName: document.getElementById('projName').value,
+    projOwner: document.getElementById('projOwner').value,
+    projAddr: document.getElementById('projAddr').value,
+    projDate: document.getElementById('projDate').value,
+    mgmtFee: document.getElementById('mgmtFee').value,
+    quoteItems
+  };
+}
+
+loadGapiAndGsi();
 </script>
 </body>
 </html>
