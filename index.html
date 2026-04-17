@@ -978,7 +978,8 @@ const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const FOLDER_NAME = '宇德報價系統';
 let tokenClient;
 let driveAccessToken = null;
-let driveFolderId = null;
+const SHARED_FOLDER_ID = '17fGaw38tzYoQ3kPXnMN8bOhCSpjkjqwX';
+let driveFolderId = SHARED_FOLDER_ID;
 
 function loadGsi(){
   const s = document.createElement('script');
@@ -1000,7 +1001,7 @@ function initGsi(){
       btn.style.color = '#2e7d32';
       btn.style.borderColor = '#a5d6a7';
       document.getElementById('btnDriveSave').style.display = '';
-      await ensureDriveFolder();
+
       await driveListFiles();
     }
   });
@@ -1045,7 +1046,7 @@ async function driveSave(){
     const content = JSON.stringify(getQuoteData(), null, 2);
     const boundary = 'boundary_yute_' + Date.now();
     const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({name:fileName,mimeType:'application/json',parents:[driveFolderId]})}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
-    await driveApi('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    await driveApi('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
       method: 'POST',
       headers: {'Content-Type': `multipart/related; boundary=${boundary}`},
       body
@@ -1057,7 +1058,7 @@ async function driveSave(){
 
 async function driveListFiles(){
   if(!driveAccessToken || !driveFolderId) return;
-  const data = await driveApi(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${driveFolderId}' in parents and trashed=false`)}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc`);
+  const data = await driveApi(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${driveFolderId}' in parents and trashed=false`)}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc&supportsAllDrives=true&includeItemsFromAllDrives=true`);
   const files = data.files || [];
   const container = document.getElementById('driveFiles');
   const listDiv = document.getElementById('driveFileList');
@@ -1090,7 +1091,7 @@ async function driveLoad(fileId){
 
 async function driveDeleteFile(fileId){
   if(!confirm('確定要刪除這份報價嗎？')) return;
-  await driveApi(`https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE' });
+  await driveApi(`https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`, { method: 'DELETE' });
   await driveListFiles();
 }
 
