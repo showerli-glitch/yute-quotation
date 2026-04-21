@@ -527,7 +527,9 @@ function renderQuote(){
     const catTotal=items.reduce((s,i)=>s+i.qty*i.price,0);
     html+=`<div class="section-header"><span></span>
       <span class="section-title">${cat} <span class="section-subtotal">$${Math.round(catTotal).toLocaleString()}</span></span>
-      <span></span><span></span><span></span><span></span><span></span></div>`;
+      <span></span><span></span><span></span><span></span>
+      <span><input class="row-input" placeholder="大表備註" value="${catNotes[cat]||''}" style="width:100%;font-size:11px" onchange="catNotes['${cat}']=this.value;catNotes={...catNotes}"></span>
+      <span></span></div>`;
     items.forEach(item=>{
       const amt=item.qty*item.price;
       const hint=item.minPrice!==item.maxPrice?`<div class="price-hint">$${item.minPrice.toLocaleString()}～$${item.maxPrice.toLocaleString()}</div>`:'';
@@ -615,14 +617,14 @@ function buildPrintDoc(){
       <td class="tc">式</td><td class="tc">1</td>
       <td class="tr">${Math.round(catTotal).toLocaleString()}</td>
       <td class="tr">${Math.round(catTotal).toLocaleString()}</td>
-      <td contenteditable="true" style="min-width:40pt;outline:none;font-size:9pt" data-cat="${cat}" onblur="catNotes[this.dataset.cat]=this.innerText">${catNotes[cat]||''}</td></tr>`;sIdx++;
+      <td style="font-size:9pt">${catNotes[cat]||''}</td></tr>`;sIdx++;
   });
   if(mgmtPct>0){
     p1+=`<tr><td class="tc">${NUM_ZH[sIdx]||sIdx+1}</td><td>監工管理費(${mgmtPct}%)</td>
       <td class="tc">式</td><td class="tc">1</td>
       <td class="tr">${Math.round(mgmt).toLocaleString()}</td>
       <td class="tr">${Math.round(mgmt).toLocaleString()}</td>
-      <td>${catNotes[cat]||''}</td></tr>`;
+      <td></td></tr>`;
   }
   p1+=`</tbody><tfoot>
     <tr class="total-row"><td colspan="5" class="tr" style="border:0.5pt solid #aaa">合　計</td><td class="tr">${Math.round(beforeTax).toLocaleString()}</td><td style="border:0.5pt solid #aaa"></td></tr>
