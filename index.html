@@ -778,6 +778,7 @@ function buildPrintDoc(){
     +'<tbody>';
 
   sections.forEach(([cat,items])=>{
+    detailNum=1; // 每個大項重新從1開始
     const catTotal=items.reduce((s,i)=>s+i.qty*i.price,0);
     p2+='<tr><td colspan="7" style="border:none;padding:6pt 0 2pt;font-size:10.5pt;font-weight:700;border-bottom:0.5pt solid #888">'+( NUM_ZH[sIdx]||sIdx+1)+'、'+cat+'</td></tr>';
     p2+='<tr style="background:#ebebeb">'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:26pt">項次</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt">名稱與說明</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:26pt">單位</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:30pt">預估數量</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:55pt">單　價</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:62pt">複　價</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:40pt">備　註</th>'+'</tr>';
