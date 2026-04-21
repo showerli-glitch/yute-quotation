@@ -217,6 +217,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
         <div class="meta-field"><label>工程地址</label><input id="projAddr" placeholder="工程地址" style="min-width:220px"/></div>
         <div class="meta-field"><label>日期</label><input id="projDate" type="date"/></div>
         <div class="meta-field"><label>管理費%</label><input id="mgmtFee" type="number" value="5" min="0" max="20" style="width:80px" onchange="renderQuote()"/></div>
+        <div class="meta-field"><label>負責人Email</label><input id="projEmail" placeholder="shower.li@yutesign.com" style="min-width:200px" value="shower.li@yutesign.com"/></div>
       </div>
     </div>
   </div>
@@ -284,6 +285,7 @@ const NUM_ZH=['一','二','三','四','五','六','七','八','九','十',
 let mode='quote';  // 'quote' | 'edit'
 let dbItems=[];    // working copy of item database
 let quoteItems=[];
+let catNotes={}; // 大表各類別備註
 let activeCat='全部';
 let dbModified=false;
 
@@ -558,7 +560,7 @@ function updateStats(count,subtotal,mgmtPct){
 
 function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){quoteItems=[];renderQuote();}}
 
-function makePageHeader(name,client,addr,date,isDetail){
+function makePageHeader(name,client,addr,date,isDetail,email){
   const metaLine = isDetail
     ? (name?'工程名稱：'+name:'')+(client?'　業主：'+client:'')+(addr?'　工程地址：'+addr:'')
     : '';
@@ -570,7 +572,7 @@ function makePageHeader(name,client,addr,date,isDetail){
     +'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 55 60" width="26" height="28" style="display:block;flex-shrink:0"><!-- 上半外框（屋頂+煙囪） --><polygon points="27.5,0.0 9.86,10.6 9.86,4.46 6.26,4.46 6.26,12.76 0.0,16.53 0.0,27.76 1.44,27.76 1.44,17.24 27.5,1.58 53.56,17.24 53.56,28.11 55.0,28.11 55.0,16.53 27.5,0.0" fill="#4e4c4b"/><!-- 下半外框 --><polygon points="53.56,42.76 27.5,58.42 1.44,42.76 1.44,32.24 0.0,32.24 0.0,43.47 27.5,60.0 55.0,43.47 55.0,32.59 53.56,32.59 53.56,42.76" fill="#4e4c4b"/><!-- 門框（深色） --><polygon points="36.26,40.65 36.26,17.92 19.18,17.92 19.18,41.3 24.41,41.3 24.41,47.13" fill="#4e4c4b"/><!-- 開啟的門扇（白色填充） --><polygon points="25.6,24.44 35.29,19.1 35.29,40.06 25.38,45.35" fill="white"/><!-- 門把（黑色圓點） --><circle cx="27.89" cy="33.24" r="1.8" fill="#4e4c4b"/></svg>'
     +'<div style="font-size:12pt;font-weight:700;color:#000;letter-spacing:0.5px">宇德室內裝修股份有限公司</div>'
     +'</div>'
-    +'<div style="font-size:7.5pt;color:#333;line-height:1.7">TEL: (02)2652-2112　　台北市忠孝東路六段70巷21弄2號　　E-mail: shower.li@yutesign.com</div>'
+    +'<div style="font-size:7.5pt;color:#333;line-height:1.7">TEL: (02)2652-2112　　台北市忠孝東路六段70巷21弄2號　　E-mail: '+email+'</div>'
     +(metaLine?'<div style="font-size:8pt;color:#000;margin-top:1pt">'+metaLine+'</div>':'')
     +'</td>'
     +'<td style="vertical-align:middle;text-align:right;font-size:8.5pt;padding:0 0 0 6pt;border:none;white-space:nowrap;width:60pt">日期：'+date+'</td>'
@@ -583,13 +585,14 @@ function buildPrintDoc(){
   const client=document.getElementById('projClient').value||'';
   const addr=document.getElementById('projAddr').value||'';
   const date=document.getElementById('projDate').value||'';
+  const email=document.getElementById('projEmail').value||'shower.li@yutesign.com';
   const {subtotal,mgmt,mgmtPct,beforeTax,tax,total}=getCalc();
   const grouped=getSections();
   const sections=Object.entries(grouped);
 
   // PAGE 1: Summary
   let p1=`<div class="pd">
-    ${makePageHeader(name,client,addr,date,false).replace(/`/g,"'")}
+    ${makePageHeader(name,client,addr,date,false,email).replace(/`/g,"'")}
     <div class="pd-title">工 程 報 價 單</div>
     <div class="pd-meta">
       工程名稱：${name||'　　　　　　　　　　　　'}${client?`　　　業主：${client}`:''}
@@ -612,14 +615,14 @@ function buildPrintDoc(){
       <td class="tc">式</td><td class="tc">1</td>
       <td class="tr">${Math.round(catTotal).toLocaleString()}</td>
       <td class="tr">${Math.round(catTotal).toLocaleString()}</td>
-      <td contenteditable="true" style="min-width:40pt;outline:none" data-cat="${cat}"></td></tr>`;sIdx++;
+      <td contenteditable="true" style="min-width:40pt;outline:none;font-size:9pt" data-cat="${cat}" onblur="catNotes[this.dataset.cat]=this.innerText">${catNotes[cat]||''}</td></tr>`;sIdx++;
   });
   if(mgmtPct>0){
     p1+=`<tr><td class="tc">${NUM_ZH[sIdx]||sIdx+1}</td><td>監工管理費(${mgmtPct}%)</td>
       <td class="tc">式</td><td class="tc">1</td>
       <td class="tr">${Math.round(mgmt).toLocaleString()}</td>
       <td class="tr">${Math.round(mgmt).toLocaleString()}</td>
-      <td contenteditable="true" style="min-width:40pt;outline:none"></td></tr>`;
+      <td>${catNotes[cat]||''}</td></tr>`;
   }
   p1+=`</tbody><tfoot>
     <tr class="total-row"><td colspan="5" class="tr" style="border:0.5pt solid #aaa">合　計</td><td class="tr">${Math.round(beforeTax).toLocaleString()}</td><td style="border:0.5pt solid #aaa"></td></tr>
@@ -640,7 +643,7 @@ function buildPrintDoc(){
   const theadHTML=''
     +'<thead>'
     +'<tr><td colspan="7" style="border:none;padding:0 0 4pt 0;height:44pt">'
-    +makePageHeader(name,client,addr,date,true)
+    +makePageHeader(name,client,addr,date,true,email)
     +'</td></tr>'
     // Section title row
     +'<tr><td colspan="7" style="border:none;padding:4pt 0 2pt;text-align:center;font-size:13pt;font-weight:700;letter-spacing:3pt;color:#c0392b">報 價 明 細 表</td></tr>'
@@ -1093,11 +1096,13 @@ async function driveLoad(fileId){
     });
     const data = await res.json();
     document.getElementById('projName').value = data.projName||'';
+    document.getElementById('projEmail').value = data.projEmail||'shower.li@yutesign.com';
     document.getElementById('projClient').value = data.projClient||'';
     document.getElementById('projAddr').value = data.projAddr||'';
     document.getElementById('projDate').value = data.projDate||'';
     document.getElementById('mgmtFee').value = data.mgmtFee||5;
     quoteItems = data.quoteItems||[];
+    catNotes = data.catNotes||{};
     renderQuote();
     alert('✅ 報價已載入');
   } catch(e){ alert('載入失敗：'+e.message); }
@@ -1112,11 +1117,13 @@ async function driveDeleteFile(fileId){
 function getQuoteData(){
   return {
     projName: document.getElementById('projName').value,
+    projEmail: document.getElementById('projEmail').value||'shower.li@yutesign.com',
     projClient: document.getElementById('projClient').value,
     projAddr: document.getElementById('projAddr').value,
     projDate: document.getElementById('projDate').value,
     mgmtFee: document.getElementById('mgmtFee').value,
-    quoteItems
+    quoteItems,
+    catNotes
   };
 }
 
