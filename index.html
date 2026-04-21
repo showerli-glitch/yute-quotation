@@ -273,6 +273,19 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
     <select id="customCat"><option value="假設及拆運工程">假設及拆運工程</option><option value="水電／照明工程">水電／照明工程</option><option value="輕隔間及輕鋼架天花工程">輕隔間及輕鋼架天花工</option><option value="泥作及貼磚工程">泥作及貼磚工程</option><option value="木作及系統櫃工程">木作及系統櫃工程</option><option value="門扇工程">門扇工程</option><option value="玻璃及貼膜工程">玻璃及貼膜工程</option><option value="油漆工程">油漆工程</option><option value="地坪工程">地坪工程</option><option value="鐵件工程">鐵件工程</option><option value="招牌工程">招牌工程</option><option value="金屬及鋁窗工程">金屬及鋁窗工程</option><option value="窗簾工程">窗簾工程</option><option value="空調工程">空調工程</option><option value="衛浴設備工程">衛浴設備工程</option><option value="燈具、設備及其他工程">燈具、設備及其他工程</option><option value="施工區域完工後清潔">施工區域完工後清潔</option><option value="設計製圖費">設計製圖費</option>    </select>
     <button class="btn btn-primary" onclick="addCustomItem()">新增</button>
   </div>
+  <!-- 備註編輯區 -->
+  <div id="remarksEditor" style="margin:8px 16px;padding:10px 12px;background:#fff;border:1px solid #e0ddd5;border-radius:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <span style="font-size:12px;font-weight:600;color:#444">備　註</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:#666">建議工期</span>
+        <input id="projDuration" type="number" min="0" value="0" style="width:60px;font-size:12px;text-align:center" onchange="projDuration=parseInt(this.value)||0">
+        <span style="font-size:12px;color:#666">天</span>
+        <button onclick="addRemark()" style="font-size:11px;padding:2px 10px;background:#f0f7ff;border:1px solid #b8d4f5;border-radius:4px;cursor:pointer;color:#1a5fb4">＋新增備註</button>
+      </div>
+    </div>
+    <div id="remarksList"></div>
+  </div>
   <div class="bottom-bar">
     <div class="actions">
       <button class="btn" onclick="clearAll()">清除全部</button>
@@ -319,6 +332,13 @@ let mode='quote';  // 'quote' | 'edit'
 let dbItems=[];    // working copy of item database
 let quoteItems=[];
 let catNotes={}; // 大表各類別備註
+let remarksItems=[
+  '本估價不含建築物主管機關室內裝修送審。',
+  '本報價單有效期限為一個月（自報價日起算）。',
+  '本工程內容以報價明細表為主，圖面僅供參考，無法現場勘查或需求不清楚者，其實際施作項目及數量依現場環境及尺寸修正。',
+  '本工程工地管理不含業主自行分包之廠商管理。'
+]; // 可自訂備註
+let projDuration=0; // 建議工期（天）
 let activeCat='全部';
 let dbModified=false;
 
@@ -736,10 +756,7 @@ function buildPrintDoc(){
     <tr class="grand-row"><td colspan="5" class="tr" style="border:0.5pt solid #aaa">總　金　額</td><td class="tr">${Math.round(total).toLocaleString()}</td><td style="border:0.5pt solid #aaa"></td></tr>
   </tfoot></table>
   <div class="pd-remarks"><strong>備　註</strong><br>
-    1. 本估價不含建築物主管機關室內裝修送審。<br>
-    2. 本報價單有效期限為一個月（自報價日起算）。<br>
-    3. 本工程內容以報價明細表為主，圖面僅供參考，無法現場勘查或需求不清楚者，其實際施作項目及數量依現場環境及尺寸修正。<br>
-    4. 本工程工地管理不含業主自行分包之廠商管理。
+    ${[...remarksItems,...(projDuration>0?['建議工期為'+projDuration+'天']:[])].map((r,i)=>`${i+1}. ${r}`).join('<br>\n    ')}
   </div></div>`;
 
                   // PAGE 2+: entire detail in ONE table, full header in <thead> for auto-repeat
@@ -1100,7 +1117,35 @@ function importJSON(){
   input.click();
 }
 
+// ===== 備註管理 =====
+function renderRemarks(){
+  const list=document.getElementById('remarksList');
+  if(!list) return;
+  list.innerHTML=remarksItems.map((r,i)=>`
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+      <span style="font-size:11px;color:#999;min-width:16px">${i+1}.</span>
+      <input value="${r.replace(/"/g,'&quot;')}" style="flex:1;font-size:12px;border:1px solid #e0ddd5;border-radius:4px;padding:3px 6px"
+        onchange="remarksItems[${i}]=this.value">
+      <button onclick="removeRemark(${i})" style="font-size:11px;padding:1px 7px;background:#fff3f3;border:1px solid #ffcdd2;border-radius:4px;cursor:pointer;color:#c62828">✕</button>
+    </div>`).join('');
+  document.getElementById('projDuration').value=projDuration||0;
+}
+function addRemark(){
+  remarksItems.push('');
+  renderRemarks();
+  // focus最後一個input
+  setTimeout(()=>{
+    const inputs=document.getElementById('remarksList').querySelectorAll('input');
+    if(inputs.length) inputs[inputs.length-1].focus();
+  },50);
+}
+function removeRemark(i){
+  remarksItems.splice(i,1);
+  renderRemarks();
+}
+
 init();
+renderRemarks();
 
 // ===== Google Drive 功能 =====
 const CLIENT_ID = '239869421522-cqs68t3pnahjbmv9ld1k08b4p79s34k4.apps.googleusercontent.com';
@@ -1209,6 +1254,9 @@ async function driveLoad(fileId){
     document.getElementById('mgmtFee').value = data.mgmtFee||5;
     quoteItems = data.quoteItems||[];
     catNotes = data.catNotes||{};
+    if(data.remarksItems) remarksItems=[...data.remarksItems];
+    projDuration=data.projDuration||0;
+    renderRemarks();
     if(document.getElementById('extraCleanQty')) document.getElementById('extraCleanQty').value=data.extraCleanQty||0;
     if(document.getElementById('extraCleanPrice')) document.getElementById('extraCleanPrice').value=data.extraCleanPrice||700;
     if(document.getElementById('extraDesignMode')){document.getElementById('extraDesignMode').value=data.extraDesignMode||'fixed';toggleDesignMode();}
@@ -1238,6 +1286,8 @@ function getQuoteData(){
     mgmtFee: document.getElementById('mgmtFee').value,
     quoteItems,
     catNotes,
+    remarksItems: [...remarksItems],
+    projDuration: parseInt(document.getElementById('projDuration')?.value)||0,
     extraCleanQty: parseFloat(document.getElementById('extraCleanQty')?.value)||0,
     extraCleanPrice: parseFloat(document.getElementById('extraCleanPrice')?.value)||700,
     extraDesignMode: document.getElementById('extraDesignMode')?.value||'fixed',
