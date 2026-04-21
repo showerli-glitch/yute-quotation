@@ -219,6 +219,23 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
         <div class="meta-field"><label>管理費%</label><input id="mgmtFee" type="number" value="5" min="0" max="20" style="width:80px" onchange="renderQuote()"/></div>
         <div class="meta-field"><label>負責人Email</label><input id="projEmail" placeholder="shower.li@yutesign.com" style="min-width:200px" value="shower.li@yutesign.com"/></div>
       </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;padding:8px 12px;background:#f9f8f6;border-radius:6px;border:1px solid #e0ddd5;font-size:12px">
+        <span style="color:#888;align-self:center;font-weight:500">附加項目：</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <label style="white-space:nowrap;color:#555">清潔費</label>
+          <input id="extraClean" type="number" value="0" min="0" style="width:90px" onchange="renderQuote()" placeholder="0">
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <label style="white-space:nowrap;color:#555">設計製圖費(坪)</label>
+          <input id="extraDesignQty" type="number" value="0" min="0" style="width:60px" onchange="renderQuote()" placeholder="坪">
+          <span style="color:#888">×</span>
+          <input id="extraDesignPrice" type="number" value="0" min="0" style="width:80px" onchange="renderQuote()" placeholder="單價">
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <label style="white-space:nowrap;color:#555">工程保險費</label>
+          <input id="extraInsurance" type="number" value="0" min="0" style="width:90px" onchange="renderQuote()" placeholder="0">
+        </div>
+      </div>
     </div>
   </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -499,11 +516,20 @@ function getSections(){
   return sorted;
 }
 
+function getExtraItems(){
+  const clean=parseFloat(document.getElementById('extraClean')?.value)||0;
+  const designQty=parseFloat(document.getElementById('extraDesignQty')?.value)||0;
+  const designPrice=parseFloat(document.getElementById('extraDesignPrice')?.value)||0;
+  const insurance=parseFloat(document.getElementById('extraInsurance')?.value)||0;
+  return {clean, designQty, designPrice, design:designQty*designPrice, insurance};
+}
 function getCalc(){
   const mgmtPct=parseFloat(document.getElementById('mgmtFee').value)||0;
   let subtotal=0;quoteItems.forEach(i=>subtotal+=i.qty*i.price);
-  const mgmt=subtotal*(mgmtPct/100),beforeTax=subtotal+mgmt,tax=beforeTax*0.05,total=beforeTax+tax;
-  return {subtotal,mgmt,mgmtPct,beforeTax,tax,total};
+  const {clean,design,insurance}=getExtraItems();
+  const extras=clean+design+insurance;
+  const mgmt=subtotal*(mgmtPct/100),beforeTax=subtotal+mgmt+extras,tax=beforeTax*0.05,total=beforeTax+tax;
+  return {subtotal,mgmt,mgmtPct,extras,clean,design,insurance,beforeTax,tax,total};
 }
 
 function renderQuote(){
@@ -624,6 +650,28 @@ function buildPrintDoc(){
       <td class="tc">式</td><td class="tc">1</td>
       <td class="tr">${Math.round(mgmt).toLocaleString()}</td>
       <td class="tr">${Math.round(mgmt).toLocaleString()}</td>
+      <td></td></tr>`;sIdx++;
+  }
+  const {clean:pClean,designQty:pDQty,designPrice:pDPrice,design:pDesign,insurance:pIns}=getExtraItems();
+  if(pClean>0){
+    p1+=`<tr><td class="tc">${NUM_ZH[sIdx]||sIdx+1}</td><td>施工區域完工後清潔</td>
+      <td class="tc">式</td><td class="tc">1</td>
+      <td class="tr">${Math.round(pClean).toLocaleString()}</td>
+      <td class="tr">${Math.round(pClean).toLocaleString()}</td>
+      <td></td></tr>`;sIdx++;
+  }
+  if(pDesign>0){
+    p1+=`<tr><td class="tc">${NUM_ZH[sIdx]||sIdx+1}</td><td>設計製圖費</td>
+      <td class="tc">坪</td><td class="tc">${pDQty}</td>
+      <td class="tr">${Math.round(pDPrice).toLocaleString()}</td>
+      <td class="tr">${Math.round(pDesign).toLocaleString()}</td>
+      <td></td></tr>`;sIdx++;
+  }
+  if(pIns>0){
+    p1+=`<tr><td class="tc">${NUM_ZH[sIdx]||sIdx+1}</td><td>工程保險費</td>
+      <td class="tc">式</td><td class="tc">1</td>
+      <td class="tr">${Math.round(pIns).toLocaleString()}</td>
+      <td class="tr">${Math.round(pIns).toLocaleString()}</td>
       <td></td></tr>`;
   }
   p1+=`</tbody><tfoot>
@@ -1105,6 +1153,10 @@ async function driveLoad(fileId){
     document.getElementById('mgmtFee').value = data.mgmtFee||5;
     quoteItems = data.quoteItems||[];
     catNotes = data.catNotes||{};
+    if(document.getElementById('extraClean')) document.getElementById('extraClean').value=data.extraClean||0;
+    if(document.getElementById('extraDesignQty')) document.getElementById('extraDesignQty').value=data.extraDesignQty||0;
+    if(document.getElementById('extraDesignPrice')) document.getElementById('extraDesignPrice').value=data.extraDesignPrice||0;
+    if(document.getElementById('extraInsurance')) document.getElementById('extraInsurance').value=data.extraInsurance||0;
     renderQuote();
     alert('✅ 報價已載入');
   } catch(e){ alert('載入失敗：'+e.message); }
@@ -1125,7 +1177,11 @@ function getQuoteData(){
     projDate: document.getElementById('projDate').value,
     mgmtFee: document.getElementById('mgmtFee').value,
     quoteItems,
-    catNotes
+    catNotes,
+    extraClean: parseFloat(document.getElementById('extraClean')?.value)||0,
+    extraDesignQty: parseFloat(document.getElementById('extraDesignQty')?.value)||0,
+    extraDesignPrice: parseFloat(document.getElementById('extraDesignPrice')?.value)||0,
+    extraInsurance: parseFloat(document.getElementById('extraInsurance')?.value)||0
   };
 }
 
