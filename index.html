@@ -566,8 +566,10 @@ function makePageHeader(name,client,addr,date,isDetail){
     +'<table style="width:100%;border-collapse:collapse;margin-bottom:4pt;padding-bottom:4pt;border-bottom:1.5pt solid #000">'
     +'<tr>'
     +'<td style="vertical-align:top;padding:0;border:none">'
-    +'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 55 60" width="26" height="28" style="display:block;margin-bottom:2pt"><!-- 上半外框（屋頂+煙囪） --><polygon points="27.5,0.0 9.86,10.6 9.86,4.46 6.26,4.46 6.26,12.76 0.0,16.53 0.0,27.76 1.44,27.76 1.44,17.24 27.5,1.58 53.56,17.24 53.56,28.11 55.0,28.11 55.0,16.53 27.5,0.0" fill="#4e4c4b"/><!-- 下半外框 --><polygon points="53.56,42.76 27.5,58.42 1.44,42.76 1.44,32.24 0.0,32.24 0.0,43.47 27.5,60.0 55.0,43.47 55.0,32.59 53.56,32.59 53.56,42.76" fill="#4e4c4b"/><!-- 門框（深色） --><polygon points="36.26,40.65 36.26,17.92 19.18,17.92 19.18,41.3 24.41,41.3 24.41,47.13" fill="#4e4c4b"/><!-- 開啟的門扇（白色填充） --><polygon points="25.6,24.44 35.29,19.1 35.29,40.06 25.38,45.35" fill="white"/><!-- 門把（黑色圓點） --><circle cx="27.89" cy="33.24" r="1.8" fill="#4e4c4b"/></svg>'
-    +'<div style="font-size:12pt;font-weight:700;color:#000;margin-bottom:1pt;letter-spacing:0.5px">宇德室內裝修股份有限公司</div>'
+    +'<div style="display:flex;align-items:center;gap:5pt;margin-bottom:1pt">'
+    +'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 55 60" width="26" height="28" style="display:block;flex-shrink:0"><!-- 上半外框（屋頂+煙囪） --><polygon points="27.5,0.0 9.86,10.6 9.86,4.46 6.26,4.46 6.26,12.76 0.0,16.53 0.0,27.76 1.44,27.76 1.44,17.24 27.5,1.58 53.56,17.24 53.56,28.11 55.0,28.11 55.0,16.53 27.5,0.0" fill="#4e4c4b"/><!-- 下半外框 --><polygon points="53.56,42.76 27.5,58.42 1.44,42.76 1.44,32.24 0.0,32.24 0.0,43.47 27.5,60.0 55.0,43.47 55.0,32.59 53.56,32.59 53.56,42.76" fill="#4e4c4b"/><!-- 門框（深色） --><polygon points="36.26,40.65 36.26,17.92 19.18,17.92 19.18,41.3 24.41,41.3 24.41,47.13" fill="#4e4c4b"/><!-- 開啟的門扇（白色填充） --><polygon points="25.6,24.44 35.29,19.1 35.29,40.06 25.38,45.35" fill="white"/><!-- 門把（黑色圓點） --><circle cx="27.89" cy="33.24" r="1.8" fill="#4e4c4b"/></svg>'
+    +'<div style="font-size:12pt;font-weight:700;color:#000;letter-spacing:0.5px">宇德室內裝修股份有限公司</div>'
+    +'</div>'
     +'<div style="font-size:7.5pt;color:#333;line-height:1.7">TEL: (02)2652-2112　　台北市忠孝東路六段70巷21弄2號　　E-mail: shower.li@yutesign.com</div>'
     +(metaLine?'<div style="font-size:8pt;color:#000;margin-top:1pt">'+metaLine+'</div>':'')
     +'</td>'
