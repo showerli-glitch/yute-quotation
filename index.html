@@ -85,7 +85,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
 .row-delete{width:26px;height:26px;border-radius:50%;background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;display:flex;align-items:center;justify-content:center}
 .row-delete:hover{background:#fee;color:#e44}
 .section-header{display:grid;grid-template-columns:36px 1fr 70px 70px 110px 100px 120px 32px;padding:6px 16px;background:#f9f8f6;border-bottom:0.5px solid #e0ddd5;gap:8px;align-items:center}
-.section-title{font-size:11px;font-weight:600;color:#555;grid-column:2/7}
+.section-title{font-size:11px;font-weight:600;color:#555;grid-column:2/3}
 .section-subtotal{font-size:12px;font-weight:600;color:#888}
 .add-custom{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap}
 .add-custom input,.add-custom select{padding:8px 12px;border:1px solid #e0ddd5;border-radius:8px;font-size:13px;outline:none;background:#fff}
@@ -604,7 +604,7 @@ function renderQuote(){
     html+=`<div class="section-header"><span></span>
       <span class="section-title">${cat} <span class="section-subtotal">$${Math.round(catTotal).toLocaleString()}</span></span>
       <span></span><span></span><span></span><span></span>
-      <span><input class="row-input" placeholder="大表備註" value="${catNotes[cat]||''}" style="width:100%;font-size:11px" onchange="catNotes['${cat}']=this.value;catNotes={...catNotes}"></span>
+      <input class="row-input" placeholder="大表備註" value="${catNotes[cat]||''}" style="width:100%;font-size:11px" onchange="catNotes['${cat}']=this.value">
       <span></span></div>`;
     items.forEach(item=>{
       const amt=item.qty*item.price;
