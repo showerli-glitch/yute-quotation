@@ -226,10 +226,24 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
           <input id="extraClean" type="number" value="0" min="0" style="width:90px" onchange="renderQuote()" placeholder="0">
         </div>
         <div style="display:flex;align-items:center;gap:4px">
-          <label style="white-space:nowrap;color:#555">設計製圖費(坪)</label>
-          <input id="extraDesignQty" type="number" value="0" min="0" style="width:60px" onchange="renderQuote()" placeholder="坪">
-          <span style="color:#888">×</span>
-          <input id="extraDesignPrice" type="number" value="0" min="0" style="width:80px" onchange="renderQuote()" placeholder="單價">
+          <label style="white-space:nowrap;color:#555">設計製圖費</label>
+          <select id="extraDesignMode" onchange="toggleDesignMode();renderQuote()" style="font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px">
+            <option value="fixed">固定金額</option>
+            <option value="pct">%計價</option>
+            <option value="unit">坪×單價</option>
+          </select>
+          <span id="designFixedWrap" style="display:flex;align-items:center;gap:4px">
+            <input id="extraDesignFixed" type="number" value="0" min="0" style="width:90px" onchange="renderQuote()" placeholder="金額">
+          </span>
+          <span id="designPctWrap" style="display:none;align-items:center;gap:4px">
+            <input id="extraDesignPct" type="number" value="0" min="0" max="100" step="0.5" style="width:60px" onchange="renderQuote()" placeholder="%">
+            <span style="color:#888">%</span>
+          </span>
+          <span id="designUnitWrap" style="display:none;align-items:center;gap:4px">
+            <input id="extraDesignQty" type="number" value="0" min="0" style="width:55px" onchange="renderQuote()" placeholder="坪">
+            <span style="color:#888">×</span>
+            <input id="extraDesignPrice" type="number" value="0" min="0" style="width:75px" onchange="renderQuote()" placeholder="單價">
+          </span>
         </div>
         <div style="display:flex;align-items:center;gap:4px">
           <label style="white-space:nowrap;color:#555">工程保險費</label>
@@ -516,12 +530,36 @@ function getSections(){
   return sorted;
 }
 
+function toggleDesignMode(){
+  const mode=document.getElementById('extraDesignMode')?.value||'fixed';
+  const fw=document.getElementById('designFixedWrap');
+  const pw=document.getElementById('designPctWrap');
+  const uw=document.getElementById('designUnitWrap');
+  if(fw) fw.style.display=mode==='fixed'?'flex':'none';
+  if(pw) pw.style.display=mode==='pct'?'flex':'none';
+  if(uw) uw.style.display=mode==='unit'?'flex':'none';
+}
 function getExtraItems(){
   const clean=parseFloat(document.getElementById('extraClean')?.value)||0;
-  const designQty=parseFloat(document.getElementById('extraDesignQty')?.value)||0;
-  const designPrice=parseFloat(document.getElementById('extraDesignPrice')?.value)||0;
   const insurance=parseFloat(document.getElementById('extraInsurance')?.value)||0;
-  return {clean, designQty, designPrice, design:designQty*designPrice, insurance};
+  const mode=document.getElementById('extraDesignMode')?.value||'fixed';
+  let design=0, designQty=0, designPrice=0, designPct=0;
+  // 計算工程小計（不含附加項目和管理費）
+  let subtotal=0; quoteItems.forEach(i=>subtotal+=i.qty*i.price);
+  const mgmtPct=parseFloat(document.getElementById('mgmtFee')?.value)||0;
+  const mgmt=subtotal*(mgmtPct/100);
+  const base=subtotal+mgmt;
+  if(mode==='fixed'){
+    design=parseFloat(document.getElementById('extraDesignFixed')?.value)||0;
+  } else if(mode==='pct'){
+    designPct=parseFloat(document.getElementById('extraDesignPct')?.value)||0;
+    design=Math.round(base*(designPct/100));
+  } else {
+    designQty=parseFloat(document.getElementById('extraDesignQty')?.value)||0;
+    designPrice=parseFloat(document.getElementById('extraDesignPrice')?.value)||0;
+    design=designQty*designPrice;
+  }
+  return {clean, designQty, designPrice, designPct, designMode:mode, design, insurance};
 }
 function getCalc(){
   const mgmtPct=parseFloat(document.getElementById('mgmtFee').value)||0;
@@ -652,7 +690,7 @@ function buildPrintDoc(){
       <td class="tr">${Math.round(mgmt).toLocaleString()}</td>
       <td></td></tr>`;sIdx++;
   }
-  const {clean:pClean,designQty:pDQty,designPrice:pDPrice,design:pDesign,insurance:pIns}=getExtraItems();
+  const pExtras=getExtraItems(); const {clean:pClean,design:pDesign,insurance:pIns}=pExtras;
   if(pClean>0){
     p1+=`<tr><td class="tc">${NUM_ZH[sIdx]||sIdx+1}</td><td>施工區域完工後清潔</td>
       <td class="tc">式</td><td class="tc">1</td>
@@ -661,9 +699,13 @@ function buildPrintDoc(){
       <td></td></tr>`;sIdx++;
   }
   if(pDesign>0){
+    const dMode=pExtras.designMode||'fixed';
+    const dUnit=dMode==='unit'?'坪':'式';
+    const dQty=dMode==='unit'?pExtras.designQty:1;
+    const dPrice=dMode==='unit'?pExtras.designPrice:(dMode==='pct'?`${pExtras.designPct}%`:Math.round(pDesign));
     p1+=`<tr><td class="tc">${NUM_ZH[sIdx]||sIdx+1}</td><td>設計製圖費</td>
-      <td class="tc">坪</td><td class="tc">${pDQty}</td>
-      <td class="tr">${Math.round(pDPrice).toLocaleString()}</td>
+      <td class="tc">${dUnit}</td><td class="tc">${dQty}</td>
+      <td class="tr">${typeof dPrice==='number'?Math.round(dPrice).toLocaleString():dPrice}</td>
       <td class="tr">${Math.round(pDesign).toLocaleString()}</td>
       <td></td></tr>`;sIdx++;
   }
@@ -1154,6 +1196,9 @@ async function driveLoad(fileId){
     quoteItems = data.quoteItems||[];
     catNotes = data.catNotes||{};
     if(document.getElementById('extraClean')) document.getElementById('extraClean').value=data.extraClean||0;
+    if(document.getElementById('extraDesignMode')){document.getElementById('extraDesignMode').value=data.extraDesignMode||'fixed';toggleDesignMode();}
+    if(document.getElementById('extraDesignFixed')) document.getElementById('extraDesignFixed').value=data.extraDesignFixed||0;
+    if(document.getElementById('extraDesignPct')) document.getElementById('extraDesignPct').value=data.extraDesignPct||0;
     if(document.getElementById('extraDesignQty')) document.getElementById('extraDesignQty').value=data.extraDesignQty||0;
     if(document.getElementById('extraDesignPrice')) document.getElementById('extraDesignPrice').value=data.extraDesignPrice||0;
     if(document.getElementById('extraInsurance')) document.getElementById('extraInsurance').value=data.extraInsurance||0;
@@ -1179,6 +1224,9 @@ function getQuoteData(){
     quoteItems,
     catNotes,
     extraClean: parseFloat(document.getElementById('extraClean')?.value)||0,
+    extraDesignMode: document.getElementById('extraDesignMode')?.value||'fixed',
+    extraDesignFixed: parseFloat(document.getElementById('extraDesignFixed')?.value)||0,
+    extraDesignPct: parseFloat(document.getElementById('extraDesignPct')?.value)||0,
     extraDesignQty: parseFloat(document.getElementById('extraDesignQty')?.value)||0,
     extraDesignPrice: parseFloat(document.getElementById('extraDesignPrice')?.value)||0,
     extraInsurance: parseFloat(document.getElementById('extraInsurance')?.value)||0
