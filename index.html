@@ -631,7 +631,7 @@ function renderQuote(){
       const hint=item.minPrice!==item.maxPrice?`<div class="price-hint">$${item.minPrice.toLocaleString()}～$${item.maxPrice.toLocaleString()}</div>`:'';
       html+=`<div class="quote-row">
         <span class="row-num">${num++}</span>
-        <input class="row-input row-name" value="${item.name}" onchange="updateStrField(${item.id},'name',this.value)" style="width:100%">
+        <input class="row-input row-name" value="${item.name}" onchange="updateStrField(${item.id},'name',this.value)" style="width:100%;text-align:left">
         <span style="text-align:right"><input class="row-input" value="${item.unit}" style="width:60px;text-align:center" onchange="updateStrField(${item.id},'unit',this.value)"></span>
         <span style="text-align:right"><input class="row-input" type="number" value="${item.qty}" onchange="updateField(${item.id},'qty',this.value)" style="width:60px"></span>
         <span style="text-align:right"><input class="row-input" type="number" value="${item.price}" onchange="updateField(${item.id},'price',this.value)" style="width:90px">${hint}</span>
