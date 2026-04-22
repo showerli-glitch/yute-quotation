@@ -332,6 +332,7 @@ const NUM_ZH=['一','二','三','四','五','六','七','八','九','十',
 
 // State
 let mode='quote';  // 'quote' | 'edit'
+const DB_VERSION='2025042301';
 let dbItems=[];    // working copy of item database
 let quoteItems=[];
 let catNotes={}; // 大表各類別備註
@@ -359,11 +360,13 @@ function init(){
 function loadDb(){
   try{
     const saved=localStorage.getItem('yutesign_db');
-    if(saved){
+    const savedVer=localStorage.getItem('yutesign_db_ver');
+    if(saved && savedVer===DB_VERSION){
       dbItems=JSON.parse(saved);
     } else {
-      // First load: map categories from original data
       dbItems=DEFAULT_ITEMS.map(item=>({...item,類別:mapCat(item['類別'])}));
+      localStorage.setItem('yutesign_db_ver',DB_VERSION);
+      localStorage.setItem('yutesign_db',JSON.stringify(dbItems));
     }
   } catch(e){
     dbItems=DEFAULT_ITEMS.map(item=>({...item,類別:mapCat(item['類別'])}));
