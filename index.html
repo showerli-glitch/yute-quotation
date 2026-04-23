@@ -10,9 +10,12 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
 .screen-ui{display:block}
 
 /* Layout */
-.layout{display:grid;grid-template-columns:380px 1fr;min-height:100vh}
-.panel-left{background:#fff;border-right:1px solid #e0ddd5;display:flex;flex-direction:column;height:100vh;position:sticky;top:0}
-.panel-right{padding:24px;overflow-y:auto}
+.layout{display:flex;min-height:100vh}
+.resizer{width:5px;background:#e0ddd5;cursor:col-resize;flex-shrink:0;transition:background 0.15s;position:relative;z-index:10}
+.resizer:hover,.resizer.dragging{background:#c0392b}
+.panel-left{background:#fff;display:flex;flex-direction:column;height:100vh;position:sticky;top:0;width:380px;flex-shrink:0;min-width:200px;max-width:600px}
+.panel-right{flex:1;min-width:0}
+.panel-right{padding:24px;overflow-y:auto;flex:1;min-width:0}
 
 /* Left panel */
 .logo{padding:16px 20px 12px;border-bottom:1px solid #e0ddd5;display:flex;justify-content:space-between;align-items:center}
@@ -227,6 +230,9 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
   </div>
 </div>
 
+<!-- RESIZER -->
+<div class="resizer" id="panelResizer"></div>
+
 <!-- RIGHT PANEL -->
 <div class="panel-right">
   <div class="right-top">
@@ -323,8 +329,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
       <button class="btn" onclick="exportJSON()" style="background:#f0fff4;border-color:#b8e4c5;color:#1a7a4a">💾 儲存報價</button>
       <button class="btn btn-primary" onclick="doPrint()">列印 PDF</button>
       <button class="btn" onclick="exportToExcel()" style="background:#1a7a4a;color:#fff;border-color:#1a7a4a">匯出 Excel</button>
-      <button class="btn" id="btnDriveAuth" onclick="driveAuth()" style="background:#fff;border-color:#4285f4;color:#4285f4">☁️ 連線 Drive</button>
-      <button class="btn" id="btnDriveSave" onclick="driveSave()" style="display:none;background:#4285f4;color:#fff">☁️ 存至 Drive</button>
+<button class="btn" id="btnDriveSave" onclick="driveSave()" style="display:none;background:#4285f4;color:#fff">☁️ 存至 Drive</button>
     </div>
     <div id="driveFileList" style="display:none;margin-top:8px;padding:8px;background:#f0f7ff;border-radius:6px;border:1px solid #b8d4f5">
       <div style="font-size:12px;color:#555;margin-bottom:6px">☁️ 雲端已儲存的報價：</div>
@@ -946,7 +951,7 @@ function doPrint(){
 
 
 
-function exportToExcel(){
+async function exportToExcel(){
   if(!quoteItems.length){alert('請先加入工項再匯出');return;}
 
   const name=document.getElementById('projName').value||'新工程';
@@ -1147,6 +1152,15 @@ function exportToExcel(){
   const fname='宇德報價單_'+name+'_'+date+'.xlsx';
   const wbout=XLSX.write(WB,{bookType:'xlsx',type:'array',cellStyles:true});
   const dlBlob=new Blob([wbout],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  if(window.showSaveFilePicker){
+    try{
+      const fh=await window.showSaveFilePicker({suggestedName:fname,types:[{description:'Excel 試算表',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]});
+      const writable=await fh.createWritable();
+      await writable.write(dlBlob);
+      await writable.close();
+      return;
+    }catch(e){if(e.name==='AbortError')return;}
+  }
   const dlURL=URL.createObjectURL(dlBlob);
   const dlA=document.createElement('a');
   dlA.href=dlURL; dlA.download=fname; dlA.click();
@@ -1589,6 +1603,35 @@ document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo();}
   else if((e.ctrlKey||e.metaKey)&&((e.key==='z'&&e.shiftKey)||e.key==='y')){e.preventDefault();redo();}
 });
+
+// 左右面板拖曳調整寬度
+(function(){
+  const resizer=document.getElementById('panelResizer');
+  const leftPanel=document.querySelector('.panel-left');
+  if(!resizer||!leftPanel)return;
+  let startX,startW;
+  resizer.addEventListener('mousedown',e=>{
+    startX=e.clientX;
+    startW=leftPanel.offsetWidth;
+    resizer.classList.add('dragging');
+    document.body.style.cursor='col-resize';
+    document.body.style.userSelect='none';
+    function onMove(e){
+      const w=Math.max(200,Math.min(600,startW+(e.clientX-startX)));
+      leftPanel.style.width=w+'px';
+    }
+    function onUp(){
+      resizer.classList.remove('dragging');
+      document.body.style.cursor='';
+      document.body.style.userSelect='';
+      document.removeEventListener('mousemove',onMove);
+      document.removeEventListener('mouseup',onUp);
+    }
+    document.addEventListener('mousemove',onMove);
+    document.addEventListener('mouseup',onUp);
+    e.preventDefault();
+  });
+})();
 </script>
 </body>
 </html>
