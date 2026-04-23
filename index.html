@@ -152,6 +152,23 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
 .pd-page-header{display:table-header-group!important}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+  try{
+    var s=localStorage.getItem('yutesign_session');
+    if(!s)return;
+    var d=JSON.parse(s);
+    if(!d.email||!d.email.endsWith('@yutesign.com'))return;
+    if(Date.now()-d.loginTime>8*3600*1000)return;
+    document.addEventListener('DOMContentLoaded',function(){
+      var ls=document.getElementById('loginScreen');
+      var ma=document.getElementById('mainApp');
+      if(ls)ls.style.display='none';
+      if(ma)ma.style.display='';
+    });
+  }catch(e){}
+})();
+</script>
 </head>
 <body>
 
@@ -1229,19 +1246,6 @@ function removeRemark(i){
 }
 
 init();
-
-// Session 檢查：在有效時間內免重新登入
-(function checkSession(){
-  try{
-    const s = localStorage.getItem('yutesign_session');
-    if(!s) return;
-    const {email, loginTime} = JSON.parse(s);
-    if(!email || !email.endsWith('@yutesign.com')) return;
-    if(Date.now() - loginTime > 8 * 3600 * 1000) return;
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('mainApp').style.display = '';
-  }catch(e){}
-})();
 renderRemarks();
 
 // ===== Google Drive 功能 =====
