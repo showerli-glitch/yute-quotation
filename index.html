@@ -1521,7 +1521,7 @@ async function ensureDriveFolder(){
   }
 }
 
-async async function driveSave(){
+async function driveSave(){
   if(!driveAccessToken){ alert('請先連線 Google Drive'); return; }
   if(!driveFolderId){ alert('資料夾尚未建立，請稍候再試'); return; }
   try {
