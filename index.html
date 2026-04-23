@@ -636,11 +636,26 @@ function getSections(){
   return sorted;
 }
 
+function toggleCleanMode(){
+  const mode=document.getElementById('extraCleanMode')?.value||'unit';
+  const uw=document.getElementById('cleanUnitWrap');
+  const fw=document.getElementById('cleanFixedWrap');
+  if(uw) uw.style.display=mode==='unit'?'flex':'none';
+  if(fw) fw.style.display=mode==='fixed'?'flex':'none';
+  renderQuote();
+}
 function updateClean(){
-  const qty=parseFloat(document.getElementById('extraCleanQty')?.value)||0;
-  const price=parseFloat(document.getElementById('extraCleanPrice')?.value)||700;
+  const mode=document.getElementById('extraCleanMode')?.value||'unit';
+  let val=0;
+  if(mode==='fixed'){
+    val=parseFloat(document.getElementById('extraCleanFixed')?.value)||0;
+  } else {
+    const qty=parseFloat(document.getElementById('extraCleanQty')?.value)||0;
+    const price=parseFloat(document.getElementById('extraCleanPrice')?.value)||700;
+    val=Math.round(qty*price);
+  }
   const el=document.getElementById('extraClean');
-  if(el) el.value=Math.round(qty*price);
+  if(el) el.value=val;
   renderQuote();
 }
 function toggleDesignMode(){
