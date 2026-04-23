@@ -1008,7 +1008,7 @@ function exportToExcel(){
     ws['!margins']={left:0.47,right:0.47,top:0.59,bottom:0.79,header:0.2,footer:0.2};
   }
 
-  const COLS=[{wch:5},{wch:46},{wch:6},{wch:8},{wch:12},{wch:13},{wch:18}];
+  const COLS=[{wch:5},{wch:48},{wch:6},{wch:8},{wch:12},{wch:13},{wch:18}];
   const CO_TXT='宇德室內裝修股份有限公司  TEL: (02)2652-2112  台北市忠孝東路六段70巷21弄2號  E-mail: shower.li@yutesign.com';
 
   function buildHeader(rows,merges,r,titleTxt){
@@ -1026,120 +1026,7 @@ function exportToExcel(){
 
   const WB=XLSX.utils.book_new();
 
-  // ── SHEET 1: 工程報價單 ──
-  const s1=[]; const s1m=[];
-  buildHeader(s1,s1m,0,'工 程 報 價 單');
-  s1.push(['項次','名稱與說明','單位','預估數量','單    價','複      價','備     註']);
-
-  let sIdx=0;
-  sections.forEach(([cat,items])=>{
-    const catTotal=items.reduce((a,i)=>a+i.qty*i.price,0);
-    s1.push([NUM_ZH[sIdx]||String(sIdx+1),cat,'式',1,Math.round(catTotal),Math.round(catTotal),catNotes[cat]||'']);
-    sIdx++;
-  });
-  if(pClean>0){
-    const cMode=pExtras.cleanMode||'unit';
-    const cUnit=cMode==='fixed'?'式':'坪';
-    const cQty=cMode==='fixed'?1:(pExtras.cleanQty||0);
-    const cPrice=cMode==='fixed'?Math.round(pClean):Math.round(pExtras.cleanPrice||0);
-    s1.push([NUM_ZH[sIdx]||String(sIdx+1),'施工區域完工後清潔',cUnit,cQty,cPrice,Math.round(pClean),'']); sIdx++;
-  }
-  if(mgmtPct>0){
-    s1.push([NUM_ZH[sIdx]||String(sIdx+1),'監工管理費('+mgmtPct+'%)','式',1,Math.round(pMgmtAmt),Math.round(pMgmtAmt),'']); sIdx++;
-  }
-  if(pDesign>0){
-    const dMode=pExtras.designMode||'fixed';
-    const dName=dMode==='pct'?'設計規劃製圖費('+pExtras.designPct+'%)':'設計製圖費';
-    const dUnit=dMode==='unit'?'坪':'式';
-    const dQty=dMode==='unit'?pExtras.designQty:1;
-    const dPrice=dMode==='unit'?Math.round(pExtras.designPrice):Math.round(pDesign);
-    s1.push([NUM_ZH[sIdx]||String(sIdx+1),dName,dUnit,dQty,dPrice,Math.round(pDesign),'']); sIdx++;
-  }
-  if(pIns>0) s1.push([NUM_ZH[sIdx]||String(sIdx+1),'工程保險費','式',1,Math.round(pIns),Math.round(pIns),'']);
-
-  const tBase=s1.length;
-  s1.push(['合     計','','','','',Math.round(beforeTax),'']); s1m.push({s:{r:tBase,c:0},e:{r:tBase,c:4}});
-  s1.push(['營業稅5%','','','','',Math.round(tax),'']);        s1m.push({s:{r:tBase+1,c:0},e:{r:tBase+1,c:4}});
-  s1.push(['總　金　額','','','','',Math.round(total),'']);     s1m.push({s:{r:tBase+2,c:0},e:{r:tBase+2,c:4}});
-  const remBase=s1.length;
-  s1.push(['備　註',1,'本估價不含建築物主管機關室內裝修送審。','','','','']);
-  s1.push(['',2,'本報價單有效期限為一個月（自報價日起算）。','','','','']);
-  s1.push(['',3,'本工程內容以報價明細表為主，圖面僅供參考，無法現場勘查或需求不清楚者，其實際施作項目及數量依現場環境及尺寸修正。','','','','']);
-  s1.push(['',4,'本工程工地管理不含業主自行分包之廠商管理。','','','','']);
-  for(let i=0;i<4;i++) s1m.push({s:{r:remBase+i,c:2},e:{r:remBase+i,c:6}});
-
-  const ws1=XLSX.utils.aoa_to_sheet(s1);
-  ws1['!cols']=COLS;
-  ws1['!rows']=[{hpt:44},{hpt:30},{hpt:20},{hpt:20},{hpt:24}];
-  ws1['!merges']=s1m;
-  styleHeader(ws1,0);
-  scRange(ws1,4,4,0,6,ST.hdr);
-  for(let r=5;r<tBase;r++){
-    scRow(ws1,r,[ST.dC,ST.dL,ST.dC,ST.dC,ST.dR,ST.dRB,ST.dL]);
-    nfmt(ws1,r,4); nfmt(ws1,r,5);
-  }
-  scRow(ws1,tBase,[ST.tot,ST.tot,ST.tot,ST.tot,ST.tot,ST.tot,ST.blank]);
-  nfmt(ws1,tBase,5);
-  scRow(ws1,tBase+1,[ST.tot,ST.tot,ST.tot,ST.tot,ST.tot,ST.tot,ST.blank]);
-  nfmt(ws1,tBase+1,5);
-  scRow(ws1,tBase+2,[ST.grand,ST.grand,ST.grand,ST.grand,ST.grand,ST.grand,ST.blank]);
-  nfmt(ws1,tBase+2,5);
-  for(let i=0;i<4;i++){
-    scRow(ws1,remBase+i,[i===0?ST.remL:ST.blank, ST.remN, ST.remB,ST.remB,ST.remB,ST.remB,ST.remB]);
-  }
-  pgSetup(ws1);
-  XLSX.utils.book_append_sheet(WB,ws1,'報價單');
-
-  // ── SHEET 2: 報價明細表 ──
-  const s2=[]; const s2m=[];
-  buildHeader(s2,s2m,0,'報 價 明 細 表');
-  const s2rh=[{hpt:44},{hpt:30},{hpt:20},{hpt:20}];
-
-  sIdx=0;
-  sections.forEach(([cat,items])=>{
-    const catTotal=items.reduce((a,i)=>a+i.qty*i.price,0);
-    const catRow=s2.length;
-    s2.push([(NUM_ZH[sIdx]||String(sIdx+1))+'、'+cat,'','','','','','']);
-    s2m.push({s:{r:catRow,c:0},e:{r:catRow,c:6}});
-    s2rh.push({hpt:22});
-    s2.push(['項次','名稱與說明','單位','預估數量','單    價','複      價','備     註']);
-    s2rh.push({hpt:22});
-    items.forEach((item,idx)=>{
-      s2.push([idx+1,item.name,item.unit,item.qty,Math.round(item.price),Math.round(item.qty*item.price),item.note||'']);
-      s2rh.push({hpt:17});
-    });
-    const subRow=s2.length;
-    s2.push(['小　計','','','','',Math.round(catTotal),'']);
-    s2m.push({s:{r:subRow,c:0},e:{r:subRow,c:4}});
-    s2rh.push({hpt:18});
-    s2.push(['','','','','','','']); s2rh.push({hpt:6});
-    sIdx++;
-  });
-
-  const ws2=XLSX.utils.aoa_to_sheet(s2);
-  ws2['!cols']=COLS;
-  ws2['!rows']=s2rh;
-  ws2['!merges']=s2m;
-  styleHeader(ws2,0);
-  let r2=4; sIdx=0;
-  sections.forEach(([,items])=>{
-    scRange(ws2,r2,r2,0,6,ST.cHdr); r2++;
-    scRange(ws2,r2,r2,0,6,ST.hdr); r2++;
-    items.forEach(()=>{
-      scRow(ws2,r2,[ST.dC,ST.dL,ST.dC,ST.dC,ST.dR,ST.dRB,ST.dL]);
-      nfmt(ws2,r2,4); nfmt(ws2,r2,5); r2++;
-    });
-    scRange(ws2,r2,r2,0,6,ST.sub); nfmt(ws2,r2,5); r2++;
-    scRange(ws2,r2,r2,0,6,ST.blank); r2++;
-    sIdx++;
-  });
-  pgSetup(ws2);
-  XLSX.utils.book_append_sheet(WB,ws2,'明細表');
-
-  const WB=XLSX.utils.book_new();
-
   // 7 columns matching PDF: 項次 | 名稱與說明 | 單位 | 預估數量 | 單價 | 複價 | 備註
-  const COLS=[{wch:5},{wch:48},{wch:6},{wch:8},{wch:12},{wch:13},{wch:18}];
 
   // Build the 4-row header block; r = 0-based starting row index
   function makeHeaderBlock(titleText, r, merges){
