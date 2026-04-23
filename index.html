@@ -689,7 +689,7 @@ function getExtraItems(){
     designPrice=parseFloat(document.getElementById('extraDesignPrice')?.value)||0;
     design=designQty*designPrice;
   }
-  return {clean, cleanQty, cleanPrice, designQty, designPrice, designPct, designMode:mode, design, insurance, mgmtBase};
+  return {clean, cleanMode, cleanQty, cleanPrice, cleanFixed, designQty, designPrice, designPct, designMode:mode, design, insurance, mgmtBase};
 }
 function getCalc(){
   const mgmtPct=parseFloat(document.getElementById('mgmtFee').value)||0;
