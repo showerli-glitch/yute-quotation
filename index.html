@@ -350,6 +350,7 @@ function init(){
   initLogo();
   document.getElementById('projDate').value=new Date().toISOString().split('T')[0];
   loadDb();
+  loadQuoteState();
   renderCatTabs();
   renderLeftPanel();
   renderQuote();
@@ -524,6 +525,32 @@ function addNewItemToDb(){
 }
 
 // ── Quote functions ──
+function saveQuoteState(){
+  try{
+    const state={
+      projName:document.getElementById('projName').value,
+      projClient:document.getElementById('projClient').value,
+      projAddr:document.getElementById('projAddr').value,
+      projDate:document.getElementById('projDate').value,
+      mgmtFee:document.getElementById('mgmtFee').value,
+      quoteItems:quoteItems
+    };
+    localStorage.setItem('yutesign_quote',JSON.stringify(state));
+  }catch(e){}
+}
+function loadQuoteState(){
+  try{
+    const saved=localStorage.getItem('yutesign_quote');
+    if(!saved)return;
+    const state=JSON.parse(saved);
+    if(state.projName!==undefined)document.getElementById('projName').value=state.projName;
+    if(state.projClient!==undefined)document.getElementById('projClient').value=state.projClient;
+    if(state.projAddr!==undefined)document.getElementById('projAddr').value=state.projAddr;
+    if(state.projDate!==undefined)document.getElementById('projDate').value=state.projDate;
+    if(state.mgmtFee!==undefined)document.getElementById('mgmtFee').value=state.mgmtFee;
+    if(state.quoteItems)quoteItems=state.quoteItems;
+  }catch(e){}
+}
 function saveHistory(){undoHistory.push(JSON.stringify(quoteItems));if(undoHistory.length>20)undoHistory.shift();redoHistory=[];}
 function undo(){if(!undoHistory.length)return;redoHistory.push(JSON.stringify(quoteItems));quoteItems=JSON.parse(undoHistory.pop());renderQuote();}
 function redo(){if(!redoHistory.length)return;undoHistory.push(JSON.stringify(quoteItems));quoteItems=JSON.parse(redoHistory.pop());renderQuote();}
@@ -545,7 +572,7 @@ function addCustomItem(){
   const existing=dbItems.find(d=>d['類別']===cat&&d['工項名稱']===name);
   if(!existing){
     dbItems.unshift({'類別':cat,'工項名稱':name,'單位':unit,'參考單價':price,'最低單價':price,'最高單價':price,'出現次數':1});
-    saveDB();
+    saveDb();
     renderDB();
   }
   document.getElementById('customName').value='';
@@ -617,7 +644,7 @@ function getCalc(){
   return {subtotal,mgmt,mgmtPct,extras,clean,design,insurance,beforeTax,tax,total};
 }
 
-function renderQuote(){
+function renderQuote(){saveQuoteState();
   if(mode==='edit') return;
   const area=document.getElementById('rightContent');
   const {subtotal,mgmt,mgmtPct,beforeTax,tax,total}=getCalc();
