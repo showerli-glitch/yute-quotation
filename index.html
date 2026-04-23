@@ -585,6 +585,17 @@ function addCustomItem(){
 function removeItem(id){saveHistory();quoteItems=quoteItems.filter(i=>i.id!==id);renderQuote();}
 function updateField(id,field,val){saveHistory();const item=quoteItems.find(i=>i.id===id);if(item)item[field]=parseFloat(val)||0;renderQuote();}
 function updateStrField(id,field,val){saveHistory();const item=quoteItems.find(i=>i.id===id);if(item)item[field]=val;}
+function buildCatOptions(sel){return SECTION_ORDER.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s.replace('工程','').replace('及系統櫃','').replace('及輕鋼架天花','').replace('及貼磚','').replace('及貼膜','').replace('、設備及其他','').replace('及鋁窗','')}</option>`).join('');}
+function updateItemCat(id,newCat){
+  saveHistory();
+  const item=quoteItems.find(i=>i.id===id);
+  if(!item)return;
+  item.cat=newCat;
+  // 同步回資料庫
+  const dbItem=dbItems.find(d=>d['工項名稱']===item.name);
+  if(dbItem){dbItem['類別']=newCat;saveDb();}
+  renderQuote();
+}
 
 function getSections(){
   const g={};
@@ -674,7 +685,10 @@ function renderQuote(){saveQuoteState();
       const hint=item.minPrice!==item.maxPrice?`<div class="price-hint">$${item.minPrice.toLocaleString()}～$${item.maxPrice.toLocaleString()}</div>`:'';
       html+=`<div class="quote-row">
         <span class="row-num">${num++}</span>
-        <input class="row-input row-name" value="${item.name}" onchange="updateStrField(${item.id},'name',this.value)" style="width:100%;text-align:left">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <input class="row-input row-name" value="${item.name}" onchange="updateStrField(${item.id},'name',this.value)" style="width:100%;text-align:left">
+          <select style="font-size:10px;padding:1px 3px;border:1px solid #e0ddd5;border-radius:3px;background:#fafaf8;color:#888;width:100%" onchange="updateItemCat(${item.id},this.value)">${buildCatOptions(item.cat)}</select>
+        </div>
         <span style="text-align:right"><input class="row-input" value="${item.unit}" style="width:60px;text-align:center" onchange="updateStrField(${item.id},'unit',this.value)"></span>
         <span style="text-align:right"><input class="row-input" type="number" value="${item.qty}" onchange="updateField(${item.id},'qty',this.value)" style="width:60px"></span>
         <span style="text-align:right"><input class="row-input" type="number" value="${item.price}" onchange="updateField(${item.id},'price',this.value)" style="width:90px">${hint}</span>
