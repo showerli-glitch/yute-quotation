@@ -1236,7 +1236,7 @@ init();
     const s = localStorage.getItem('yutesign_session');
     if(!s) return;
     const {email, loginTime} = JSON.parse(s);
-    if(!email || !email.endsWith('@' + ALLOWED_DOMAIN)) return;
+    if(!email || !email.endsWith('@yutesign.com')) return;
     if(Date.now() - loginTime > SESSION_HOURS * 3600 * 1000) return;
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('mainApp').style.display = '';
