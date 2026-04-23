@@ -839,9 +839,13 @@ function buildPrintDoc(){
   });
   const pExtras=getExtraItems(); const {clean:pClean,design:pDesign,insurance:pIns,mgmtBase:pMgmtBase}=pExtras; const pMgmtAmt=pMgmtBase*(mgmtPct/100);
   if(pClean>0){
+    const cMode=pExtras.cleanMode||'unit';
+    const cUnit=cMode==='fixed'?'式':'坪';
+    const cQty=cMode==='fixed'?1:(pExtras.cleanQty||1);
+    const cPrice=cMode==='fixed'?Math.round(pClean):Math.round(pExtras.cleanPrice||pClean);
     p1+=`<tr><td class="tc">${NUM_ZH[sIdx]||sIdx+1}</td><td>施工區域完工後清潔</td>
-      <td class="tc">坪</td><td class="tc">${parseFloat(document.getElementById('extraCleanQty')?.value)||1}</td>
-      <td class="tr">${Math.round(parseFloat(document.getElementById('extraCleanPrice')?.value)||pClean).toLocaleString()}</td>
+      <td class="tc">${cUnit}</td><td class="tc">${cQty}</td>
+      <td class="tr">${cPrice.toLocaleString()}</td>
       <td class="tr">${Math.round(pClean).toLocaleString()}</td>
       <td></td></tr>`;sIdx++;
   }
