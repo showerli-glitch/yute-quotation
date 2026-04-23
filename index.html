@@ -1237,7 +1237,7 @@ init();
     if(!s) return;
     const {email, loginTime} = JSON.parse(s);
     if(!email || !email.endsWith('@yutesign.com')) return;
-    if(Date.now() - loginTime > SESSION_HOURS * 3600 * 1000) return;
+    if(Date.now() - loginTime > 8 * 3600 * 1000) return;
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('mainApp').style.display = '';
   }catch(e){}
