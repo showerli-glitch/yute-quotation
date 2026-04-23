@@ -668,9 +668,11 @@ function toggleDesignMode(){
   if(uw) uw.style.display=mode==='unit'?'flex':'none';
 }
 function getExtraItems(){
+  const cleanMode=document.getElementById('extraCleanMode')?.value||'unit';
   const cleanQty=parseFloat(document.getElementById('extraCleanQty')?.value)||0;
   const cleanPrice=parseFloat(document.getElementById('extraCleanPrice')?.value)||700;
-  const clean=Math.round(cleanQty*cleanPrice);
+  const cleanFixed=parseFloat(document.getElementById('extraCleanFixed')?.value)||0;
+  const clean=cleanMode==='fixed'?Math.round(cleanFixed):Math.round(cleanQty*cleanPrice);
   const insurance=parseFloat(document.getElementById('extraInsurance')?.value)||0;
   const mode=document.getElementById('extraDesignMode')?.value||'fixed';
   let design=0, designQty=0, designPrice=0, designPct=0;
