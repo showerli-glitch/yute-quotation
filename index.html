@@ -677,6 +677,24 @@ function getCalc(){
   return {subtotal,mgmt,mgmtPct,extras,clean,design,insurance,beforeTax,tax,total};
 }
 
+let _dragId=null;
+function qDS(e,id){_dragId=id;setTimeout(()=>e.target.closest('.quote-row').classList.add('dragging'),0);}
+function qDE(){document.querySelectorAll('.quote-row').forEach(el=>el.classList.remove('dragging','drag-over'));}
+function qDO(e){e.preventDefault();e.currentTarget.classList.add('drag-over');}
+function qDL(e){e.currentTarget.classList.remove('drag-over');}
+function qDP(e,targetId){
+  e.preventDefault();
+  document.querySelectorAll('.quote-row').forEach(el=>el.classList.remove('drag-over'));
+  if(_dragId===targetId)return;
+  const si=quoteItems.findIndex(i=>i.id===_dragId);
+  const ti=quoteItems.findIndex(i=>i.id===targetId);
+  if(si<0||ti<0)return;
+  saveHistory();
+  const[moved]=quoteItems.splice(si,1);
+  quoteItems.splice(ti,0,moved);
+  renderQuote();
+}
+
 function renderQuote(){saveQuoteState();
   if(mode==='edit') return;
   const area=document.getElementById('rightContent');
