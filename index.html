@@ -1256,7 +1256,7 @@ function exportToExcel(){
 
   // Download
   const fname='宇德報價單_'+name+'_'+date+'.xlsx';
-  const wbout=XLSX.write(WB,{bookType:'xlsx',type:'array'});
+  const wbout=XLSX.write(WB,{bookType:'xlsx',type:'array',cellStyles:true});
   const dlBlob=new Blob([wbout],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   const dlURL=URL.createObjectURL(dlBlob);
   const dlA=document.createElement('a');
