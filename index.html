@@ -1396,8 +1396,10 @@ async function driveLoad(fileId){
     if(data.remarksItems) remarksItems=[...data.remarksItems];
     projDuration=data.projDuration||0;
     renderRemarks();
+    if(document.getElementById('extraCleanMode')){document.getElementById('extraCleanMode').value=data.extraCleanMode||'unit';toggleCleanMode();}
     if(document.getElementById('extraCleanQty')) document.getElementById('extraCleanQty').value=data.extraCleanQty||0;
     if(document.getElementById('extraCleanPrice')) document.getElementById('extraCleanPrice').value=data.extraCleanPrice||700;
+    if(document.getElementById('extraCleanFixed')) document.getElementById('extraCleanFixed').value=data.extraCleanFixed||0;
     if(document.getElementById('extraDesignMode')){document.getElementById('extraDesignMode').value=data.extraDesignMode||'fixed';toggleDesignMode();}
     if(document.getElementById('extraDesignFixed')) document.getElementById('extraDesignFixed').value=data.extraDesignFixed||0;
     if(document.getElementById('extraDesignPct')) document.getElementById('extraDesignPct').value=data.extraDesignPct||0;
