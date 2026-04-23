@@ -992,10 +992,12 @@ function exportToExcel(){
     sIdx++;
   });
   // Extra items (matching PDF page 1)
-  const eCQty=parseFloat(document.getElementById('extraCleanQty')?.value)||0;
-  const eCPrice=parseFloat(document.getElementById('extraCleanPrice')?.value)||700;
   if(pClean>0){
-    s1.push([NUM_ZH[sIdx]||String(sIdx+1),'施工區域完工後清潔','坪',eCQty,Math.round(eCPrice),Math.round(pClean),'']);
+    const cMode=pExtras.cleanMode||'unit';
+    const cUnit=cMode==='fixed'?'式':'坪';
+    const cQty=cMode==='fixed'?1:(pExtras.cleanQty||0);
+    const cPrice=cMode==='fixed'?Math.round(pClean):Math.round(pExtras.cleanPrice||0);
+    s1.push([NUM_ZH[sIdx]||String(sIdx+1),'施工區域完工後清潔',cUnit,cQty,cPrice,Math.round(pClean),'']);
     sIdx++;
   }
   if(mgmtPct>0){
