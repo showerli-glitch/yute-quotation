@@ -704,8 +704,8 @@ function renderQuote(){saveQuoteState();
     items.forEach(item=>{
       const amt=item.qty*item.price;
       const hint=item.minPrice!==item.maxPrice?`<div class="price-hint">$${item.minPrice.toLocaleString()}～$${item.maxPrice.toLocaleString()}</div>`:'';
-      html+=`<div class="quote-row">
-        <span class="row-num">${num++}</span>
+      html+=`<div class="quote-row" draggable="true" data-id="${item.id}" ondragstart="qDS(event,${item.id})" ondragover="qDO(event)" ondragleave="qDL(event)" ondrop="qDP(event,${item.id})" ondragend="qDE()">
+        <span class="row-num"><span class="drag-icon">⠿</span>${num++}</span>
         <div style="display:flex;flex-direction:column;gap:2px">
           <input class="row-input row-name" value="${item.name}" onchange="updateStrField(${item.id},'name',this.value)" style="width:100%;text-align:left">
           <select style="font-size:10px;padding:1px 3px;border:1px solid #e0ddd5;border-radius:3px;background:#fafaf8;color:#888;width:100%" onchange="updateItemCat(${item.id},this.value)">${buildCatOptions(item.cat)}</select>
