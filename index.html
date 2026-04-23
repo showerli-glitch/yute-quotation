@@ -243,10 +243,19 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;padding:8px 12px;background:#f9f8f6;border-radius:6px;border:1px solid #e0ddd5;font-size:12px">
         <span style="color:#888;align-self:center;font-weight:500">附加項目：</span>
         <div style="display:flex;align-items:center;gap:4px">
-          <label style="white-space:nowrap;color:#555">完工清潔(坪)</label>
-          <input id="extraCleanQty" type="number" value="0" min="0" style="width:60px" onchange="updateClean()" placeholder="坪">
-          <span style="color:#888">×</span>
-          <input id="extraCleanPrice" type="number" value="700" min="0" style="width:70px" onchange="updateClean()" placeholder="單價">
+          <label style="white-space:nowrap;color:#555">完工清潔</label>
+          <select id="extraCleanMode" onchange="toggleCleanMode()" style="font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px">
+            <option value="unit">坪×單價</option>
+            <option value="fixed">1式固定</option>
+          </select>
+          <span id="cleanUnitWrap" style="display:flex;align-items:center;gap:4px">
+            <input id="extraCleanQty" type="number" value="0" min="0" style="width:60px" onchange="updateClean()" placeholder="坪">
+            <span style="color:#888">×</span>
+            <input id="extraCleanPrice" type="number" value="700" min="0" style="width:70px" onchange="updateClean()" placeholder="單價">
+          </span>
+          <span id="cleanFixedWrap" style="display:none;align-items:center;gap:4px">
+            <input id="extraCleanFixed" type="number" value="0" min="0" style="width:90px" onchange="updateClean()" placeholder="固定金額">
+          </span>
         </div>
         <div style="display:flex;align-items:center;gap:4px">
           <label style="white-space:nowrap;color:#555">設計製圖費</label>
