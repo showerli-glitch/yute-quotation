@@ -573,7 +573,8 @@ function addCustomItem(){
   if(!existing){
     dbItems.unshift({'類別':cat,'工項名稱':name,'單位':unit,'參考單價':price,'最低單價':price,'最高單價':price,'出現次數':1});
     saveDb();
-    renderDB();
+    renderCatTabs();
+    renderQuoteList();
   }
   document.getElementById('customName').value='';
   document.getElementById('customUnit').value='';
@@ -1214,6 +1215,19 @@ function removeRemark(i){
 }
 
 init();
+
+// Session 檢查：在有效時間內免重新登入
+(function checkSession(){
+  try{
+    const s = localStorage.getItem('yutesign_session');
+    if(!s) return;
+    const {email, loginTime} = JSON.parse(s);
+    if(!email || !email.endsWith('@' + ALLOWED_DOMAIN)) return;
+    if(Date.now() - loginTime > SESSION_HOURS * 3600 * 1000) return;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = '';
+  }catch(e){}
+})();
 renderRemarks();
 
 // ===== Google Drive 功能 =====
@@ -1232,13 +1246,6 @@ function initGsi(){
     callback: async (resp) => {
       if(resp.error){ alert('授權失敗：'+resp.error); return; }
       driveAccessToken = resp.access_token;
-      const btn = document.getElementById('btnDriveAuth');
-      btn.textContent = '☁️ 已連線 Drive';
-      btn.style.background = '#e8f5e9';
-      btn.style.color = '#2e7d32';
-      btn.style.borderColor = '#a5d6a7';
-      document.getElementById('btnDriveSave').style.display = '';
-
       await driveListFiles();
     }
   });
@@ -1372,6 +1379,7 @@ loadGsi();
 
 // ===== 登入驗證 =====
 const ALLOWED_DOMAIN = 'yutesign.com';
+const SESSION_HOURS = 8; // 重開頁面幾小時內免重新登入
 let loginTokenClient;
 
 function startLogin(){
@@ -1409,13 +1417,7 @@ function initLoginGsi(){
         driveAccessToken = resp.access_token;
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('mainApp').style.display = '';
-        // 更新Drive按鈕狀態
-        const btn = document.getElementById('btnDriveAuth');
-        btn.textContent = '☁️ 已連線 Drive';
-        btn.style.background = '#e8f5e9';
-        btn.style.color = '#2e7d32';
-        btn.style.borderColor = '#a5d6a7';
-        document.getElementById('btnDriveSave').style.display = '';
+        localStorage.setItem('yutesign_session', JSON.stringify({email: user.email, loginTime: Date.now()}));
         await driveListFiles();
       } catch(e){
         showLoginError('驗證失敗：' + e.message);
