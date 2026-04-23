@@ -904,8 +904,12 @@ function buildPrintDoc(){
 function doPrint(){
   const doc=document.getElementById('printDoc');
   doc.innerHTML=buildPrintDoc();
+  const name=document.getElementById('projName').value||'未命名工程';
+  const date=document.getElementById('projDate').value||new Date().toISOString().split('T')[0];
+  const origTitle=document.title;
+  document.title='宇德報價單_'+name+'_'+date;
   window.print();
-  setTimeout(()=>{doc.innerHTML='';},1000);
+  setTimeout(()=>{doc.innerHTML='';document.title=origTitle;},1000);
 }
 
 
