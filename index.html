@@ -333,6 +333,7 @@ let mode='quote';  // 'quote' | 'edit'
 const DB_VERSION='2025042301';
 let dbItems=[];    // working copy of item database
 let quoteItems=[];
+let undoHistory=[];let redoHistory=[];
 let catNotes={}; // 大表各類別備註
 let remarksItems=[
   '本估價不含建築物主管機關室內裝修送審。',
@@ -523,6 +524,9 @@ function addNewItemToDb(){
 }
 
 // ── Quote functions ──
+function saveHistory(){undoHistory.push(JSON.stringify(quoteItems));if(undoHistory.length>20)undoHistory.shift();redoHistory=[];}
+function undo(){if(!undoHistory.length)return;redoHistory.push(JSON.stringify(quoteItems));quoteItems=JSON.parse(undoHistory.pop());renderQuote();}
+function redo(){if(!redoHistory.length)return;undoHistory.push(JSON.stringify(quoteItems));quoteItems=JSON.parse(redoHistory.pop());renderQuote();}
 function addItem(item){
   quoteItems.push({id:Date.now()+Math.random(),cat:item['類別'],name:item['工項名稱'],
     unit:item['單位']||'式',qty:1,price:item['參考單價'],
@@ -536,6 +540,7 @@ function addCustomItem(){
   const price=parseFloat(document.getElementById('customPrice').value)||0;
   const cat=document.getElementById('customCat').value;
   if(!name)return;
+  saveHistory();
   quoteItems.push({id:Date.now()+Math.random(),cat,name,unit,qty:1,price,minPrice:price,maxPrice:price});
   const existing=dbItems.find(d=>d['類別']===cat&&d['工項名稱']===name);
   if(!existing){
@@ -549,9 +554,9 @@ function addCustomItem(){
   renderQuote();
 }
 
-function removeItem(id){quoteItems=quoteItems.filter(i=>i.id!==id);renderQuote();}
-function updateField(id,field,val){const item=quoteItems.find(i=>i.id===id);if(item)item[field]=parseFloat(val)||0;renderQuote();}
-function updateStrField(id,field,val){const item=quoteItems.find(i=>i.id===id);if(item)item[field]=val;}
+function removeItem(id){saveHistory();quoteItems=quoteItems.filter(i=>i.id!==id);renderQuote();}
+function updateField(id,field,val){saveHistory();const item=quoteItems.find(i=>i.id===id);if(item)item[field]=parseFloat(val)||0;renderQuote();}
+function updateStrField(id,field,val){saveHistory();const item=quoteItems.find(i=>i.id===id);if(item)item[field]=val;}
 
 function getSections(){
   const g={};
@@ -666,7 +671,7 @@ function updateStats(count,subtotal,mgmtPct){
   document.getElementById('statTotal').textContent='$'+Math.round(total).toLocaleString();
 }
 
-function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){quoteItems=[];renderQuote();}}
+function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();quoteItems=[];renderQuote();}}
 
 function makePageHeader(name,client,addr,date,isDetail,email){
   const metaLine = isDetail
@@ -1412,5 +1417,13 @@ function loadGsi(){
 }
 </script>
 </div><!-- end mainApp -->
+<script>
+document.addEventListener('keydown',e=>{
+  const tag=document.activeElement.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA')return;
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo();}
+  else if((e.ctrlKey||e.metaKey)&&((e.key==='z'&&e.shiftKey)||e.key==='y')){e.preventDefault();redo();}
+});
+</script>
 </body>
 </html>
