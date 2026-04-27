@@ -283,6 +283,13 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
             <input id="extraDesignPrice" type="number" value="0" min="0" style="width:75px" onchange="renderQuote()" placeholder="單價">
           </span>
         </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:flex;align-items:center;gap:4px">
+            <label style="white-space:nowrap;color:#555">自訂費用</label>
+            <button onclick="addMiscItem()" style="font-size:11px;padding:1px 8px;background:#fff7e0;border:1px solid #f0c040;border-radius:4px;cursor:pointer;color:#7a5c00">＋ 新增</button>
+          </div>
+          <div id="miscItemsList" style="display:flex;flex-direction:column;gap:3px"></div>
+        </div>
         <div style="display:flex;align-items:center;gap:4px">
           <label style="white-space:nowrap;color:#555">工程保險費</label>
           <input id="extraInsurance" type="number" value="0" min="0" style="width:90px" onchange="renderQuote()" placeholder="0">
@@ -379,6 +386,7 @@ let remarksItems=[
   '本工程工地管理不含業主自行分包之廠商管理。'
 ]; // 可自訂備註
 let projDuration=0; // 建議工期（天）
+let miscItems=[]; // 自訂雜項費用（不計入管理費/設計費基礎）
 let activeCat='全部';
 let dbModified=false;
 
@@ -588,6 +596,29 @@ function loadQuoteState(){
     if(state.quoteItems)quoteItems=state.quoteItems;
   }catch(e){}
 }
+function addMiscItem(){
+  miscItems.push({name:'',unit:'式',qty:1,price:0});
+  renderMiscItems();
+}
+function removeMiscItem(i){
+  miscItems.splice(i,1);
+  renderMiscItems();
+  renderQuote();
+}
+function renderMiscItems(){
+  const el=document.getElementById('miscItemsList');
+  if(!el)return;
+  el.innerHTML=miscItems.map((m,i)=>
+    `<div style="display:flex;align-items:center;gap:3px;flex-wrap:nowrap">
+      <input value="${(m.name||'').replace(/"/g,'&quot;')}" placeholder="費用名稱" style="flex:1;min-width:80px;font-size:11px;padding:2px 6px;border:1px solid #ddd;border-radius:4px" onchange="miscItems[${i}].name=this.value;renderQuote()">
+      <input value="${m.unit||'式'}" placeholder="單位" style="width:36px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;text-align:center" onchange="miscItems[${i}].unit=this.value">
+      <input type="number" value="${m.qty||1}" min="1" style="width:44px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;text-align:center" onchange="miscItems[${i}].qty=parseFloat(this.value)||1;renderQuote()">
+      <span style="font-size:11px;color:#aaa">×</span>
+      <input type="number" value="${m.price||0}" placeholder="單價" style="width:80px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;text-align:right" onchange="miscItems[${i}].price=parseFloat(this.value)||0;renderQuote()">
+      <button onclick="removeMiscItem(${i})" style="font-size:14px;background:none;border:none;cursor:pointer;color:#ccc;padding:0 2px;line-height:1">×</button>
+    </div>`
+  ).join('');
+}
 function saveHistory(){undoHistory.push(JSON.stringify(quoteItems));if(undoHistory.length>20)undoHistory.shift();redoHistory=[];}
 function undo(){if(!undoHistory.length)return;redoHistory.push(JSON.stringify(quoteItems));quoteItems=JSON.parse(undoHistory.pop());renderQuote();}
 function redo(){if(!redoHistory.length)return;undoHistory.push(JSON.stringify(quoteItems));quoteItems=JSON.parse(redoHistory.pop());renderQuote();}
@@ -696,14 +727,15 @@ function getExtraItems(){
     designPrice=parseFloat(document.getElementById('extraDesignPrice')?.value)||0;
     design=designQty*designPrice;
   }
-  return {clean, cleanMode, cleanQty, cleanPrice, cleanFixed, designQty, designPrice, designPct, designMode:mode, design, insurance, mgmtBase};
+  const miscTotal=miscItems.reduce((s,m)=>s+(m.qty||1)*(m.price||0),0);
+  return {clean, cleanMode, cleanQty, cleanPrice, cleanFixed, designQty, designPrice, designPct, designMode:mode, design, insurance, mgmtBase, miscTotal, miscItems:[...miscItems]};
 }
 function getCalc(){
   const mgmtPct=parseFloat(document.getElementById('mgmtFee').value)||0;
   let subtotal=0;quoteItems.forEach(i=>subtotal+=i.qty*i.price);
   const _extraData=getExtraItems();
-  const {clean,design,insurance}=_extraData;
-  const extras=clean+design+insurance;
+  const {clean,design,insurance,miscTotal}=_extraData;
+  const extras=clean+design+insurance+(miscTotal||0);
   // 管理費基礎 = 工項小計 + 清潔費（同Excel）
   const _mgmtBase=_extraData.mgmtBase||(subtotal+_extraData.clean);
   const mgmt=_mgmtBase*(mgmtPct/100),beforeTax=subtotal+mgmt+extras,tax=beforeTax*0.05,total=beforeTax+tax;
@@ -785,7 +817,7 @@ function updateStats(count,subtotal,mgmtPct){
   document.getElementById('statTotal').textContent='$'+Math.round(total).toLocaleString();
 }
 
-function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();quoteItems=[];renderQuote();}}
+function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();quoteItems=[];miscItems=[];renderMiscItems();renderQuote();}}
 
 function makePageHeader(name,client,addr,date,isDetail,email){
   const metaLine = isDetail
@@ -875,6 +907,16 @@ function buildPrintDoc(){
       <td class="tr">${dPrice}</td>
       <td class="tr">${Math.round(pDesign).toLocaleString()}</td>
       <td></td></tr>`;sIdx++;
+  }
+  for(const m of (pExtras.miscItems||[])){
+    const mAmt=Math.round((m.qty||1)*(m.price||0));
+    if(mAmt>0){
+      p1+=`<tr><td class="tc">${NUM_ZH[sIdx]||sIdx+1}</td><td>${m.name||'（未命名）'}</td>
+        <td class="tc">${m.unit||'式'}</td><td class="tc">${m.qty||1}</td>
+        <td class="tr">${Math.round(m.price||0).toLocaleString()}</td>
+        <td class="tr">${mAmt.toLocaleString()}</td>
+        <td></td></tr>`;sIdx++;
+    }
   }
   if(pIns>0){
     p1+=`<tr><td class="tc">${NUM_ZH[sIdx]||sIdx+1}</td><td>工程保險費</td>
@@ -1083,6 +1125,13 @@ async function exportToExcel(){
     s1.push([NUM_ZH[sIdx]||String(sIdx+1),dName,dUnit,dQty,dPrice,Math.round(pDesign),'']);
     sIdx++;
   }
+  for(const m of (pExtras.miscItems||[])){
+    const mAmt=Math.round((m.qty||1)*(m.price||0));
+    if(mAmt>0){
+      s1.push([NUM_ZH[sIdx]||String(sIdx+1),m.name||'（未命名）',m.unit||'式',m.qty||1,Math.round(m.price||0),mAmt,'']);
+      sIdx++;
+    }
+  }
   if(pIns>0){
     s1.push([NUM_ZH[sIdx]||String(sIdx+1),'工程保險費','式',1,Math.round(pIns),Math.round(pIns),'']);
   }
@@ -1279,7 +1328,8 @@ async function exportJSON(){
     projAddr:document.getElementById('projAddr').value,
     projDate:document.getElementById('projDate').value,
     mgmtFee:document.getElementById('mgmtFee').value,
-    quoteItems:quoteItems
+    quoteItems:quoteItems,
+    miscItems:[...miscItems]
   };
   const json=JSON.stringify(saveData,null,2);
   const fileName=`宇德報價_${name}_${date}.json`;
@@ -1338,6 +1388,8 @@ async function importJSON(){
     document.getElementById('projDate').value=data.projDate||'';
     document.getElementById('mgmtFee').value=data.mgmtFee||5;
     quoteItems=data.quoteItems||[];
+    miscItems=data.miscItems||[];
+    renderMiscItems();
     renderQuote();
   }catch(e){alert('檔案讀取失敗：'+e.message);}
 }
@@ -1485,6 +1537,8 @@ async function driveLoad(fileId){
     if(document.getElementById('extraDesignQty')) document.getElementById('extraDesignQty').value=data.extraDesignQty||0;
     if(document.getElementById('extraDesignPrice')) document.getElementById('extraDesignPrice').value=data.extraDesignPrice||0;
     if(document.getElementById('extraInsurance')) document.getElementById('extraInsurance').value=data.extraInsurance||0;
+    miscItems=data.miscItems||[];
+    renderMiscItems();
     renderQuote();
     alert('✅ 報價已載入');
   } catch(e){ alert('載入失敗：'+e.message); }
@@ -1517,7 +1571,8 @@ function getQuoteData(){
     extraDesignPct: parseFloat(document.getElementById('extraDesignPct')?.value)||0,
     extraDesignQty: parseFloat(document.getElementById('extraDesignQty')?.value)||0,
     extraDesignPrice: parseFloat(document.getElementById('extraDesignPrice')?.value)||0,
-    extraInsurance: parseFloat(document.getElementById('extraInsurance')?.value)||0
+    extraInsurance: parseFloat(document.getElementById('extraInsurance')?.value)||0,
+    miscItems: [...miscItems]
   };
 }
 
