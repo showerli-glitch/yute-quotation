@@ -578,7 +578,22 @@ function saveQuoteState(){
       projAddr:document.getElementById('projAddr').value,
       projDate:document.getElementById('projDate').value,
       mgmtFee:document.getElementById('mgmtFee').value,
-      quoteItems:quoteItems
+      projEmail:document.getElementById('projEmail')?.value||'',
+      projDuration:parseInt(document.getElementById('projDuration')?.value)||0,
+      quoteItems:quoteItems,
+      catNotes:catNotes,
+      remarksItems:[...remarksItems],
+      miscItems:[...miscItems],
+      extraCleanMode:document.getElementById('extraCleanMode')?.value||'unit',
+      extraCleanQty:document.getElementById('extraCleanQty')?.value||0,
+      extraCleanPrice:document.getElementById('extraCleanPrice')?.value||700,
+      extraCleanFixed:document.getElementById('extraCleanFixed')?.value||0,
+      extraDesignMode:document.getElementById('extraDesignMode')?.value||'fixed',
+      extraDesignFixed:document.getElementById('extraDesignFixed')?.value||0,
+      extraDesignPct:document.getElementById('extraDesignPct')?.value||0,
+      extraDesignQty:document.getElementById('extraDesignQty')?.value||0,
+      extraDesignPrice:document.getElementById('extraDesignPrice')?.value||0,
+      extraInsurance:document.getElementById('extraInsurance')?.value||0
     };
     localStorage.setItem('yutesign_quote',JSON.stringify(state));
   }catch(e){}
@@ -587,13 +602,28 @@ function loadQuoteState(){
   try{
     const saved=localStorage.getItem('yutesign_quote');
     if(!saved)return;
-    const state=JSON.parse(saved);
-    if(state.projName!==undefined)document.getElementById('projName').value=state.projName;
-    if(state.projClient!==undefined)document.getElementById('projClient').value=state.projClient;
-    if(state.projAddr!==undefined)document.getElementById('projAddr').value=state.projAddr;
-    if(state.projDate!==undefined)document.getElementById('projDate').value=state.projDate;
-    if(state.mgmtFee!==undefined)document.getElementById('mgmtFee').value=state.mgmtFee;
-    if(state.quoteItems)quoteItems=state.quoteItems;
+    const s=JSON.parse(saved);
+    if(s.projName!==undefined)document.getElementById('projName').value=s.projName;
+    if(s.projClient!==undefined)document.getElementById('projClient').value=s.projClient;
+    if(s.projAddr!==undefined)document.getElementById('projAddr').value=s.projAddr;
+    if(s.projDate!==undefined)document.getElementById('projDate').value=s.projDate;
+    if(s.mgmtFee!==undefined)document.getElementById('mgmtFee').value=s.mgmtFee;
+    if(s.projEmail!==undefined&&document.getElementById('projEmail'))document.getElementById('projEmail').value=s.projEmail;
+    if(s.projDuration!==undefined){projDuration=s.projDuration;const el=document.getElementById('projDuration');if(el)el.value=s.projDuration;}
+    if(s.quoteItems)quoteItems=s.quoteItems;
+    if(s.catNotes)catNotes=s.catNotes;
+    if(s.remarksItems)remarksItems=[...s.remarksItems];
+    if(s.miscItems){miscItems=[...s.miscItems];renderMiscItems();}
+    if(s.extraCleanMode&&document.getElementById('extraCleanMode')){document.getElementById('extraCleanMode').value=s.extraCleanMode;toggleCleanMode();}
+    if(s.extraCleanQty!==undefined&&document.getElementById('extraCleanQty'))document.getElementById('extraCleanQty').value=s.extraCleanQty;
+    if(s.extraCleanPrice!==undefined&&document.getElementById('extraCleanPrice'))document.getElementById('extraCleanPrice').value=s.extraCleanPrice;
+    if(s.extraCleanFixed!==undefined&&document.getElementById('extraCleanFixed'))document.getElementById('extraCleanFixed').value=s.extraCleanFixed;
+    if(s.extraDesignMode&&document.getElementById('extraDesignMode')){document.getElementById('extraDesignMode').value=s.extraDesignMode;toggleDesignMode();}
+    if(s.extraDesignFixed!==undefined&&document.getElementById('extraDesignFixed'))document.getElementById('extraDesignFixed').value=s.extraDesignFixed;
+    if(s.extraDesignPct!==undefined&&document.getElementById('extraDesignPct'))document.getElementById('extraDesignPct').value=s.extraDesignPct;
+    if(s.extraDesignQty!==undefined&&document.getElementById('extraDesignQty'))document.getElementById('extraDesignQty').value=s.extraDesignQty;
+    if(s.extraDesignPrice!==undefined&&document.getElementById('extraDesignPrice'))document.getElementById('extraDesignPrice').value=s.extraDesignPrice;
+    if(s.extraInsurance!==undefined&&document.getElementById('extraInsurance'))document.getElementById('extraInsurance').value=s.extraInsurance;
   }catch(e){}
 }
 function addMiscItem(){
@@ -1320,17 +1350,7 @@ async function exportJSON(){
   if(!quoteItems.length){alert('請先加入工項再匯出');return;}
   const name=document.getElementById('projName').value||'未命名工程';
   const date=document.getElementById('projDate').value||new Date().toISOString().split('T')[0];
-  const saveData={
-    version:1,
-    savedAt:new Date().toISOString(),
-    projName:document.getElementById('projName').value,
-    projClient:document.getElementById('projClient').value,
-    projAddr:document.getElementById('projAddr').value,
-    projDate:document.getElementById('projDate').value,
-    mgmtFee:document.getElementById('mgmtFee').value,
-    quoteItems:quoteItems,
-    miscItems:[...miscItems]
-  };
+  const saveData=Object.assign({version:1,savedAt:new Date().toISOString()},getQuoteData());
   const json=JSON.stringify(saveData,null,2);
   const fileName=`宇德報價_${name}_${date}.json`;
   if(window.showSaveFilePicker){
@@ -1387,9 +1407,24 @@ async function importJSON(){
     document.getElementById('projAddr').value=data.projAddr||'';
     document.getElementById('projDate').value=data.projDate||'';
     document.getElementById('mgmtFee').value=data.mgmtFee||5;
+    if(document.getElementById('projEmail'))document.getElementById('projEmail').value=data.projEmail||'';
     quoteItems=data.quoteItems||[];
+    catNotes=data.catNotes||{};
+    if(data.remarksItems)remarksItems=[...data.remarksItems];
+    projDuration=data.projDuration||0;
+    renderRemarks();
     miscItems=data.miscItems||[];
     renderMiscItems();
+    if(data.extraCleanMode&&document.getElementById('extraCleanMode')){document.getElementById('extraCleanMode').value=data.extraCleanMode;toggleCleanMode();}
+    if(data.extraCleanQty!==undefined&&document.getElementById('extraCleanQty'))document.getElementById('extraCleanQty').value=data.extraCleanQty;
+    if(data.extraCleanPrice!==undefined&&document.getElementById('extraCleanPrice'))document.getElementById('extraCleanPrice').value=data.extraCleanPrice;
+    if(data.extraCleanFixed!==undefined&&document.getElementById('extraCleanFixed'))document.getElementById('extraCleanFixed').value=data.extraCleanFixed;
+    if(data.extraDesignMode&&document.getElementById('extraDesignMode')){document.getElementById('extraDesignMode').value=data.extraDesignMode;toggleDesignMode();}
+    if(data.extraDesignFixed!==undefined&&document.getElementById('extraDesignFixed'))document.getElementById('extraDesignFixed').value=data.extraDesignFixed;
+    if(data.extraDesignPct!==undefined&&document.getElementById('extraDesignPct'))document.getElementById('extraDesignPct').value=data.extraDesignPct;
+    if(data.extraDesignQty!==undefined&&document.getElementById('extraDesignQty'))document.getElementById('extraDesignQty').value=data.extraDesignQty;
+    if(data.extraDesignPrice!==undefined&&document.getElementById('extraDesignPrice'))document.getElementById('extraDesignPrice').value=data.extraDesignPrice;
+    if(data.extraInsurance!==undefined&&document.getElementById('extraInsurance'))document.getElementById('extraInsurance').value=data.extraInsurance;
     renderQuote();
   }catch(e){alert('檔案讀取失敗：'+e.message);}
 }
