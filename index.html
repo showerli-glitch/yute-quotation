@@ -1485,9 +1485,19 @@ function initGsi(){
     callback: async (resp) => {
       if(resp.error){ alert('授權失敗：'+resp.error); return; }
       driveAccessToken = resp.access_token;
+      const btnSave = document.getElementById('btnDriveSave');
+      if(btnSave) btnSave.style.display='';
       await driveListFiles();
+      startDrivePolling();
     }
   });
+  // session 自動登入：靜默取得 Drive token（不跳 popup）
+  try {
+    const s = JSON.parse(localStorage.getItem('yutesign_session')||'{}');
+    if(s.email && s.email.endsWith('@yutesign.com') && Date.now()-s.loginTime < 8*3600*1000){
+      setTimeout(()=>{ tokenClient.requestAccessToken({prompt:''}); }, 500);
+    }
+  } catch(e){}
 }
 
 function driveAuth(){
