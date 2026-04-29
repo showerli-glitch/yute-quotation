@@ -1567,9 +1567,7 @@ async function driveListFiles(){
   // 初始化資料夾最新時間戳（只在第一次設定，之後由 polling 更新）
   if(!lastFolderModifiedTime && files.length) lastFolderModifiedTime = files[0].modifiedTime;
   const container = document.getElementById('driveFiles');
-  const listDiv = document.getElementById('driveFileList');
-  listDiv.style.display = '';
-  if(!files.length){ container.innerHTML = '<span style="font-size:12px;color:#888">尚無已儲存的報價</span>'; return; }
+  if(!files.length){ container.innerHTML = ''; return; }
   container.innerHTML = files.map(f => `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
       <span style="font-size:12px;flex:1;color:#333">${f.name}</span>
