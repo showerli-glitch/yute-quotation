@@ -342,7 +342,6 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
       <button class="btn" onclick="exportJSON()" style="background:#f0fff4;border-color:#b8e4c5;color:#1a7a4a">💾 儲存報價</button>
       <button class="btn btn-primary" onclick="doPrint()">列印 PDF</button>
       <button class="btn" onclick="exportToExcel()" style="background:#1a7a4a;color:#fff;border-color:#1a7a4a">匯出 Excel</button>
-<button class="btn" id="btnDriveSave" onclick="driveSave()" style="display:none;background:#4285f4;color:#fff">☁️ 存至 Drive</button>
     </div>
     <div id="driveFileList" style="display:none;margin-top:8px;padding:8px;background:#f0f7ff;border-radius:6px;border:1px solid #b8d4f5">
       <div style="font-size:12px;color:#555;margin-bottom:6px">☁️ 雲端已儲存的報價：</div>
@@ -1368,15 +1367,17 @@ async function exportJSON(){
       const writable=await fh.createWritable();
       await writable.write(json);
       await writable.close();
-      return;
     }catch(e){if(e.name==='AbortError')return;}
+  } else {
+    const blob=new Blob([json],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=fileName;
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
-  const blob=new Blob([json],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=fileName;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  // Drive 已連線時，同步靜默存一份到雲端（讓同事的輪詢能偵測到）
+  if(driveAccessToken) driveSaveQuiet();
 }
 
 async function importJSON(){
@@ -1474,7 +1475,8 @@ let driveAccessToken = null;
 const SHARED_FOLDER_ID = '17fGaw38tzYoQ3kPXnMN8bOhCSpjkjqwX';
 let driveFolderId = SHARED_FOLDER_ID;
 let currentDriveFileId = null;
-let currentDriveFileModifiedTime = null;
+let lastFolderModifiedTime = null;
+let latestChangedFileId = null;
 let lastOwnSaveTime = 0;
 let drivePollingInterval = null;
 
@@ -1485,8 +1487,6 @@ function initGsi(){
     callback: async (resp) => {
       if(resp.error){ alert('授權失敗：'+resp.error); return; }
       driveAccessToken = resp.access_token;
-      const btnSave = document.getElementById('btnDriveSave');
-      if(btnSave) btnSave.style.display='';
       await driveListFiles();
       startDrivePolling();
     }
@@ -1529,9 +1529,9 @@ async function ensureDriveFolder(){
   }
 }
 
-async function driveSave(){
-  if(!driveAccessToken){ alert('請先連線 Google Drive'); return; }
-  if(!driveFolderId){ alert('資料夾尚未建立，請稍候再試'); return; }
+// 靜默存到 Drive（由「存檔報價」自動觸發，不跳 alert）
+async function driveSaveQuiet(){
+  if(!driveAccessToken || !driveFolderId) return;
   try {
     const projName = document.getElementById('projName').value || '未命名報價';
     const projDate = document.getElementById('projDate').value || new Date().toISOString().slice(0,10);
@@ -1540,7 +1540,6 @@ async function driveSave(){
     const boundary = 'boundary_yute_' + Date.now();
     let savedFileId;
     if(currentDriveFileId){
-      // 更新現有檔案（PATCH），不建立新檔
       const metaBody = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({name:fileName})}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
       const res = await driveApi(`https://www.googleapis.com/upload/drive/v3/files/${currentDriveFileId}?uploadType=multipart&supportsAllDrives=true`, {
         method: 'PATCH',
@@ -1549,7 +1548,6 @@ async function driveSave(){
       });
       savedFileId = res.id;
     } else {
-      // 新建檔案
       const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({name:fileName,mimeType:'application/json',parents:[driveFolderId]})}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
       const res = await driveApi('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
         method: 'POST',
@@ -1558,21 +1556,19 @@ async function driveSave(){
       });
       savedFileId = res.id;
     }
-    // 記錄目前檔案 ID 及儲存時間（避免自己觸發同步通知）
     currentDriveFileId = savedFileId;
     lastOwnSaveTime = Date.now();
-    const meta = await driveApi(`https://www.googleapis.com/drive/v3/files/${savedFileId}?fields=modifiedTime&supportsAllDrives=true`);
-    currentDriveFileModifiedTime = meta.modifiedTime;
     syncDismiss();
-    alert('✅ 已儲存至 Google Drive：' + fileName);
     await driveListFiles();
-  } catch(e){ alert('儲存失敗：'+e.message); }
+  } catch(e){ /* 靜默失敗，不打斷使用者 */ }
 }
 
 async function driveListFiles(){
   if(!driveAccessToken || !driveFolderId) return;
   const data = await driveApi(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${driveFolderId}' in parents and trashed=false`)}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc&supportsAllDrives=true&includeItemsFromAllDrives=true`);
   const files = data.files || [];
+  // 初始化資料夾最新時間戳（只在第一次設定，之後由 polling 更新）
+  if(!lastFolderModifiedTime && files.length) lastFolderModifiedTime = files[0].modifiedTime;
   const container = document.getElementById('driveFiles');
   const listDiv = document.getElementById('driveFileList');
   listDiv.style.display = '';
@@ -1595,7 +1591,7 @@ async function driveLoad(fileId){
     ]);
     const data = await res.json();
     currentDriveFileId = fileId;
-    currentDriveFileModifiedTime = meta.modifiedTime;
+    lastFolderModifiedTime = meta.modifiedTime;
     syncDismiss();
     document.getElementById('projName').value = data.projName||'';
     document.getElementById('projEmail').value = data.projEmail||'shower.li@yutesign.com';
@@ -1628,29 +1624,38 @@ async function driveLoad(fileId){
 async function driveDeleteFile(fileId){
   if(!confirm('確定要刪除這份報價嗎？')) return;
   await driveApi(`https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`, { method: 'DELETE' });
-  if(currentDriveFileId === fileId){ currentDriveFileId = null; currentDriveFileModifiedTime = null; }
+  if(currentDriveFileId === fileId){ currentDriveFileId = null; }
   await driveListFiles();
 }
 
 // ===== 同步通知 =====
-async function pollCurrentFile(){
-  if(!driveAccessToken || !currentDriveFileId) return;
+// 輪詢整個資料夾最新檔案，不限定特定 fileId
+async function pollDriveFolder(){
+  if(!driveAccessToken || !driveFolderId) return;
   try {
-    const meta = await driveApi(`https://www.googleapis.com/drive/v3/files/${currentDriveFileId}?fields=modifiedTime&supportsAllDrives=true`);
-    if(meta.modifiedTime === currentDriveFileModifiedTime) return;
-    // 自己剛存的，5 秒內不通知
-    if(Date.now() - lastOwnSaveTime < 5000){
-      currentDriveFileModifiedTime = meta.modifiedTime;
+    const data = await driveApi(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${driveFolderId}' in parents and trashed=false`)}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc&pageSize=1&supportsAllDrives=true&includeItemsFromAllDrives=true`);
+    const latest = (data.files||[])[0];
+    if(!latest) return;
+    if(!lastFolderModifiedTime){
+      lastFolderModifiedTime = latest.modifiedTime;
       return;
     }
-    // 時間戳改變，是別人存的
-    currentDriveFileModifiedTime = meta.modifiedTime;
-    showSyncBanner();
+    if(latest.modifiedTime === lastFolderModifiedTime) return;
+    // 自己剛存的，10 秒內不通知
+    if(Date.now() - lastOwnSaveTime < 10000){
+      lastFolderModifiedTime = latest.modifiedTime;
+      return;
+    }
+    lastFolderModifiedTime = latest.modifiedTime;
+    latestChangedFileId = latest.id;
+    showSyncBanner(latest.name);
   } catch(e){ /* 忽略輪詢錯誤，下次再試 */ }
 }
 
-function showSyncBanner(){
+function showSyncBanner(fileName){
   const b = document.getElementById('syncBanner');
+  const msg = b.querySelector('span');
+  if(msg) msg.textContent = `⚠️ 同事剛存了「${fileName||'新版本'}」，你目前的編輯尚未存檔`;
   b.style.display = 'flex';
 }
 
@@ -1659,15 +1664,14 @@ function syncDismiss(){
 }
 
 async function syncLoadLatest(){
-  // 先備份目前編輯到 localStorage
   try { localStorage.setItem('yutesign_sync_backup', JSON.stringify(getQuoteData())); } catch(e){}
   syncDismiss();
-  await driveLoad(currentDriveFileId);
+  await driveLoad(latestChangedFileId || currentDriveFileId);
 }
 
 function startDrivePolling(){
   if(drivePollingInterval) clearInterval(drivePollingInterval);
-  drivePollingInterval = setInterval(pollCurrentFile, 30000);
+  drivePollingInterval = setInterval(pollDriveFolder, 30000);
 }
 
 function getQuoteData(){
@@ -1739,10 +1743,6 @@ function initLoginGsi(){
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('mainApp').style.display = '';
         localStorage.setItem('yutesign_session', JSON.stringify({email: user.email, loginTime: Date.now()}));
-        const btn = document.getElementById('btnDriveAuth');
-        if(btn){ btn.textContent='☁️ 已連線 Drive'; btn.style.background='#e8f5e9'; btn.style.color='#2e7d32'; btn.style.borderColor='#a5d6a7'; }
-        const btnSave = document.getElementById('btnDriveSave');
-        if(btnSave) btnSave.style.display='';
         await driveListFiles();
         startDrivePolling();
       } catch(e){
