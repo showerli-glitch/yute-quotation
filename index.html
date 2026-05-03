@@ -161,6 +161,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
 .pd-page-header{display:table-header-group!important}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 (function(){
   try{
@@ -240,7 +242,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
   <!-- 同步通知橫條 -->
   <div id="syncBanner" style="display:none;background:#e65100;color:#fff;padding:9px 16px;margin:-24px -24px 16px -24px;align-items:center;gap:12px;font-size:13px;flex-wrap:wrap">
     <span style="flex:1">⚠️ 同事剛儲存了新版本，你目前的編輯尚未存檔</span>
-    <button onclick="syncLoadLatest()" style="background:#fff;color:#e65100;border:none;padding:4px 14px;border-radius:4px;cursor:pointer;font-weight:bold;white-space:nowrap">載入最新版</button>
+    <button onclick="syncLoadLatest()" style="background:#fff;color:#e65100;border:none;padding:4px 14px;border-radius:4px;cursor:pointer;font-weight:bold;white-space:nowrap">開啟報價</button>
     <button onclick="syncDismiss()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.7);padding:4px 14px;border-radius:4px;cursor:pointer;white-space:nowrap">忽略</button>
   </div>
   <div class="right-top">
@@ -1403,8 +1405,9 @@ async function exportJSON(){
     a.click();
     URL.revokeObjectURL(a.href);
   }
-  // Drive 已連線時，同步靜默存一份到雲端（讓同事的輪詢能偵測到）
-  if(driveAccessToken) driveSaveQuiet();
+  // 通知同事（Firebase 即時推送）
+  const _sess = JSON.parse(localStorage.getItem('yutesign_session')||'{}');
+  if(_sess.email) fbSyncNotify(_sess.email, fileName);
 }
 
 async function importJSON(){
@@ -1495,17 +1498,13 @@ renderRemarks();
 
 // ===== Google Drive 功能 =====
 const CLIENT_ID = '239869421522-cqs68t3pnahjbmv9ld1k08b4p79s34k4.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/drive';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const FOLDER_NAME = '宇德報價系統';
 let tokenClient;
 let driveAccessToken = null;
 const SHARED_FOLDER_ID = '17fGaw38tzYoQ3kPXnMN8bOhCSpjkjqwX';
 let driveFolderId = SHARED_FOLDER_ID;
 let currentDriveFileId = null;
-let lastFolderModifiedTime = null;
-let latestChangedFileId = null;
-let lastOwnSaveTime = 0;
-let drivePollingInterval = null;
 
 function initGsi(){
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -1515,7 +1514,6 @@ function initGsi(){
       if(resp.error){ alert('授權失敗：'+resp.error); return; }
       driveAccessToken = resp.access_token;
       await driveListFiles();
-      startDrivePolling();
     }
   });
   // session 自動登入：靜默取得 Drive token（不跳 popup）
@@ -1556,39 +1554,6 @@ async function ensureDriveFolder(){
   }
 }
 
-// 靜默存到 Drive（由「存檔報價」自動觸發，不跳 alert）
-async function driveSaveQuiet(){
-  if(!driveAccessToken || !driveFolderId) return;
-  try {
-    const projName = document.getElementById('projName').value || '未命名報價';
-    const projDate = document.getElementById('projDate').value || new Date().toISOString().slice(0,10);
-    const fileName = `${projName}_${projDate}.json`;
-    const content = JSON.stringify(getQuoteData(), null, 2);
-    const boundary = 'boundary_yute_' + Date.now();
-    let savedFileId;
-    if(currentDriveFileId){
-      const metaBody = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({name:fileName})}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
-      const res = await driveApi(`https://www.googleapis.com/upload/drive/v3/files/${currentDriveFileId}?uploadType=multipart&supportsAllDrives=true`, {
-        method: 'PATCH',
-        headers: {'Content-Type': `multipart/related; boundary=${boundary}`},
-        body: metaBody
-      });
-      savedFileId = res.id;
-    } else {
-      const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({name:fileName,mimeType:'application/json',parents:[driveFolderId]})}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
-      const res = await driveApi('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
-        method: 'POST',
-        headers: {'Content-Type': `multipart/related; boundary=${boundary}`},
-        body
-      });
-      savedFileId = res.id;
-    }
-    currentDriveFileId = savedFileId;
-    lastOwnSaveTime = Date.now();
-    syncDismiss();
-    await driveListFiles();
-  } catch(e){ /* 靜默失敗，不打斷使用者 */ }
-}
 
 async function driveListFiles(){
   if(!driveAccessToken || !driveFolderId) return;
@@ -1653,34 +1618,47 @@ async function driveDeleteFile(fileId){
   await driveListFiles();
 }
 
-// ===== 同步通知 =====
-// 輪詢整個資料夾最新檔案，不限定特定 fileId
-async function pollDriveFolder(){
-  if(!driveAccessToken || !driveFolderId) return;
-  try {
-    const data = await driveApi(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(`'${driveFolderId}' in parents and trashed=false`)}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc&pageSize=1&supportsAllDrives=true&includeItemsFromAllDrives=true`);
-    const latest = (data.files||[])[0];
-    if(!latest) return;
-    if(!lastFolderModifiedTime){
-      lastFolderModifiedTime = latest.modifiedTime;
-      return;
-    }
-    if(latest.modifiedTime === lastFolderModifiedTime) return;
-    // 自己剛存的，10 秒內不通知
-    if(Date.now() - lastOwnSaveTime < 10000){
-      lastFolderModifiedTime = latest.modifiedTime;
-      return;
-    }
-    lastFolderModifiedTime = latest.modifiedTime;
-    latestChangedFileId = latest.id;
-    showSyncBanner(latest.name);
-  } catch(e){ /* 忽略輪詢錯誤，下次再試 */ }
+// ===== Firebase 即時同步通知 =====
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAz-MeKorzgp-_EjiMWvugiz_JFDjk4NIs",
+  authDomain: "yutesign-sync.firebaseapp.com",
+  databaseURL: "https://yutesign-sync-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "yutesign-sync",
+  storageBucket: "yutesign-sync.firebasestorage.app",
+  messagingSenderId: "709833651829",
+  appId: "1:709833651829:web:6d52a99ceefc1915caaa3c"
+};
+let fbDb = null;
+let fbMyEmail = null;
+
+function initFirebase(){
+  if(fbDb) return;
+  firebase.initializeApp(FIREBASE_CONFIG);
+  fbDb = firebase.database();
 }
 
-function showSyncBanner(fileName){
+function fbSyncNotify(email, fileName){
+  if(!fbDb) return;
+  fbDb.ref('sync/lastSave').set({ who: email, fileName, at: Date.now() });
+}
+
+function fbSyncListen(email){
+  if(!fbDb) return;
+  fbMyEmail = email;
+  fbDb.ref('sync/lastSave').on('value', snap => {
+    const d = snap.val();
+    if(!d) return;
+    if(d.who === fbMyEmail) return;
+    if(Date.now() - d.at > 5 * 60 * 1000) return; // 超過 5 分鐘的舊通知不顯示
+    const who = d.who.replace('@yutesign.com', '');
+    showSyncBanner(`${who} 剛存了「${d.fileName}」`);
+  });
+}
+
+function showSyncBanner(msg){
   const b = document.getElementById('syncBanner');
-  const msg = b.querySelector('span');
-  if(msg) msg.textContent = `⚠️ 同事剛存了「${fileName||'新版本'}」，你目前的編輯尚未存檔`;
+  const sp = b.querySelector('span');
+  if(sp) sp.textContent = '⚠️ ' + msg;
   b.style.display = 'flex';
 }
 
@@ -1688,15 +1666,9 @@ function syncDismiss(){
   document.getElementById('syncBanner').style.display = 'none';
 }
 
-async function syncLoadLatest(){
-  try { localStorage.setItem('yutesign_sync_backup', JSON.stringify(getQuoteData())); } catch(e){}
+function syncLoadLatest(){
   syncDismiss();
-  await driveLoad(latestChangedFileId || currentDriveFileId);
-}
-
-function startDrivePolling(){
-  if(drivePollingInterval) clearInterval(drivePollingInterval);
-  drivePollingInterval = setInterval(pollDriveFolder, 30000);
+  importJSON();
 }
 
 function getQuoteData(){
@@ -1725,6 +1697,9 @@ function getQuoteData(){
   };
 }
 
+initFirebase();
+// session 自動登入時也啟動 Firebase 監聽
+try{const _s=JSON.parse(localStorage.getItem('yutesign_session')||'{}');if(_s.email)fbSyncListen(_s.email);}catch(e){}
 loadGsi();
 
 // ===== 登入驗證 =====
@@ -1769,7 +1744,7 @@ function initLoginGsi(){
         document.getElementById('mainApp').style.display = '';
         localStorage.setItem('yutesign_session', JSON.stringify({email: user.email, loginTime: Date.now()}));
         await driveListFiles();
-        startDrivePolling();
+        fbSyncListen(user.email);
       } catch(e){
         showLoginError('驗證失敗：' + e.message);
         document.getElementById('btnLogin').textContent = '使用公司帳號登入';
