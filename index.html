@@ -622,7 +622,7 @@ function loadQuoteState(){
     if(s.mgmtFee!==undefined)document.getElementById('mgmtFee').value=s.mgmtFee;
     if(s.projEmail!==undefined&&document.getElementById('projEmail'))document.getElementById('projEmail').value=s.projEmail;
     if(s.projDuration!==undefined){projDuration=s.projDuration;const el=document.getElementById('projDuration');if(el)el.value=s.projDuration;}
-    if(s.quoteItems)quoteItems=s.quoteItems;
+    if(s.quoteItems)quoteItems=s.quoteItems.map(item=>({...item,id:item.id||(Date.now()+Math.random())}));
     if(s.catNotes)catNotes=s.catNotes;
     if(s.remarksItems)remarksItems=[...s.remarksItems];
     if(s.miscItems){miscItems=[...s.miscItems];renderMiscItems();}
@@ -1447,7 +1447,7 @@ async function importJSON(){
     document.getElementById('projDate').value=data.projDate||'';
     document.getElementById('mgmtFee').value=data.mgmtFee||5;
     if(document.getElementById('projEmail'))document.getElementById('projEmail').value=data.projEmail||'';
-    quoteItems=data.quoteItems||[];
+    quoteItems=(data.quoteItems||[]).map(item=>({...item,id:item.id||(Date.now()+Math.random())}));
     catNotes=data.catNotes||{};
     if(data.remarksItems)remarksItems=[...data.remarksItems];
     projDuration=data.projDuration||0;
@@ -1591,7 +1591,7 @@ async function driveLoad(fileId){
     document.getElementById('projAddr').value = data.projAddr||'';
     document.getElementById('projDate').value = data.projDate||'';
     document.getElementById('mgmtFee').value = data.mgmtFee||5;
-    quoteItems = data.quoteItems||[];
+    quoteItems = (data.quoteItems||[]).map(item=>({...item,id:item.id||(Date.now()+Math.random())}));
     catNotes = data.catNotes||{};
     if(data.remarksItems) remarksItems=[...data.remarksItems];
     projDuration=data.projDuration||0;
