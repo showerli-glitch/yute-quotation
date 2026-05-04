@@ -1386,12 +1386,14 @@ async function exportJSON(){
   const saveData=Object.assign({version:1,savedAt:new Date().toISOString()},getQuoteData());
   const json=JSON.stringify(saveData,null,2);
   const fileName=`宇德報價_${name}_${date}.json`;
+  let actualFileName = fileName;
   if(window.showSaveFilePicker){
     try{
       const fh=await window.showSaveFilePicker({
         suggestedName:fileName,
         types:[{description:'JSON 報價檔',accept:{'application/json':['.json']}}]
       });
+      actualFileName = fh.name; // 使用者在存檔視窗可能改過檔名，取實際名稱
       const writable=await fh.createWritable();
       await writable.write(json);
       await writable.close();
@@ -1406,7 +1408,7 @@ async function exportJSON(){
   }
   // 通知同事（Firebase 即時推送）
   const _sess = JSON.parse(localStorage.getItem('yutesign_session')||'{}');
-  if(_sess.email) fbSyncNotify(_sess.email, fileName);
+  if(_sess.email) fbSyncNotify(_sess.email, actualFileName);
 }
 
 async function importJSON(){
