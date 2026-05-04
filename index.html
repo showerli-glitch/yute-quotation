@@ -242,9 +242,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
   <!-- 同步通知橫條 -->
   <div id="syncBanner" style="display:none;background:#e65100;color:#fff;padding:9px 16px;margin:-24px -24px 16px -24px;align-items:center;gap:12px;font-size:13px;flex-wrap:wrap">
     <span style="flex:1">⚠️ 同事剛儲存了新版本，你目前的編輯尚未存檔</span>
-    <button onclick="syncSaveFirst()" style="background:#fff;color:#e65100;border:none;padding:4px 14px;border-radius:4px;cursor:pointer;font-weight:bold;white-space:nowrap">先存我的再開啟</button>
-    <button onclick="syncOpenDirect()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.7);padding:4px 14px;border-radius:4px;cursor:pointer;white-space:nowrap">直接開啟</button>
-    <button onclick="syncDismiss()" style="background:transparent;color:#fff;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;white-space:nowrap;font-size:16px;line-height:1">×</button>
+    <button onclick="syncDismiss()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.7);padding:4px 14px;border-radius:4px;cursor:pointer;white-space:nowrap">知道了</button>
   </div>
   <div class="right-top">
     <div class="project-info">
@@ -1667,15 +1665,6 @@ function syncDismiss(){
   document.getElementById('syncBanner').style.display = 'none';
 }
 
-async function syncSaveFirst(){
-  syncDismiss();
-  await exportJSON();
-  importJSON();
-}
-function syncOpenDirect(){
-  syncDismiss();
-  importJSON();
-}
 
 function getQuoteData(){
   return {
