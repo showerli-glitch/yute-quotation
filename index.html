@@ -925,11 +925,10 @@ function buildPrintDoc(){
       <thead><tr>
         <th style="width:28pt">項次</th>
         <th>名稱與說明</th>
-        <th style="width:25pt">單位</th>
-        <th style="width:30pt">預估數量</th>
+        <th style="width:28pt">單位</th>
+        <th style="width:32pt">預估數量</th>
         <th style="width:58pt">單　價</th>
         <th style="width:65pt">複　價</th>
-        <th style="width:42pt">備　註</th>
       </tr></thead><tbody>`;
   let sIdx=0;
   sections.forEach(([cat,items])=>{
@@ -1020,22 +1019,21 @@ function buildPrintDoc(){
     detailNum=1; // 每個大項重新從1開始
     const catTotal=items.reduce((s,i)=>s+i.qty*i.price,0);
     p2+='<tr><td colspan="7" style="border:none;padding:6pt 0 2pt;font-size:10.5pt;font-weight:700;border-bottom:0.5pt solid #888">'+( NUM_ZH[sIdx]||sIdx+1)+'、'+cat+'</td></tr>';
-    p2+='<tr style="background:#ebebeb">'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:26pt">項次</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt">名稱與說明</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:26pt">單位</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:30pt">預估數量</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:55pt">單　價</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:62pt">複　價</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:40pt">備　註</th>'+'</tr>';
+    p2+='<tr style="background:#ebebeb">'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:26pt">項次</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt">名稱與說明</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:28pt">單位</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:32pt">預估數量</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:58pt">單　價</th>'+'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:center;font-size:8pt;width:65pt">複　價</th>'+'</tr>';
     items.forEach(item=>{
       p2+='<tr>'
         +'<td style="border:0.5pt solid #aaa;padding:3pt 4pt;text-align:center">'+detailNum+'</td>'
-        +'<td style="border:0.5pt solid #aaa;padding:3pt 4pt">'+item.name+'</td>'
+        +'<td style="border:0.5pt solid #aaa;padding:3pt 4pt">'+item.name+(item.note ? '<div style="font-size:7.5pt;color:#555;margin-top:2pt;padding-left:2pt">※ '+item.note+'</div>' : '')+'</td>'
         +'<td style="border:0.5pt solid #aaa;padding:3pt 4pt;text-align:center">'+item.unit+'</td>'
         +'<td style="border:0.5pt solid #aaa;padding:3pt 4pt;text-align:center">'+item.qty+'</td>'
         +'<td style="border:0.5pt solid #aaa;padding:3pt 4pt;text-align:right">'+Math.round(item.price).toLocaleString()+'</td>'
-        +'<td style="border:0.5pt solid #aaa;padding:3pt 4pt;text-align:right">'+Math.round(item.qty*item.price).toLocaleString()+'</td>'
-        +'<td style="border:0.5pt solid #aaa;padding:3pt 4pt">'+(item.note||'')+'</td></tr>';
+        +'<td style="border:0.5pt solid #aaa;padding:3pt 4pt;text-align:right">'+Math.round(item.qty*item.price).toLocaleString()+'</td></tr>';
       detailNum++;
     });
     p2+='<tr style="background:#f5f5f5">'
       +'<td colspan="5" style="border:0.5pt solid #777;padding:3pt 4pt;text-align:right;font-weight:600">小　計</td>'
       +'<td style="border:0.5pt solid #777;padding:3pt 4pt;text-align:right;font-weight:600">'+Math.round(catTotal).toLocaleString()+'</td>'
-      +'<td style="border:0.5pt solid #777;padding:3pt 4pt"></td></tr>'
+      +'</tr>'
       +'<tr><td colspan="7" style="border:none;padding:3pt 0"></td></tr>';
     sIdx++;
   });
