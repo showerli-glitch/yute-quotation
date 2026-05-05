@@ -317,6 +317,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
     <div class="stat-card"><div class="stat-label">管理費</div><div class="stat-value" id="statMgmt">$0</div></div>
     <div class="stat-card"><div class="stat-label">含稅總價</div><div class="stat-value accent" id="statTotal">$0</div></div>
   </div>
+  <div style="margin-bottom:10px;position:relative">
+    <input id="quoteSearch" type="text" placeholder="搜尋報價單工項…" oninput="renderQuote()" style="width:100%;padding:7px 32px 7px 12px;border:1px solid #e0ddd5;border-radius:8px;font-size:13px;background:#fff;box-sizing:border-box;outline:none">
+    <span id="quoteSearchClear" onclick="document.getElementById('quoteSearch').value='';renderQuote()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#aaa;font-size:16px;line-height:1">×</span>
+  </div>
   <div id="rightContent"></div>
   <div id="addCustomArea" class="add-custom" style="margin-top:8px">
     <input id="customName" placeholder="手動新增工項名稱" style="flex:1;min-width:160px"/>
@@ -936,11 +940,26 @@ function renderQuote(){saveQuoteState();
   if(mode==='edit') return;
   const area=document.getElementById('rightContent');
   const {subtotal,mgmt,mgmtPct,beforeTax,tax,total}=getCalc();
+  // 搜尋過濾
+  const qsEl=document.getElementById('quoteSearch');
+  const qsClear=document.getElementById('quoteSearchClear');
+  const qKeyword=(qsEl?.value||'').trim().toLowerCase();
+  if(qsClear) qsClear.style.display=qKeyword?'':'none';
   if(!quoteItems.length){
     area.innerHTML='<div class="empty-state">從左側工項資料庫選取項目，或手動新增工項</div>';
     updateStats(0,subtotal,mgmtPct);return;
   }
   const grouped=getSections();
+  if(qKeyword){
+    Object.keys(grouped).forEach(cat=>{
+      grouped[cat]=grouped[cat].filter(i=>i.name.toLowerCase().includes(qKeyword)||(i.note||'').toLowerCase().includes(qKeyword));
+      if(!grouped[cat].length) delete grouped[cat];
+    });
+  }
+  if(qKeyword && !Object.keys(grouped).length){
+    area.innerHTML=`<div class="empty-state">找不到含「${qKeyword}」的工項</div>`;
+    return;
+  }
   let num=1;
   let html=`<div class="quote-table">
     <div class="table-header">
