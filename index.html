@@ -943,7 +943,7 @@ function getCalc(){
 }
 
 let _dragId=null;
-function qDS(e,id){_dragId=id;setTimeout(()=>e.target.closest('.quote-row').classList.add('dragging'),0);}
+function qDS(e,id){if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)){e.preventDefault();return;}_dragId=id;setTimeout(()=>e.target.closest('.quote-row').classList.add('dragging'),0);}
 function qDE(){document.querySelectorAll('.quote-row').forEach(el=>el.classList.remove('dragging','drag-over'));}
 function qDO(e){e.preventDefault();e.currentTarget.classList.add('drag-over');}
 function qDL(e){e.currentTarget.classList.remove('drag-over');}
@@ -1002,7 +1002,7 @@ function renderQuote(){saveQuoteState();
     items.forEach(item=>{
       const amt=item.qty*item.price;
       const hint=item.minPrice!==item.maxPrice?`<div class="price-hint">$${item.minPrice.toLocaleString()}～$${item.maxPrice.toLocaleString()}</div>`:'';
-      html+=`<div class="quote-row${selectedRowIds.has(item.id)?' selected':''}" draggable="true" data-id="${item.id}" onclick="selectRow(event,${item.id})" ondragstart="qDS(event,${item.id})" ondragover="qDO(event)" ondragleave="qDL(event)" ondrop="qDP(event,${item.id})" ondragend="qDE()">
+      html+=`<div class="quote-row${selectedRowIds.has(item.id)?' selected':''}" draggable="true" data-id="${item.id}" ondragstart="qDS(event,${item.id})" ondragover="qDO(event)" ondragleave="qDL(event)" ondrop="qDP(event,${item.id})" ondragend="qDE()">
         <span class="row-num"><span class="drag-icon">⠿</span>${num++}</span>
         <div style="display:flex;flex-direction:column;gap:2px">
           <input class="row-input row-name" value="${item.name}" onchange="updateStrField(${item.id},'name',this.value)" style="width:100%;text-align:left">
@@ -1011,7 +1011,7 @@ function renderQuote(){saveQuoteState();
         <span style="text-align:right"><input class="row-input" value="${item.unit}" style="width:60px;text-align:center" onchange="updateStrField(${item.id},'unit',this.value)"></span>
         <span style="text-align:right"><input class="row-input" type="number" value="${item.qty}" onchange="updateField(${item.id},'qty',this.value)" style="width:60px"></span>
         <span style="text-align:right"><input class="row-input" type="number" value="${item.price}" onchange="updateField(${item.id},'price',this.value)" style="width:90px">${hint}</span>
-        <span class="row-amount">$${Math.round(amt).toLocaleString()}</span>
+        <span class="row-amount" onclick="selectRow(event,${item.id})" title="點擊選取加總" style="cursor:pointer;border-radius:4px;padding:2px 4px;transition:background 0.1s">$${Math.round(amt).toLocaleString()}</span>
         <span><input class="row-input" value="${item.note||''}" placeholder="備註" style="width:100%;font-size:11px" onchange="updateStrField(${item.id},'note',this.value)"></span>
         <button class="row-delete" onclick="removeItem(${item.id})">×</button>
       </div>`;
