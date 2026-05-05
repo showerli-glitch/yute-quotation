@@ -517,7 +517,7 @@ const DEFAULT_ITEMS=[{"類別":"拆運保護清潔","工項名稱":"粗工點工
 {"類別": "燈具設備", "工項名稱": "B1地下室T-Bar燈具/吸頂燈（倉儲照明）", "單位": "盞", "參考單價": 800, "最低單價": 500, "最高單價": 1200, "出現次數": 1},
 {"類別": "泥作貼磚", "工項名稱": "B1地下室壁磚（30×60霧面白色，含打底防水層上）", "單位": "㎡", "參考單價": 2200, "最低單價": 1800, "最高單價": 2800, "出現次數": 1},
 {"類別": "泥作貼磚", "工項名稱": "環氧樹脂填縫劑（防霉抑菌，地下室壁磚+地磚）", "單位": "㎡", "參考單價": 280, "最低單價": 220, "最高單價": 380, "出現次數": 1}];
-const SECTION_ORDER=["假設及拆運工程", "水電／照明工程", "輕隔間及輕鋼架天花工程", "泥作及貼磚工程", "木作及系統櫃工程", "門扇工程", "鋁窗工程", "鐵件及金屬工程", "油漆工程", "地坪工程", "玻璃及貼膜工程", "招牌工程", "窗簾工程", "空調工程", "石材工程", "人造石工程", "壁紙工程", "裱布／繃皮工程", "景觀工程", "矽利康工程", "衛浴設備工程", "廚具設備工程", "燈具、設備及其他工程", "施工區域完工後清潔工程", "設計製圖費", "監工管理費", "工程保險費"];
+const SECTION_ORDER=["假設及拆運工程", "土木工程", "水電／照明工程", "防水工程", "輕隔間及輕鋼架天花工程", "泥作及貼磚工程", "木作及系統櫃工程", "門扇工程", "鋁窗工程", "鐵件及金屬工程", "油漆工程", "地坪工程", "玻璃及貼膜工程", "招牌工程", "窗簾工程", "空調工程", "石材工程", "人造石工程", "壁紙工程", "裱布／繃皮工程", "景觀工程", "矽利康工程", "衛浴設備工程", "廚具設備工程", "燈具、設備及其他工程", "施工區域完工後清潔工程", "設計製圖費", "監工管理費", "工程保險費"];
 const CAT_MAP={
   '拆運保護清潔':'假設及拆運工程','搬運機具':'假設及拆運工程',
   '水電工程':'水電／照明工程','輕隔間天花':'輕隔間及輕鋼架天花工程',
@@ -531,6 +531,7 @@ const CAT_MAP={
   '燈具設備':'燈具、設備及其他工程','石材工程':'石材工程','人造石工程':'人造石工程',
   '壁紙工程':'壁紙工程','裱布繃皮工程':'裱布／繃皮工程',
   '景觀工程':'景觀工程','矽利康工程':'矽利康工程',
+  '土木工程':'土木工程','防水工程':'防水工程',
   '其他':'燈具、設備及其他工程',
 };
 const NUM_ZH=['一','二','三','四','五','六','七','八','九','十',
@@ -538,7 +539,7 @@ const NUM_ZH=['一','二','三','四','五','六','七','八','九','十',
 
 // State
 let mode='quote';  // 'quote' | 'edit'
-const DB_VERSION='2026050501';
+const DB_VERSION='2026050502';
 let dbItems=[];    // working copy of item database
 let quoteItems=[];
 let undoHistory=[];let redoHistory=[];
@@ -1069,7 +1070,7 @@ function toggleReviewed(e,id){
   const numSpan=e.currentTarget;
   const num=numSpan.textContent.replace('✓','').trim();
   numSpan.innerHTML=nowReviewed?`<span style="font-size:13px">✓</span>${num}`:`<span class="drag-icon">⠿</span>${num}`;
-  saveQuoteState();
+  requestAnimationFrame(saveQuoteState);
 }
 function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();selectedRowIds.clear();updateSelectionSum();reviewedIds.clear();customSectionOrder=null;quoteItems=[];miscItems=[];renderMiscItems();renderQuote();}}
 
