@@ -317,9 +317,26 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
     <div class="stat-card"><div class="stat-label">管理費</div><div class="stat-value" id="statMgmt">$0</div></div>
     <div class="stat-card"><div class="stat-label">含稅總價</div><div class="stat-value accent" id="statTotal">$0</div></div>
   </div>
-  <div style="margin-bottom:10px;position:relative">
-    <input id="quoteSearch" type="text" placeholder="搜尋報價單工項…" oninput="renderQuote()" style="width:100%;padding:7px 32px 7px 12px;border:1px solid #e0ddd5;border-radius:8px;font-size:13px;background:#fff;box-sizing:border-box;outline:none">
-    <span id="quoteSearchClear" onclick="document.getElementById('quoteSearch').value='';renderQuote()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#aaa;font-size:16px;line-height:1">×</span>
+  <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center">
+    <div style="position:relative;flex:1">
+      <input id="quoteSearch" type="text" placeholder="搜尋報價單工項…" oninput="renderQuote()" style="width:100%;padding:7px 32px 7px 12px;border:1px solid #e0ddd5;border-radius:8px;font-size:13px;background:#fff;box-sizing:border-box;outline:none">
+      <span id="quoteSearchClear" onclick="document.getElementById('quoteSearch').value='';renderQuote()" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#aaa;font-size:16px;line-height:1">×</span>
+    </div>
+    <button onclick="openSectionManager()" style="white-space:nowrap;padding:7px 14px;border:1px solid #e0ddd5;border-radius:8px;font-size:13px;background:#fff;cursor:pointer;color:#555">⚙ 大項管理</button>
+  </div>
+  <!-- 大項管理 Modal -->
+  <div id="sectionMgrOverlay" onclick="if(event.target===this)closeSectionManager()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;width:440px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="padding:16px 20px;border-bottom:1px solid #e0ddd5;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-weight:600;font-size:15px">大項管理</span>
+        <button onclick="closeSectionManager()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#aaa;line-height:1">×</button>
+      </div>
+      <div id="sectionMgrList" style="padding:10px 12px;overflow-y:auto;flex:1;max-height:50vh"></div>
+      <div style="padding:12px;border-top:1px solid #e0ddd5;display:flex;gap:8px">
+        <input id="sectionMgrInput" placeholder="輸入新大項名稱" onkeydown="if(event.key==='Enter')addCustomSection()" style="flex:1;padding:7px 10px;border:1px solid #e0ddd5;border-radius:6px;font-size:13px;outline:none">
+        <button onclick="addCustomSection()" style="padding:7px 16px;background:#c0392b;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">＋ 新增</button>
+      </div>
+    </div>
   </div>
   <div id="rightContent"></div>
   <div id="addCustomArea" class="add-custom" style="margin-top:8px">
@@ -524,6 +541,7 @@ let dbItems=[];    // working copy of item database
 let quoteItems=[];
 let undoHistory=[];let redoHistory=[];
 let selectedRowIds=new Set();
+let customSectionOrder=null; // per-quote 大項排序，null = 使用 SECTION_ORDER 預設
 let catNotes={}; // 大表各類別備註
 let remarksItems=[
   '本估價不含建築物主管機關室內裝修送審。',
@@ -739,7 +757,8 @@ function saveQuoteState(){
       extraDesignPct:document.getElementById('extraDesignPct')?.value||0,
       extraDesignQty:document.getElementById('extraDesignQty')?.value||0,
       extraDesignPrice:document.getElementById('extraDesignPrice')?.value||0,
-      extraInsurance:document.getElementById('extraInsurance')?.value||0
+      extraInsurance:document.getElementById('extraInsurance')?.value||0,
+      customSectionOrder:customSectionOrder?[...customSectionOrder]:null
     };
     localStorage.setItem('yutesign_quote',JSON.stringify(state));
   }catch(e){}
@@ -770,6 +789,7 @@ function loadQuoteState(){
     if(s.extraDesignQty!==undefined&&document.getElementById('extraDesignQty'))document.getElementById('extraDesignQty').value=s.extraDesignQty;
     if(s.extraDesignPrice!==undefined&&document.getElementById('extraDesignPrice'))document.getElementById('extraDesignPrice').value=s.extraDesignPrice;
     if(s.extraInsurance!==undefined&&document.getElementById('extraInsurance'))document.getElementById('extraInsurance').value=s.extraInsurance;
+    if(s.customSectionOrder!==undefined)customSectionOrder=s.customSectionOrder;
   }catch(e){}
 }
 function addMiscItem(){
@@ -829,7 +849,10 @@ function addCustomItem(){
 function removeItem(id){saveHistory();quoteItems=quoteItems.filter(i=>i.id!==id);renderQuote();}
 function updateField(id,field,val){saveHistory();const item=quoteItems.find(i=>i.id===id);if(item)item[field]=parseFloat(val)||0;renderQuote();}
 function updateStrField(id,field,val){saveHistory();const item=quoteItems.find(i=>i.id===id);if(item)item[field]=val;}
-function buildCatOptions(sel){return SECTION_ORDER.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s.replace('工程','').replace('及系統櫃','').replace('及輕鋼架天花','').replace('及貼磚','').replace('及貼膜','').replace('、設備及其他','').replace('及鋁窗','')}</option>`).join('');}
+function buildCatOptions(sel){
+  const allCats=customSectionOrder?[...new Set([...customSectionOrder,...SECTION_ORDER])]:SECTION_ORDER;
+  return allCats.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s.replace('工程','').replace('及系統櫃','').replace('及輕鋼架天花','').replace('及貼磚','').replace('及貼膜','').replace('、設備及其他','').replace('及鋁窗','')}</option>`).join('');
+}
 function updateItemCat(id,newCat){
   saveHistory();
   const item=quoteItems.find(i=>i.id===id);
@@ -844,8 +867,9 @@ function updateItemCat(id,newCat){
 function getSections(){
   const g={};
   quoteItems.forEach(item=>{if(!g[item.cat])g[item.cat]=[];g[item.cat].push(item);});
+  const order=customSectionOrder||SECTION_ORDER;
   const sorted={};
-  SECTION_ORDER.forEach(s=>{if(g[s])sorted[s]=g[s];});
+  order.forEach(s=>{if(g[s])sorted[s]=g[s];});
   Object.keys(g).forEach(s=>{if(!sorted[s])sorted[s]=g[s];});
   return sorted;
 }
@@ -1030,7 +1054,57 @@ function updateSelectionSum(){
   document.getElementById('selectionSumCount').textContent=`已選 ${sel.length} 項`;
   block.style.display='';
 }
-function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();selectedRowIds.clear();updateSelectionSum();quoteItems=[];miscItems=[];renderMiscItems();renderQuote();}}
+function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();selectedRowIds.clear();updateSelectionSum();customSectionOrder=null;quoteItems=[];miscItems=[];renderMiscItems();renderQuote();}}
+
+// ===== 大項管理 =====
+function openSectionManager(){
+  if(!customSectionOrder){
+    const inQuote=new Set(quoteItems.map(i=>i.cat));
+    customSectionOrder=[...SECTION_ORDER.filter(s=>inQuote.has(s)),...[...inQuote].filter(s=>!SECTION_ORDER.includes(s))];
+  }
+  renderSectionManager();
+  document.getElementById('sectionMgrOverlay').style.display='flex';
+}
+function closeSectionManager(){
+  document.getElementById('sectionMgrOverlay').style.display='none';
+  renderQuote();
+}
+function renderSectionManager(){
+  const inQuote=new Set(quoteItems.map(i=>i.cat));
+  const btn=(label,onclick,disabled,color)=>`<button onclick="${onclick}" ${disabled?'disabled':''} style="padding:3px 10px;border:1px solid #e0ddd5;border-radius:4px;background:#fff;cursor:pointer;font-size:13px;color:${color||'#333'};${disabled?'opacity:0.3;cursor:default':''}">${label}</button>`;
+  document.getElementById('sectionMgrList').innerHTML=(customSectionOrder||[]).map((cat,i)=>{
+    const hasItems=inQuote.has(cat);
+    return `<div style="display:flex;align-items:center;gap:6px;padding:7px 4px;border-bottom:0.5px solid #f0ede5">
+      <span style="flex:1;font-size:13px;color:${hasItems?'#1a1a1a':'#aaa'}">${cat}${hasItems?'':' <span style="font-size:10px">（空）</span>'}</span>
+      ${btn('↑',`moveSectionUp(${i})`,i===0)}
+      ${btn('↓',`moveSectionDown(${i})`,i===(customSectionOrder.length-1))}
+      ${!hasItems?btn('×',`removeCustomSection(${i})`,false,'#c0392b'):''}
+    </div>`;
+  }).join('');
+}
+function moveSectionUp(i){
+  if(i===0)return;
+  [customSectionOrder[i-1],customSectionOrder[i]]=[customSectionOrder[i],customSectionOrder[i-1]];
+  renderSectionManager();
+}
+function moveSectionDown(i){
+  if(i===customSectionOrder.length-1)return;
+  [customSectionOrder[i],customSectionOrder[i+1]]=[customSectionOrder[i+1],customSectionOrder[i]];
+  renderSectionManager();
+}
+function addCustomSection(){
+  const inp=document.getElementById('sectionMgrInput');
+  const name=inp.value.trim();
+  if(!name)return;
+  if(customSectionOrder.includes(name)){alert('已有此大項名稱');return;}
+  customSectionOrder.push(name);
+  inp.value='';
+  renderSectionManager();
+}
+function removeCustomSection(i){
+  customSectionOrder.splice(i,1);
+  renderSectionManager();
+}
 
 function makePageHeader(name,client,addr,date,isDetail,email){
   const metaLine = isDetail
@@ -1614,6 +1688,7 @@ async function importJSON(){
     if(data.extraDesignQty!==undefined&&document.getElementById('extraDesignQty'))document.getElementById('extraDesignQty').value=data.extraDesignQty;
     if(data.extraDesignPrice!==undefined&&document.getElementById('extraDesignPrice'))document.getElementById('extraDesignPrice').value=data.extraDesignPrice;
     if(data.extraInsurance!==undefined&&document.getElementById('extraInsurance'))document.getElementById('extraInsurance').value=data.extraInsurance;
+    customSectionOrder=data.customSectionOrder||null;
     renderQuote();
   }catch(e){alert('檔案讀取失敗：'+e.message);}
 }
@@ -1758,6 +1833,7 @@ async function driveLoad(fileId){
     if(document.getElementById('extraInsurance')) document.getElementById('extraInsurance').value=data.extraInsurance||0;
     miscItems=data.miscItems||[];
     renderMiscItems();
+    customSectionOrder=data.customSectionOrder||null;
     renderQuote();
     alert('✅ 報價已載入');
   } catch(e){ alert('載入失敗：'+e.message); }
@@ -1841,7 +1917,8 @@ function getQuoteData(){
     extraDesignQty: parseFloat(document.getElementById('extraDesignQty')?.value)||0,
     extraDesignPrice: parseFloat(document.getElementById('extraDesignPrice')?.value)||0,
     extraInsurance: parseFloat(document.getElementById('extraInsurance')?.value)||0,
-    miscItems: [...miscItems]
+    miscItems: [...miscItems],
+    customSectionOrder: customSectionOrder ? [...customSectionOrder] : null
   };
 }
 
