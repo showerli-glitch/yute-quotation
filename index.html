@@ -1060,7 +1060,17 @@ function updateSelectionSum(){
   document.getElementById('selectionSumCount').textContent=`已選 ${sel.length} 項`;
   block.style.display='';
 }
-function toggleReviewed(e,id){e.stopPropagation();reviewedIds.has(id)?reviewedIds.delete(id):reviewedIds.add(id);renderQuote();}
+function toggleReviewed(e,id){
+  e.stopPropagation();
+  const nowReviewed=!reviewedIds.has(id);
+  nowReviewed?reviewedIds.add(id):reviewedIds.delete(id);
+  const row=e.currentTarget.closest('.quote-row');
+  row.classList.toggle('reviewed',nowReviewed);
+  const numSpan=e.currentTarget;
+  const num=numSpan.textContent.replace('✓','').trim();
+  numSpan.innerHTML=nowReviewed?`<span style="font-size:13px">✓</span>${num}`:`<span class="drag-icon">⠿</span>${num}`;
+  saveQuoteState();
+}
 function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();selectedRowIds.clear();updateSelectionSum();reviewedIds.clear();customSectionOrder=null;quoteItems=[];miscItems=[];renderMiscItems();renderQuote();}}
 
 // ===== 大項管理 =====
