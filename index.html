@@ -87,6 +87,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
 .quote-row.drag-over{border-top:2px solid #c0392b}
 .quote-row.selected{background:#ffe082!important;border-left:4px solid #f5a623!important}
 .quote-row.selected:hover{background:#ffd54f!important;border-left:4px solid #f5a623!important}
+.quote-row.reviewed{background:#e8f5e9!important}
+.quote-row.reviewed .row-num{color:#2e7d32;font-weight:700}
 .row-name{font-size:13px;color:#1a1a1a;text-align:left}
 .row-input{width:100%;text-align:right;padding:4px 6px;border:1px solid transparent;border-radius:5px;font-size:13px;background:transparent;color:#1a1a1a;outline:none}
 .row-input:hover,.row-input:focus{border-color:#e0ddd5;background:#fff}
@@ -541,6 +543,7 @@ let dbItems=[];    // working copy of item database
 let quoteItems=[];
 let undoHistory=[];let redoHistory=[];
 let selectedRowIds=new Set();
+let reviewedIds=new Set();
 let customSectionOrder=null; // per-quote 大項排序，null = 使用 SECTION_ORDER 預設
 let catNotes={}; // 大表各類別備註
 let remarksItems=[
@@ -758,7 +761,8 @@ function saveQuoteState(){
       extraDesignQty:document.getElementById('extraDesignQty')?.value||0,
       extraDesignPrice:document.getElementById('extraDesignPrice')?.value||0,
       extraInsurance:document.getElementById('extraInsurance')?.value||0,
-      customSectionOrder:customSectionOrder?[...customSectionOrder]:null
+      customSectionOrder:customSectionOrder?[...customSectionOrder]:null,
+      reviewedIds:[...reviewedIds]
     };
     localStorage.setItem('yutesign_quote',JSON.stringify(state));
   }catch(e){}
@@ -790,6 +794,7 @@ function loadQuoteState(){
     if(s.extraDesignPrice!==undefined&&document.getElementById('extraDesignPrice'))document.getElementById('extraDesignPrice').value=s.extraDesignPrice;
     if(s.extraInsurance!==undefined&&document.getElementById('extraInsurance'))document.getElementById('extraInsurance').value=s.extraInsurance;
     if(s.customSectionOrder!==undefined)customSectionOrder=s.customSectionOrder;
+    if(s.reviewedIds)reviewedIds=new Set(s.reviewedIds);
   }catch(e){}
 }
 function addMiscItem(){
@@ -1002,8 +1007,9 @@ function renderQuote(){saveQuoteState();
     items.forEach(item=>{
       const amt=item.qty*item.price;
       const hint=item.minPrice!==item.maxPrice?`<div class="price-hint">$${item.minPrice.toLocaleString()}～$${item.maxPrice.toLocaleString()}</div>`:'';
-      html+=`<div class="quote-row${selectedRowIds.has(item.id)?' selected':''}" draggable="true" data-id="${item.id}" ondragstart="qDS(event,${item.id})" ondragover="qDO(event)" ondragleave="qDL(event)" ondrop="qDP(event,${item.id})" ondragend="qDE()">
-        <span class="row-num"><span class="drag-icon">⠿</span>${num++}</span>
+      const isReviewed=reviewedIds.has(item.id);
+      html+=`<div class="quote-row${selectedRowIds.has(item.id)?' selected':''}${isReviewed?' reviewed':''}" draggable="true" data-id="${item.id}" ondragstart="qDS(event,${item.id})" ondragover="qDO(event)" ondragleave="qDL(event)" ondrop="qDP(event,${item.id})" ondragend="qDE()">
+        <span class="row-num" onclick="toggleReviewed(event,${item.id})" title="點擊標記已審閱" style="cursor:pointer">${isReviewed?'<span style="font-size:13px">✓</span>'+(num++):'<span class="drag-icon">⠿</span>'+num++}</span>
         <div style="display:flex;flex-direction:column;gap:2px">
           <input class="row-input row-name" value="${item.name}" onchange="updateStrField(${item.id},'name',this.value)" style="width:100%;text-align:left">
           <select style="font-size:10px;padding:1px 3px;border:1px solid #e0ddd5;border-radius:3px;background:#fafaf8;color:#888;width:100%" onchange="updateItemCat(${item.id},this.value)">${buildCatOptions(item.cat)}</select>
@@ -1054,7 +1060,8 @@ function updateSelectionSum(){
   document.getElementById('selectionSumCount').textContent=`已選 ${sel.length} 項`;
   block.style.display='';
 }
-function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();selectedRowIds.clear();updateSelectionSum();customSectionOrder=null;quoteItems=[];miscItems=[];renderMiscItems();renderQuote();}}
+function toggleReviewed(e,id){e.stopPropagation();reviewedIds.has(id)?reviewedIds.delete(id):reviewedIds.add(id);renderQuote();}
+function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();selectedRowIds.clear();updateSelectionSum();reviewedIds.clear();customSectionOrder=null;quoteItems=[];miscItems=[];renderMiscItems();renderQuote();}}
 
 // ===== 大項管理 =====
 function openSectionManager(){
@@ -1689,6 +1696,7 @@ async function importJSON(){
     if(data.extraDesignPrice!==undefined&&document.getElementById('extraDesignPrice'))document.getElementById('extraDesignPrice').value=data.extraDesignPrice;
     if(data.extraInsurance!==undefined&&document.getElementById('extraInsurance'))document.getElementById('extraInsurance').value=data.extraInsurance;
     customSectionOrder=data.customSectionOrder||null;
+    reviewedIds=new Set(data.reviewedIds||[]);
     renderQuote();
   }catch(e){alert('檔案讀取失敗：'+e.message);}
 }
@@ -1834,6 +1842,7 @@ async function driveLoad(fileId){
     miscItems=data.miscItems||[];
     renderMiscItems();
     customSectionOrder=data.customSectionOrder||null;
+    reviewedIds=new Set(data.reviewedIds||[]);
     renderQuote();
     alert('✅ 報價已載入');
   } catch(e){ alert('載入失敗：'+e.message); }
@@ -1918,7 +1927,8 @@ function getQuoteData(){
     extraDesignPrice: parseFloat(document.getElementById('extraDesignPrice')?.value)||0,
     extraInsurance: parseFloat(document.getElementById('extraInsurance')?.value)||0,
     miscItems: [...miscItems],
-    customSectionOrder: customSectionOrder ? [...customSectionOrder] : null
+    customSectionOrder: customSectionOrder ? [...customSectionOrder] : null,
+    reviewedIds: [...reviewedIds]
   };
 }
 
