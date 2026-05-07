@@ -942,7 +942,7 @@ function toggleReviewed(e,id){
   const numSpan=e.currentTarget;
   const num=numSpan.textContent.replace('✓','').trim();
   numSpan.innerHTML=nowReviewed?`<span style="font-size:13px">✓</span>${num}`:`<span class="drag-icon">⠿</span>${num}`;
-  requestAnimationFrame(saveQuoteState);
+  requestAnimationFrame(()=>setTimeout(saveQuoteState,0));
 }
 function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();selectedRowIds.clear();updateSelectionSum();reviewedIds.clear();customSectionOrder=null;quoteItems=[];miscItems=[];renderMiscItems();renderQuote();}}
 
