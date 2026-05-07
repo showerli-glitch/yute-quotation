@@ -507,9 +507,24 @@ function setMode(m){
 }
 
 // ── Category tabs ──
+function getAllCatOrder(){
+  return customSectionOrder?[...new Set([...customSectionOrder,...SECTION_ORDER])]:SECTION_ORDER;
+}
 function getCats(){
   const cats=new Set(dbItems.map(d=>d['類別']));
-  return ['全部',...SECTION_ORDER.filter(s=>cats.has(s)),...[...cats].filter(c=>!SECTION_ORDER.includes(c))];
+  const order=getAllCatOrder();
+  return ['全部',...order.filter(s=>cats.has(s)),...[...cats].filter(c=>!order.includes(c))];
+}
+function refreshCatDropdowns(){
+  const allCats=getAllCatOrder();
+  const opts=allCats.map(s=>`<option value="${s}">${s}</option>`).join('');
+  ['newItemCat','customCat'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    const prev=el.value;
+    el.innerHTML=opts;
+    if(prev&&allCats.includes(prev))el.value=prev;
+  });
 }
 
 function renderCatTabs(){
@@ -728,8 +743,7 @@ function removeItem(id){saveHistory();quoteItems=quoteItems.filter(i=>i.id!==id)
 function updateField(id,field,val){saveHistory();const item=quoteItems.find(i=>i.id===id);if(item)item[field]=parseFloat(val)||0;renderQuote();}
 function updateStrField(id,field,val){saveHistory();const item=quoteItems.find(i=>i.id===id);if(item)item[field]=val;}
 function buildCatOptions(sel){
-  const allCats=customSectionOrder?[...new Set([...customSectionOrder,...SECTION_ORDER])]:SECTION_ORDER;
-  return allCats.map(s=>`<option value="${s}"${s===sel?' selected':''}>${s.replace('工程','').replace('及系統櫃','').replace('及輕鋼架天花','').replace('及貼磚','').replace('及貼膜','').replace('、設備及其他','').replace('及鋁窗','')}</option>`).join('');
+  return getAllCatOrder().map(s=>`<option value="${s}"${s===sel?' selected':''}>${s.replace('工程','').replace('及系統櫃','').replace('及輕鋼架天花','').replace('及貼磚','').replace('及貼膜','').replace('、設備及其他','').replace('及鋁窗','')}</option>`).join('');
 }
 function updateItemCat(id,newCat){
   saveHistory();
@@ -838,7 +852,7 @@ function qDP(e,targetId){
   renderQuote();
 }
 
-function renderQuote(){saveQuoteState();
+function renderQuote(){saveQuoteState();refreshCatDropdowns();
   if(mode==='edit') return;
   const area=document.getElementById('rightContent');
   const {subtotal,mgmt,mgmtPct,beforeTax,tax,total}=getCalc();
