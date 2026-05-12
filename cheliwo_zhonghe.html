@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>車麗屋 中和辦公室裝修報價單 v2 - 宇德室內裝修</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;font-size:10pt}
+.screen-wrap{max-width:1140px;margin:0 auto;padding:24px}
+.page-header{background:#fff;border-radius:12px;padding:20px 28px;margin-bottom:16px;border:1px solid #e0ddd5;display:flex;justify-content:space-between;align-items:center}
+.co-name{font-size:17px;font-weight:700}.co-sub{font-size:11px;color:#888;margin-top:2px}
+.doc-title h1{font-size:20px;font-weight:700;color:#c0392b;text-align:right}
+.doc-title p{font-size:11px;color:#888;margin-top:2px;text-align:right}
+.meta-bar{background:#fff;border-radius:10px;padding:12px 20px;margin-bottom:14px;border:1px solid #e0ddd5;display:flex;gap:28px;font-size:11px;flex-wrap:wrap}
+.meta-item label{color:#999;margin-right:5px}.meta-item strong{color:#1a1a1a}
+.notice-box{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:#795548}
+.controls{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.mgmt-row{background:#fff;border-radius:10px;padding:10px 16px;margin-bottom:14px;border:1px solid #e0ddd5;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.mgmt-row label{font-size:12px;color:#666}
+.mgmt-input{padding:4px 8px;border:1px solid #e0ddd5;border-radius:6px;font-size:12px;width:65px;text-align:right}
+.btn{padding:7px 14px;border-radius:8px;border:1px solid #e0ddd5;background:#fff;font-size:12px;cursor:pointer;font-weight:500;transition:all 0.15s}
+.btn:hover{background:#f5f4f0}
+.btn-print{background:#c0392b;color:#fff;border-color:#c0392b}
+.btn-print:hover{background:#a93226}
+.section-wrap{background:#fff;border-radius:10px;border:1px solid #e0ddd5;margin-bottom:14px;overflow:hidden}
+.section-title-bar{padding:9px 16px;background:#f5f4f0;border-bottom:1px solid #e0ddd5;display:flex;justify-content:space-between;align-items:center}
+.section-title-bar h3{font-size:13px;font-weight:700;color:#1a1a1a}
+.section-subtotal{font-size:12px;font-weight:600;color:#c0392b}
+table{width:100%;border-collapse:collapse}
+th{background:#f9f8f6;padding:5px 7px;font-size:10px;font-weight:600;color:#666;border-bottom:1px solid #e0ddd5;text-align:center;white-space:nowrap}
+th.left{text-align:left}
+td{padding:4px 7px;border-bottom:0.5px solid #f0ede5;font-size:11px;vertical-align:middle}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+td.ctr{text-align:center}
+.sub-header td{background:#f0ede5;font-weight:700;font-size:11px;color:#333;padding:5px 7px}
+.sub-header2 td{background:#f9f8f6;font-weight:500;font-size:10px;color:#555;padding:4px 7px 4px 18px;font-style:italic}
+/* row coloring */
+tr.r-ok td{background:#f0fdf4}
+tr.r-mkt td{background:#fffbeb}
+tr.r-missing td{background:#fff1f2}
+/* editable cells */
+.price-cell{cursor:pointer;outline:none}
+.price-cell:hover,.price-cell:focus{background:#fffde7 !important;border:1px solid #ffc107;border-radius:3px}
+.remark-cell[contenteditable]{cursor:text;outline:none;min-width:60px}
+.remark-cell[contenteditable]:hover,.remark-cell[contenteditable]:focus{background:#e8f4fd !important;border:1px solid #64b5f6;border-radius:3px}
+.total-row td{background:#f5f4f0;font-weight:700;font-size:11px}
+/* legend */
+.legend{display:flex;gap:14px;margin-bottom:8px;font-size:10px;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:4px}
+.leg-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+/* summary */
+.summary-box{background:#fff;border-radius:10px;border:1px solid #e0ddd5;padding:18px 22px;margin-bottom:16px}
+.summary-box h3{font-size:13px;font-weight:700;margin-bottom:10px}
+.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.s-item{display:flex;justify-content:space-between;padding:6px 10px;border-radius:7px;border:1px solid #e0ddd5;font-size:11px}
+.s-item.grand{background:#1a1a1a;color:#fff;border-color:#1a1a1a;font-size:13px;font-weight:700;grid-column:1/-1}
+.s-item.grand .s-lbl{color:#aaa}
+.s-val{font-weight:600}
+@media print{
+  body{background:#fff;font-size:8.5pt}
+  .screen-wrap{max-width:none;padding:0}
+  .controls,.mgmt-row,.btn,.notice-box,.legend{display:none!important}
+  .page-header,.meta-bar,.section-wrap,.summary-box{border-radius:0}
+  .section-wrap{margin-bottom:10pt;break-inside:avoid}
+  @page{size:A4;margin:10mm 10mm 12mm 10mm}
+}
+</style>
+</head>
+<body>
+<div class="screen-wrap">
+
+<div class="page-header">
+  <div><div class="co-name">宇德室內裝修股份有限公司</div><div class="co-sub">YUDE INTERIOR RENOVATION CO., LTD.</div></div>
+  <div class="doc-title"><h1>工程報價單</h1><p>車麗屋汽車百貨股份有限公司｜中和辦公室裝修工程（不含1F及2F夾層）</p></div>
+</div>
+
+<div class="meta-bar">
+  <div class="meta-item"><label>業主</label><strong>車麗屋汽車百貨股份有限公司</strong></div>
+  <div class="meta-item"><label>工程</label><strong>中和辦公室裝修工程</strong></div>
+  <div class="meta-item"><label>報價日期</label><strong id="today"></strong></div>
+  <div class="meta-item"><label>版本</label><strong>v2.0</strong></div>
+</div>
+
+<div class="notice-box">
+  ⚠️ <strong>說明：</strong>空調（Section III）及消防（Section IV）工程本次不列入，由業主另行發包。
+  單價來源：✅系統歷史價 ｜ 🟡市場行情（區間）｜ 牧門廠商來價÷0.75
+</div>
+
+<div class="legend">
+  <div class="leg"><div class="leg-dot" style="background:#f0fdf4;border:1px solid #86efac"></div>系統/廠商單價</div>
+  <div class="leg"><div class="leg-dot" style="background:#fffbeb;border:1px solid #fcd34d"></div>市場行情（區間）</div>
+  <div class="leg"><div class="leg-dot" style="background:#fff1f2;border:1px solid #fca5a5"></div>待確認/需另報</div>
+  <div style="font-size:10px;color:#888;margin-left:8px">📝 單價欄及備註欄均可直接點擊修改</div>
+</div>
+
+<div class="mgmt-row">
+  <label>管理費 %</label>
+  <input class="mgmt-input" id="mgmtRate" type="number" value="10" min="0" max="30" oninput="recalc()">
+  <label>稅率 %</label>
+  <input class="mgmt-input" id="taxRate" type="number" value="5" min="0" max="10" oninput="recalc()">
+  <span style="font-size:10px;color:#aaa">以上費率套用至 Section I + Section II</span>
+</div>
+
+<div class="controls">
+  <button class="btn btn-print" onclick="window.print()">🖨️ 列印 / 匯出PDF</button>
+  <button class="btn" onclick="saveToFirebase()">☁️ 立即儲存</button>
+  <span id="fb_status" style="font-size:11px;color:#888;margin-left:4px">Firebase 初始化中...</span>
+</div>
+
+<!-- ============================================================ -->
+<!--  SECTION I                                                    -->
+<!-- ============================================================ -->
+<div class="section-wrap">
+  <div class="section-title-bar">
+    <h3>I. 一般裝修工程</h3>
+    <div class="section-subtotal">小計：<span id="s1_sub">計算中...</span></div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:52px" class="left">項次</th>
+        <th class="left">工項名稱</th>
+        <th style="width:40px">單位</th>
+        <th style="width:52px">數量</th>
+        <th style="width:78px">單價</th>
+        <th style="width:88px">總價</th>
+        <th style="width:200px" class="left">備註（可修改）</th>
+      </tr>
+    </thead>
+    <tbody>
+
+<!-- A 假設工程 -->
+<tr class="sub-header"><td colspan="7">A. 假設工程</td></tr>
+<tr class="r-missing"><td>A-1</td><td>申請室內裝修許可及查驗等相關費用</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>⚡建築師申請費，依事務所另報</td></tr>
+<tr class="r-ok"><td>A-2</td><td>天花板放樣工程含燈具及設備</td><td class="ctr">m²</td><td class="num" data-qty="810">810</td><td class="num price-cell" contenteditable data-price="80">80</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>放樣工資</td></tr>
+<tr class="r-ok"><td>A-3</td><td>隔間及家俱放樣工程</td><td class="ctr">m²</td><td class="num" data-qty="810">810</td><td class="num price-cell" contenteditable data-price="80">80</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>放樣工資</td></tr>
+<tr class="r-ok"><td>A-4</td><td>原有電梯廳施工動線壁面保護，H:240cm（PP瓦楞板+4mm夾板）</td><td class="ctr">m²</td><td class="num" data-qty="185">185</td><td class="num price-cell" contenteditable data-price="280">280</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價 PP板+夾板保護</td></tr>
+<tr class="r-ok"><td>A-5</td><td>電梯保護工程</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="15000">15000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>電梯3分夾板保護</td></tr>
+<tr class="r-missing"><td>A-6</td><td>原有挑高隔間拆除</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>⚡待確認範圍數量後另報</td></tr>
+<tr class="r-ok"><td>A-7</td><td>工程廢棄物清運</td><td class="ctr">車</td><td class="num" data-qty="12">12</td><td class="num price-cell" contenteditable data-price="16000">16000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>6.5T卡車清運及棄置，系統價</td></tr>
+<tr class="r-mkt"><td>A-8</td><td>施工環境定期清潔及完工後細清</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="35000">35000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $25,000~$45,000</td></tr>
+<tr class="r-mkt"><td>A-9</td><td>大樓清潔費</td><td class="ctr">天</td><td class="num" data-qty="90">90</td><td class="num price-cell" contenteditable data-price="500">500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $300~$800/天，依大樓規定</td></tr>
+<tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8px">A 假設工程 合計</td><td class="num" id="sA_total"></td><td></td></tr>
+
+<!-- B 天花板 -->
+<tr class="sub-header"><td colspan="7">B. 天花板工程</td></tr>
+<tr class="r-ok"><td>B-1</td><td>2'×2' 礦纖天花板</td><td class="ctr">m²</td><td class="num" data-qty="462">462</td><td class="num price-cell" contenteditable data-price="493">493</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價370÷0.75</td></tr>
+<tr class="r-ok"><td>B-2</td><td>2'×2' 礦纖天花板（挑高區）</td><td class="ctr">m²</td><td class="num" data-qty="160">160</td><td class="num price-cell" contenteditable data-price="493">493</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價370÷0.75，挑高鷹架費另計</td></tr>
+<tr class="r-ok"><td>B-3</td><td>平頂暗架矽酸鈣板天花板</td><td class="ctr">m²</td><td class="num" data-qty="229">229</td><td class="num price-cell" contenteditable data-price="1013">1013</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價760÷0.75</td></tr>
+<tr class="r-ok"><td>B-4</td><td>挑高區立面包飾</td><td class="ctr">M</td><td class="num" data-qty="35">35</td><td class="num price-cell" contenteditable data-price="1267">1267</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價950÷0.75</td></tr>
+<tr class="r-ok"><td>B-5</td><td>天花板水泥漆粉刷（含挑高立面）</td><td class="ctr">m²</td><td class="num" data-qty="380">380</td><td class="num price-cell" contenteditable data-price="300">300</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，白色刷漆</td></tr>
+<tr class="r-ok"><td>B-6</td><td>上項批土</td><td class="ctr">m²</td><td class="num" data-qty="380">380</td><td class="num price-cell" contenteditable data-price="150">150</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>批土工料</td></tr>
+<tr class="r-ok"><td>B-7</td><td>直線暗架天花板間接燈槽</td><td class="ctr">M</td><td class="num" data-qty="31">31</td><td class="num price-cell" contenteditable data-price="1067">1067</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價800÷0.75</td></tr>
+<tr class="r-ok"><td>B-8</td><td>窗簾盒含表面刷漆</td><td class="ctr">M</td><td class="num" data-qty="70">70</td><td class="num price-cell" contenteditable data-price="1133">1133</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價850÷0.75</td></tr>
+<tr class="r-ok"><td>B-9</td><td>暗架無框式線型出風口開孔</td><td class="ctr">M</td><td class="num" data-qty="66">66</td><td class="num price-cell" contenteditable data-price="1733">1733</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價1,300÷0.75</td></tr>
+<tr class="r-ok"><td>B-10</td><td>暗架天花板檢修孔</td><td class="ctr">式</td><td class="num" data-qty="8">8</td><td class="num price-cell" contenteditable data-price="667">667</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價500÷0.75</td></tr>
+<tr class="r-ok"><td>B-11</td><td>消防設備等圓形設備開孔</td><td class="ctr">孔</td><td class="num" data-qty="50">50</td><td class="num price-cell" contenteditable data-price="133">133</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價100÷0.75</td></tr>
+<tr class="r-mkt"><td>B-12</td><td>配合消防排煙閘口天花板開孔及補強</td><td class="ctr">式</td><td class="num" data-qty="6">6</td><td class="num price-cell" contenteditable data-price="3000">3000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,000~$4,000/式</td></tr>
+<tr class="r-mkt"><td>B-13</td><td>配合消防防火填塞</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $5,000~$12,000/式</td></tr>
+<tr class="r-mkt"><td>B-14</td><td>配合消防防煙捲簾工程週邊包飾</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="15000">15000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $10,000~$20,000/式</td></tr>
+<tr class="r-mkt"><td>B-15</td><td>挑高區鷹架/高空作業車費</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="40000">40000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $30,000~$60,000，依挑高高度</td></tr>
+<tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8px">B 天花板工程 合計</td><td class="num" id="sB_total"></td><td></td></tr>
+
+<!-- C 隔間/門/窗 -->
+<tr class="sub-header"><td colspan="7">C. 隔間／門／窗工程</td></tr>
+<tr class="sub-header2"><td colspan="7">C-1 隔間及單面壁板</td></tr>
+<tr class="r-ok"><td>C-1.1</td><td>雙面單層15mm石膏板，全高至樓板（65mm鍍鋅骨架+60K岩棉）</td><td class="ctr">m²</td><td class="num" data-qty="42">42</td><td class="num price-cell" contenteditable data-price="1573">1573</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價1,180÷0.75，廚房/明火</td></tr>
+<tr class="r-ok"><td>C-1.2</td><td>雙面單層12mm石膏板，全高至樓板（65mm鍍鋅骨架+60K岩棉）</td><td class="ctr">m²</td><td class="num" data-qty="380">380</td><td class="num price-cell" contenteditable data-price="1493">1493</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價1,120÷0.75</td></tr>
+<tr class="r-ok"><td>C-1.3</td><td>雙面單層12mm石膏板，全高至樓板（65mm鍍鋅骨架，無岩棉）</td><td class="ctr">m²</td><td class="num" data-qty="175">175</td><td class="num price-cell" contenteditable data-price="1280">1280</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價960÷0.75</td></tr>
+<tr class="r-ok"><td>C-1.4</td><td>單面12mm水泥板+單面12mm石膏板（65mm鍍鋅骨架+60K岩棉）</td><td class="ctr">m²</td><td class="num" data-qty="24">24</td><td class="num price-cell" contenteditable data-price="1707">1707</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價1,280÷0.75，董事長室</td></tr>
+<tr class="r-ok"><td>C-1.5</td><td>牆柱面封單面12mm石膏板（65mm鍍鋅骨架）</td><td class="ctr">m²</td><td class="num" data-qty="238">238</td><td class="num price-cell" contenteditable data-price="933">933</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>牧門來價700÷0.75</td></tr>
+<tr class="r-mkt"><td>C-1.6</td><td>10mm強化玻璃隔間（含天花板木作溝槽及玻璃ST下槽）</td><td class="ctr">m²</td><td class="num" data-qty="75">75</td><td class="num price-cell" contenteditable data-price="2800">2800</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,200~$3,500/m²，會議室</td></tr>
+<tr class="r-mkt"><td>C-1.7</td><td>玻璃貼磨砂貼紙（漸層）</td><td class="ctr">m²</td><td class="num" data-qty="100">100</td><td class="num price-cell" contenteditable data-price="350">350</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $250~$500/m²，會議室</td></tr>
+<tr class="r-missing"><td>C-1.8</td><td>柱體或新作隔分間牆到帷幕骨架玻璃隔間</td><td class="ctr">片</td><td class="num" data-qty="6">6</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>⚡待確認尺寸/規格後另報</td></tr>
+<tr class="r-mkt"><td>C-1.9</td><td>設備安裝、壁面補強</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="15000">15000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $10,000~$20,000/式</td></tr>
+<tr class="r-mkt"><td>C-1.10</td><td>配置管線穿牆，各項隔間修補</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $8,000~$15,000/式</td></tr>
+<tr class="sub-header2"><td colspan="7">C-2 門窗工程</td></tr>
+<tr class="r-ok"><td>C-2.1</td><td>單開木框木門（含排煙倒窗框架），美耐板</td><td class="ctr">扇</td><td class="num" data-qty="20">20</td><td class="num price-cell" contenteditable data-price="18000">18000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，木門框扇美耐板</td></tr>
+<tr class="r-ok"><td>C-2.1a</td><td>上項門框噴漆</td><td class="ctr">式</td><td class="num" data-qty="20">20</td><td class="num price-cell" contenteditable data-price="800">800</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>門框刷漆工資</td></tr>
+<tr class="r-mkt"><td>C-2.1b</td><td>上項門鎖/把手/後鉸鍊/各項五金配件，含安裝</td><td class="ctr">式</td><td class="num" data-qty="20">20</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,500~$5,000/式，依五金等級</td></tr>
+<tr class="r-ok"><td>C-2.2</td><td>往夾層樓梯單開木框暗門，美耐板</td><td class="ctr">扇</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="25000">25000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>木作隱藏門，系統價</td></tr>
+<tr class="r-mkt"><td>C-2.2a</td><td>上項門鎖/把手/地鉸鍊/各項五金，含安裝</td><td class="ctr">式</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="5000">5000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $3,500~$6,500/式</td></tr>
+<tr class="r-mkt"><td>C-2.2b</td><td>牆面週邊凹凸設計，弱化暗門位置</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $5,000~$12,000/式</td></tr>
+<tr class="r-missing"><td>C-2.3</td><td>餐廳雙開玻璃推拉門</td><td class="ctr">片</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>⚡待確認尺寸/規格後另報</td></tr>
+<tr class="r-mkt"><td>C-2.3a</td><td>上項門鎖/把手/軌道/各項五金，含安裝</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $5,000~$12,000/式</td></tr>
+<tr class="r-missing"><td>C-2.4</td><td>兩區通道單開木框木質防火暗門（F60A），修飾面材</td><td class="ctr">樘</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>⚡F60A防火門請廠商另報</td></tr>
+<tr class="r-mkt"><td>C-2.4a</td><td>上項五金/門弓器/切割拆除/週邊包飾/弱化（共4項）</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="18000">18000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $12,000~$25,000/式（含切割補強）</td></tr>
+<tr class="r-missing"><td>C-2.5</td><td>鍍鋅防火遮煙鐵捲門含馬達、捲門箱及立柱</td><td class="ctr">m²</td><td class="num" data-qty="19">19</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>⚡鐵捲門廠商另報</td></tr>
+<tr class="r-mkt"><td>C-2.5a</td><td>上項牆面切割拆除/清運/週邊包飾/天花修復（共4項）</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="20000">20000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $15,000~$28,000/式</td></tr>
+<tr class="r-missing"><td>C-3</td><td>陽極電鎖安裝工料，含卡機</td><td class="ctr">式</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>⚡門禁廠商另報（含卡機設定）</td></tr>
+<tr class="r-ok"><td>C-4</td><td>防焰捲簾（附防火證明）</td><td class="ctr">才</td><td class="num" data-qty="2800">2800</td><td class="num price-cell" contenteditable data-price="160">160</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，遮光防焰捲簾</td></tr>
+<tr class="r-ok"><td>C-5</td><td>配電箱木作檢修門及收邊噴漆處理</td><td class="ctr">式</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="4200">4200</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，開關箱木作包覆</td></tr>
+<tr class="r-mkt"><td>C-6</td><td>集中開關區開孔補強</td><td class="ctr">式</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="3000">3000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,000~$4,000/式</td></tr>
+<tr class="r-mkt"><td>C-7</td><td>配合消防防煙捲簾工程牆面軌道包飾</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $8,000~$15,000/式</td></tr>
+<tr class="r-mkt"><td>C-8</td><td>配合消防隔間開排煙倒窗及四邊加強</td><td class="ctr">孔</td><td class="num" data-qty="15">15</td><td class="num price-cell" contenteditable data-price="2500">2500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,800~$3,500/孔</td></tr>
+<tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8px">C 隔間／門／窗工程 合計</td><td class="num" id="sC_total"></td><td></td></tr>
+
+<!-- D 牆面 -->
+<tr class="sub-header"><td colspan="7">D. 牆面材料</td></tr>
+<tr class="sub-header2"><td colspan="7">D-1 牆面水泥漆</td></tr>
+<tr class="r-ok"><td>D-1.1</td><td>牆面水泥漆含調色粉刷</td><td class="ctr">m²</td><td class="num" data-qty="665">665</td><td class="num price-cell" contenteditable data-price="300">300</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，白色刷漆</td></tr>
+<tr class="r-ok"><td>D-1.2</td><td>上項批土</td><td class="ctr">m²</td><td class="num" data-qty="665">665</td><td class="num price-cell" contenteditable data-price="150">150</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>批土工料</td></tr>
+<tr class="sub-header2"><td colspan="7">D-2 牆面壁紙</td></tr>
+<tr class="r-mkt"><td>D-2.1</td><td>WC-1 塑膠壁紙</td><td class="ctr">m²</td><td class="num" data-qty="600">600</td><td class="num price-cell" contenteditable data-price="350">350</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $250~$500/m²（含工資），依品牌</td></tr>
+<tr class="r-ok"><td>D-2.2</td><td>上項批土</td><td class="ctr">m²</td><td class="num" data-qty="600">600</td><td class="num price-cell" contenteditable data-price="150">150</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>批土工料</td></tr>
+<tr class="sub-header2"><td colspan="7">D-3 牆面烤漆玻璃</td></tr>
+<tr class="r-ok"><td>D-3.1</td><td>13人會議室5mm優白烤漆玻璃背加吸鐵板含光邊</td><td class="ctr">才</td><td class="num" data-qty="168">168</td><td class="num price-cell" contenteditable data-price="470">470</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，5mm優白烤漆玻璃</td></tr>
+<tr class="r-ok"><td>D-3.2</td><td>10人會議室5mm優白烤漆玻璃背加吸鐵板含光邊</td><td class="ctr">才</td><td class="num" data-qty="136">136</td><td class="num price-cell" contenteditable data-price="470">470</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-ok"><td>D-3.3</td><td>影印區5mm烤漆玻璃含光邊</td><td class="ctr">才</td><td class="num" data-qty="45">45</td><td class="num price-cell" contenteditable data-price="380">380</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-ok"><td>D-3.4</td><td>茶水間5mm烤漆玻璃含光邊</td><td class="ctr">才</td><td class="num" data-qty="50">50</td><td class="num price-cell" contenteditable data-price="380">380</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-ok"><td>D-3.5</td><td>廚房5mm烤漆玻璃含光邊</td><td class="ctr">才</td><td class="num" data-qty="160">160</td><td class="num price-cell" contenteditable data-price="380">380</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-ok"><td>D-3.6</td><td>上項烤漆玻璃挖孔</td><td class="ctr">孔</td><td class="num" data-qty="7">7</td><td class="num price-cell" contenteditable data-price="600">600</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，玻璃五金開孔</td></tr>
+<tr class="r-mkt"><td>D-3.7</td><td>上項玻璃組裝工資</td><td class="ctr">才</td><td class="num" data-qty="559">559</td><td class="num price-cell" contenteditable data-price="60">60</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $50~$80/才，組裝工資</td></tr>
+<tr class="r-mkt"><td>D-3.8</td><td>牆面鋁條收邊（W:5mm）</td><td class="ctr">M</td><td class="num" data-qty="30">30</td><td class="num price-cell" contenteditable data-price="500">500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $350~$650/M</td></tr>
+<tr class="r-mkt"><td>D-3.9</td><td>壓克力筆槽</td><td class="ctr">式</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,500~$5,000/式</td></tr>
+<tr class="sub-header2"><td colspan="7">D-4 董事長廁所牆面磁磚</td></tr>
+<tr class="r-mkt"><td>D-4.1</td><td>廁所牆面磁磚材料</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $8,000~$18,000，依選材</td></tr>
+<tr class="r-ok"><td>D-4.2</td><td>廁所牆面面貼壁磚泥沙工資及另料</td><td class="ctr">m²</td><td class="num" data-qty="25">25</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，貼磚工資</td></tr>
+<tr class="r-mkt"><td>D-4.3</td><td>廁所牆面防水（含結構體縫隙收邊）</td><td class="ctr">m²</td><td class="num" data-qty="25">25</td><td class="num price-cell" contenteditable data-price="800">800</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $600~$1,200/m²</td></tr>
+<tr class="r-mkt"><td>D-4.4</td><td>廁所牆面黏著劑工料</td><td class="ctr">m²</td><td class="num" data-qty="25">25</td><td class="num price-cell" contenteditable data-price="300">300</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $200~$400/m²</td></tr>
+<tr class="r-mkt"><td>D-4.5</td><td>上項磁磚水刀磨角斜邊工資含運</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="5000">5000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $3,000~$8,000/式</td></tr>
+<tr class="r-mkt"><td>D-4.6</td><td>上項磁磚收25mm×5mm收邊條</td><td class="ctr">M</td><td class="num" data-qty="3">3</td><td class="num price-cell" contenteditable data-price="400">400</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $300~$600/M</td></tr>
+<tr class="r-mkt"><td>D-5</td><td>會議室電視壁掛牆面加強固定</td><td class="ctr">式</td><td class="num" data-qty="8">8</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,000~$2,500/式</td></tr>
+<tr class="r-ok"><td>D-6</td><td>牆面6cm PVC踢腳板</td><td class="ctr">M</td><td class="num" data-qty="500">500</td><td class="num price-cell" contenteditable data-price="150">150</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，6公分塑膠踢腳板</td></tr>
+<tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8px">D 牆面材料 合計</td><td class="num" id="sD_total"></td><td></td></tr>
+
+<!-- E 地面 -->
+<tr class="sub-header"><td colspan="7">E. 地面材料</td></tr>
+<tr class="sub-header2"><td colspan="7">E-1 全區高架地板工程</td></tr>
+<tr class="r-mkt"><td>E-1.1</td><td>地面高架地板（架高H:10cm）</td><td class="ctr">m²</td><td class="num" data-qty="805">805</td><td class="num price-cell" contenteditable data-price="2200">2200</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,800~$2,800/m²，H:10cm含走線槽</td></tr>
+<tr class="r-mkt"><td>E-1.2</td><td>上項高低差斜坡</td><td class="ctr">式</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="5000">5000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $3,000~$8,000/式</td></tr>
+<tr class="sub-header2"><td colspan="7">E-2 地毯工程</td></tr>
+<tr class="r-mkt"><td>E-2.1</td><td>地面貼進口方塊地毯</td><td class="ctr">m²</td><td class="num" data-qty="777">777</td><td class="num price-cell" contenteditable data-price="1200">1200</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $800~$1,800/m²，依品牌等級</td></tr>
+<tr class="r-mkt"><td>E-2.2</td><td>地面貼進口方塊地毯黏著劑工資及另料</td><td class="ctr">m²</td><td class="num" data-qty="777">777</td><td class="num price-cell" contenteditable data-price="200">200</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $150~$280/m²</td></tr>
+<tr class="r-mkt"><td>E-2.3</td><td>地毯保護工程（局部/通道）</td><td class="ctr">式</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="5000">5000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $3,000~$8,000/式，進傢俱時</td></tr>
+<tr class="sub-header2"><td colspan="7">E-3 塑膠地磚工程</td></tr>
+<tr class="r-ok"><td>E-3.1</td><td>塑膠地磚</td><td class="ctr">m²</td><td class="num" data-qty="28">28</td><td class="num price-cell" contenteditable data-price="520">520</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，倉庫/茶水間</td></tr>
+<tr class="sub-header2"><td colspan="7">E-4 廁所/餐廳/廚房地面磁磚</td></tr>
+<tr class="r-mkt"><td>E-4.1</td><td>地面面貼地磚材料</td><td class="ctr">m²</td><td class="num" data-qty="50">50</td><td class="num price-cell" contenteditable data-price="800">800</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $500~$1,500/m²，依選材</td></tr>
+<tr class="r-mkt"><td>E-4.2</td><td>地面面貼地磚泥沙工資及另料</td><td class="ctr">m²</td><td class="num" data-qty="50">50</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,200~$1,800/m²</td></tr>
+<tr class="r-mkt"><td>E-4.3</td><td>上項地面PC泥水加高H:4~5cm</td><td class="ctr">m²</td><td class="num" data-qty="50">50</td><td class="num price-cell" contenteditable data-price="600">600</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $450~$800/m²</td></tr>
+<tr class="r-ok"><td>E-4.4</td><td>地面1:3水泥砂漿粉刷打底</td><td class="ctr">m²</td><td class="num" data-qty="50">50</td><td class="num price-cell" contenteditable data-price="1200">1200</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，水泥砂漿打底</td></tr>
+<tr class="r-mkt"><td>E-4.5</td><td>地面防水（含結構體縫隙收邊）</td><td class="ctr">m²</td><td class="num" data-qty="50">50</td><td class="num price-cell" contenteditable data-price="900">900</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $700~$1,200/m²</td></tr>
+<tr class="r-ok"><td>E-4.6</td><td>大理石/不銹鋼門檻（含安裝）</td><td class="ctr">支</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-ok"><td>E-5</td><td>陽台塑膠地板</td><td class="ctr">m²</td><td class="num" data-qty="45">45</td><td class="num price-cell" contenteditable data-price="520">520</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，塑膠地磚</td></tr>
+<tr class="r-ok"><td>E-6</td><td>地坪嵌5mm×15mm收邊條</td><td class="ctr">M</td><td class="num" data-qty="3">3</td><td class="num price-cell" contenteditable data-price="700">700</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，地坪起步收邊條</td></tr>
+<tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8px">E 地面材料 合計</td><td class="num" id="sE_total"></td><td></td></tr>
+
+<!-- F 固定傢俱 -->
+<tr class="sub-header"><td colspan="7">F. 固定傢俱（木作系統櫃）</td></tr>
+<tr class="sub-header2"><td colspan="7">F-1 商品/行銷/展業/營運/電商主管區</td></tr>
+<tr class="r-mkt"><td>F-1.1</td><td>辦公區開門高櫃，內置活動層板 W:90cm</td><td class="ctr">M</td><td class="num" data-qty="5">5</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $9,000~$15,000/M（每米計）</td></tr>
+<tr class="r-mkt"><td>F-1.2</td><td>辦公區開門矮櫃，內置活動層板 W:150cm</td><td class="ctr">M</td><td class="num" data-qty="8">8</td><td class="num price-cell" contenteditable data-price="9000">9000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $7,000~$12,000/M</td></tr>
+<tr class="sub-header2"><td colspan="7">F-2 影印區/休閒區</td></tr>
+<tr class="r-mkt"><td>F-2.1</td><td>事務機區矮櫃，內置活動層板 W:270cm</td><td class="ctr">M</td><td class="num" data-qty="2.7">2.7</td><td class="num price-cell" contenteditable data-price="9000">9000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $7,000~$12,000/M</td></tr>
+<tr class="r-mkt"><td>F-2.2</td><td>事務機區吊櫃，內置活動層板 W:350cm</td><td class="ctr">M</td><td class="num" data-qty="7">7</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $6,000~$10,000/M</td></tr>
+<tr class="sub-header2"><td colspan="7">F-3 茶水間</td></tr>
+<tr class="r-mkt"><td>F-3.1</td><td>木作矮櫃，內置活動層板 W:200cm</td><td class="ctr">M</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="9000">9000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $7,000~$12,000/M</td></tr>
+<tr class="r-mkt"><td>F-3.2</td><td>木作吊櫃，內置活動層板 W:200cm</td><td class="ctr">M</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $6,000~$10,000/M</td></tr>
+<tr class="r-ok"><td>F-3.3</td><td>茶水櫃台面貼人造石含光邊</td><td class="ctr">M</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，人造石檯面</td></tr>
+<tr class="r-mkt"><td>F-3.4</td><td>上項檯面挖孔水槽安裝</td><td class="ctr">處</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="2000">2000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,500~$3,000/處</td></tr>
+<tr class="r-mkt"><td>F-3.5</td><td>上項不銹鋼水槽</td><td class="ctr">顆</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,500~$5,000/顆，依品牌</td></tr>
+<tr class="r-mkt"><td>F-3.6</td><td>木作杯架</td><td class="ctr">M</td><td class="num" data-qty="3">3</td><td class="num price-cell" contenteditable data-price="3000">3000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,000~$4,500/M</td></tr>
+<tr class="sub-header2"><td colspan="7">F-4 秘書室區+秘書室旁主管區</td></tr>
+<tr class="r-mkt"><td>F-4.1</td><td>辦公區開門高櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="8">8</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $9,000~$15,000/M</td></tr>
+<tr class="r-mkt"><td>F-4.2</td><td>辦公區開門矮櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="1.9">1.9</td><td class="num price-cell" contenteditable data-price="9000">9000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $7,000~$12,000/M</td></tr>
+<tr class="r-mkt"><td>F-4.3</td><td>木作矮櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="1.5">1.5</td><td class="num price-cell" contenteditable data-price="9000">9000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $7,000~$12,000/M</td></tr>
+<tr class="r-mkt"><td>F-4.4</td><td>木作吊櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="1.5">1.5</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $6,000~$10,000/M</td></tr>
+<tr class="r-ok"><td>F-4.5</td><td>茶水櫃台面貼人造石含光邊</td><td class="ctr">M</td><td class="num" data-qty="1.5">1.5</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-mkt"><td>F-4.6</td><td>上項檯面挖孔水槽安裝</td><td class="ctr">處</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="2000">2000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,500~$3,000/處</td></tr>
+<tr class="r-mkt"><td>F-4.7</td><td>上項不銹鋼水槽</td><td class="ctr">顆</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,500~$5,000/顆</td></tr>
+<tr class="sub-header2"><td colspan="7">F-5 行管/資訊主管區</td></tr>
+<tr class="r-mkt"><td>F-5.1</td><td>辦公區開門高櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $9,000~$15,000/M</td></tr>
+<tr class="r-mkt"><td>F-5.2</td><td>辦公區開門矮櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="9000">9000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $7,000~$12,000/M</td></tr>
+<tr class="sub-header2"><td colspan="7">F-6 會計/財務主管區</td></tr>
+<tr class="r-mkt"><td>F-6.1</td><td>辦公區開門高櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $9,000~$15,000/M</td></tr>
+<tr class="r-mkt"><td>F-6.2</td><td>辦公區開門矮櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="2.2">2.2</td><td class="num price-cell" contenteditable data-price="9000">9000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $7,000~$12,000/M</td></tr>
+<tr class="sub-header2"><td colspan="7">F-7 廚房/餐廳區</td></tr>
+<tr class="r-mkt"><td>F-7.1</td><td>木作矮櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="4">4</td><td class="num price-cell" contenteditable data-price="9000">9000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $7,000~$12,000/M</td></tr>
+<tr class="r-mkt"><td>F-7.2</td><td>瓦斯爐系統櫃（W:400cm）</td><td class="ctr">組</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="25000">25000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $18,000~$35,000/組</td></tr>
+<tr class="r-ok"><td>F-7.3</td><td>檯面貼人造石含光邊（異型）</td><td class="ctr">M</td><td class="num" data-qty="8">8</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，人造石異型檯面</td></tr>
+<tr class="r-mkt"><td>F-7.4</td><td>上項檯面挖孔水槽安裝</td><td class="ctr">處</td><td class="num" data-qty="4">4</td><td class="num price-cell" contenteditable data-price="2000">2000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,500~$3,000/處</td></tr>
+<tr class="r-mkt"><td>F-7.5</td><td>上項不銹鋼水槽</td><td class="ctr">顆</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,500~$5,000/顆</td></tr>
+<tr class="r-mkt"><td>F-7.6</td><td>木作開門高櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="1.7">1.7</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $9,000~$15,000/M</td></tr>
+<tr class="sub-header2"><td colspan="7">F-8 董事長室</td></tr>
+<tr class="r-mkt"><td>F-8.1</td><td>辦公桌後展示高櫃</td><td class="ctr">M</td><td class="num" data-qty="4">4</td><td class="num price-cell" contenteditable data-price="15000">15000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $12,000~$20,000/M，特製展示</td></tr>
+<tr class="r-mkt"><td>F-8.2</td><td>辦公區開門矮櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="3.5">3.5</td><td class="num price-cell" contenteditable data-price="9000">9000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $7,000~$12,000/M</td></tr>
+<tr class="r-mkt"><td>F-8.3</td><td>休息室衣櫃/高櫃</td><td class="ctr">M</td><td class="num" data-qty="2.5">2.5</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $9,000~$15,000/M</td></tr>
+<tr class="r-ok"><td>F-8.4</td><td>廁所洗手枱下櫃</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，洗手台下方浴櫃</td></tr>
+<tr class="r-mkt"><td>F-8.5</td><td>淋浴區玻璃隔屏</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="22000">22000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $18,000~$28,000/式</td></tr>
+<tr class="sub-header2"><td colspan="7">F-9 接洽大廳</td></tr>
+<tr class="r-mkt"><td>F-9.1</td><td>開門高櫃，內置活動層板</td><td class="ctr">M</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $9,000~$15,000/M</td></tr>
+<tr class="r-mkt"><td>F-9.2</td><td>木作服務櫃枱</td><td class="ctr">M</td><td class="num" data-qty="4.8">4.8</td><td class="num price-cell" contenteditable data-price="18000">18000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $15,000~$25,000/M（含面材）</td></tr>
+<tr class="r-mkt"><td>F-9.3</td><td>上項檯面挖孔水槽安裝</td><td class="ctr">處</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="2000">2000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,500~$3,000/處</td></tr>
+<tr class="r-mkt"><td>F-9.4</td><td>上項不銹鋼水槽</td><td class="ctr">顆</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,500~$5,000/顆</td></tr>
+<tr class="r-ok"><td>F-9.5</td><td>上項桌面/立面人造石造型</td><td class="ctr">M</td><td class="num" data-qty="10">10</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，大廳造型人造石</td></tr>
+<tr class="sub-header2"><td colspan="7">F-10 露台</td></tr>
+<tr class="r-mkt"><td>F-10.1</td><td>不銹鋼標準型洗手枱</td><td class="ctr">座</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $6,000~$12,000/座</td></tr>
+<tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8px">F 固定傢俱 合計</td><td class="num" id="sF_total"></td><td></td></tr>
+
+<!-- G 其它 -->
+<tr class="sub-header"><td colspan="7">G. 其它工程</td></tr>
+<tr class="r-ok"><td>G-1</td><td>全室矽利康工料</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="20500">20500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，全室矽利康填縫</td></tr>
+<tr class="r-mkt"><td>G-2</td><td>配合室裝審查作業（含工料）</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="15000">15000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $10,000~$20,000/式</td></tr>
+<tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8px">G 其它工程 合計</td><td class="num" id="sG_total"></td><td></td></tr>
+
+    </tbody>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<!--  SECTION II 水電照明                                          -->
+<!-- ============================================================ -->
+<div class="section-wrap">
+  <div class="section-title-bar">
+    <h3>II. 水電照明工程</h3>
+    <div class="section-subtotal">小計：<span id="s2_sub">計算中...</span></div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:52px" class="left">項次</th>
+        <th class="left">工項名稱</th>
+        <th style="width:40px">單位</th>
+        <th style="width:52px">數量</th>
+        <th style="width:78px">單價</th>
+        <th style="width:88px">總價</th>
+        <th style="width:200px" class="left">備註（可修改）</th>
+      </tr>
+    </thead>
+    <tbody>
+
+<!-- A 一般照明/插座 -->
+<tr class="sub-header"><td colspan="7">A. 一般照明／插座</td></tr>
+<tr class="r-mkt"><td>II-A-1</td><td>T-BAR 燈具</td><td class="ctr">套</td><td class="num" data-qty="85">85</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>業主自購，本項不計</td></tr>
+<tr class="r-mkt"><td>II-A-2</td><td>飛利浦 15cm 崁燈</td><td class="ctr">套</td><td class="num" data-qty="70">70</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>業主自購，本項不計</td></tr>
+<tr class="r-mkt"><td>II-A-3</td><td>景觀區吊燈/筒燈</td><td class="ctr">套</td><td class="num" data-qty="7">7</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>業主自購，本項不計</td></tr>
+<tr class="r-mkt"><td>II-A-4</td><td>飛利浦間接光 4尺</td><td class="ctr">套</td><td class="num" data-qty="25">25</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>業主自購，本項不計</td></tr>
+<tr class="r-ok"><td>II-A-5</td><td>燈具配管配線</td><td class="ctr">處</td><td class="num" data-qty="187">187</td><td class="num price-cell" contenteditable data-price="1000">1000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，電燈照明配電工料費</td></tr>
+<tr class="r-ok"><td>II-A-6</td><td>燈具安裝</td><td class="ctr">處</td><td class="num" data-qty="200">200</td><td class="num price-cell" contenteditable data-price="350">350</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，燈具安裝工資</td></tr>
+<tr class="r-mkt"><td>II-A-7</td><td>挑高辦公區吊燈</td><td class="ctr">套</td><td class="num" data-qty="7">7</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>業主自購，本項不計</td></tr>
+<tr class="r-ok"><td>II-A-8</td><td>挑高辦公區吊燈配管配線</td><td class="ctr">套</td><td class="num" data-qty="7">7</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，電燈迴路配電工料費</td></tr>
+<tr class="r-ok"><td>II-A-9</td><td>挑高辦公區吊燈安裝</td><td class="ctr">套</td><td class="num" data-qty="7">7</td><td class="num price-cell" contenteditable data-price="600">600</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，安裝工資</td></tr>
+<tr class="r-mkt"><td>II-A-10</td><td>LED條燈</td><td class="ctr">套</td><td class="num" data-qty="6">6</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>業主自購，本項不計</td></tr>
+<tr class="r-ok"><td>II-A-11</td><td>條燈配管配線</td><td class="ctr">套</td><td class="num" data-qty="6">6</td><td class="num price-cell" contenteditable data-price="1000">1000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-ok"><td>II-A-12</td><td>條燈安裝</td><td class="ctr">套</td><td class="num" data-qty="6">6</td><td class="num price-cell" contenteditable data-price="350">350</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-mkt"><td>II-A-13</td><td>燈具開孔</td><td class="ctr">處</td><td class="num" data-qty="70">70</td><td class="num price-cell" contenteditable data-price="150">150</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $100~$200/處</td></tr>
+<tr class="r-ok"><td>II-A-14</td><td>電燈開關（含蓋板）星光系列</td><td class="ctr">SET</td><td class="num" data-qty="44">44</td><td class="num price-cell" contenteditable data-price="200">200</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，雙聯暗插座附蓋板</td></tr>
+<tr class="r-ok"><td>II-A-15</td><td>電燈開關配管線</td><td class="ctr">SET</td><td class="num" data-qty="44">44</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，電燈開關配電工料費</td></tr>
+<tr class="r-ok"><td>II-A-16</td><td>插座（含蓋板）</td><td class="ctr">只</td><td class="num" data-qty="239">239</td><td class="num price-cell" contenteditable data-price="200">200</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，國際牌星光系列</td></tr>
+<tr class="r-ok"><td>II-A-17</td><td>插座配管配線</td><td class="ctr">處</td><td class="num" data-qty="239">239</td><td class="num price-cell" contenteditable data-price="1450">1450</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，新設插座配電工料費</td></tr>
+<tr class="r-ok"><td>II-A-18</td><td>電源迴路（照明及插座）</td><td class="ctr">迴路</td><td class="num" data-qty="46">46</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，電燈迴路電源配電工料費</td></tr>
+<tr class="r-ok"><td>II-A-19</td><td>現場臨時照明及臨時用電電源</td><td class="ctr">式</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="10000">10000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，主建物臨時電源及臨時燈具</td></tr>
+<tr class="r-ok"><td>II-A-20</td><td>鋁製線架</td><td class="ctr">M</td><td class="num" data-qty="108">108</td><td class="num price-cell" contenteditable data-price="500">500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $400~$650/M</td></tr>
+<tr class="r-mkt"><td>II-A-21</td><td>線架五金另件</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $5,000~$12,000/式</td></tr>
+<tr class="r-mkt"><td>II-A-22</td><td>運雜費</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="5000">5000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $3,000~$8,000/式</td></tr>
+<tr class="r-mkt"><td>II-A-23</td><td>打鑿</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="15000">15000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $10,000~$20,000/式</td></tr>
+<tr class="r-mkt"><td>II-A-24</td><td>銑洞</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $5,000~$12,000/式</td></tr>
+<tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8px">II-A 一般照明/插座 合計</td><td class="num" id="sIIA_total"></td><td></td></tr>
+
+<!-- B 弱電 -->
+<tr class="sub-header"><td colspan="7">B. 弱電工程</td></tr>
+<tr class="r-ok"><td>II-B-1</td><td>TV 配管</td><td class="ctr">處</td><td class="num" data-qty="14">14</td><td class="num price-cell" contenteditable data-price="1000">1000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，電話/網路配管工料費</td></tr>
+<tr class="r-ok"><td>II-B-2</td><td>電腦電話訊號線配管 3/4" PVC管</td><td class="ctr">處</td><td class="num" data-qty="106">106</td><td class="num price-cell" contenteditable data-price="1000">1000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，電話/網路配管工料費</td></tr>
+<tr class="r-mkt"><td>II-B-3</td><td>鋁製線架（含另件）</td><td class="ctr">M</td><td class="num" data-qty="115">115</td><td class="num price-cell" contenteditable data-price="500">500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $400~$650/M</td></tr>
+<tr class="r-mkt"><td>II-B-4</td><td>線架五金另件</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $5,000~$12,000/式</td></tr>
+<tr class="r-mkt"><td>II-B-5</td><td>打鑿</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $5,000~$12,000/式</td></tr>
+<tr class="r-mkt"><td>II-B-6</td><td>銑孔</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="5000">5000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $3,000~$8,000/式</td></tr>
+<tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8px">II-B 弱電工程 合計</td><td class="num" id="sIIB_total"></td><td></td></tr>
+
+<!-- C 動力幹管及盤體 -->
+<tr class="sub-header"><td colspan="7">C. 動力幹線及盤體工程</td></tr>
+<tr class="r-mkt"><td>II-C-1</td><td>MP盤、R盤開關箱移位（移至內梯下方）</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="35000">35000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $25,000~$50,000/式</td></tr>
+<tr class="r-mkt"><td>II-C-2</td><td>MP盤幹線（PEX 50m㎡）</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="25000">25000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $18,000~$35,000/式</td></tr>
+<tr class="r-mkt"><td>II-C-3</td><td>變壓器移位（移至內梯下方及夾層上）</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="20000">20000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $15,000~$28,000/式</td></tr>
+<tr class="r-ok"><td>II-C-4</td><td>R盤配線（14m㎡）</td><td class="ctr">式</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="9400">9400</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，變壓器一次側及二次側電源線</td></tr>
+<tr class="r-ok"><td>II-C-5</td><td>變壓器配線（8m㎡）</td><td class="ctr">式</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="9400">9400</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-mkt"><td>II-C-6</td><td>變壓器拆、安裝</td><td class="ctr">只</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $5,000~$12,000/只</td></tr>
+<tr class="r-ok"><td>II-C-7</td><td>接線整理（MP×2、R×2）</td><td class="ctr">盤</td><td class="num" data-qty="4">4</td><td class="num price-cell" contenteditable data-price="14158">14158</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，盤體固定及組盤工資</td></tr>
+<tr class="r-ok"><td>II-C-8</td><td>MP盤需木工修飾</td><td class="ctr">盤</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，開關箱木作包覆</td></tr>
+<tr class="r-mkt"><td>II-C-9</td><td>打鑿</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="10000">10000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $8,000~$15,000/式</td></tr>
+<tr class="r-ok"><td>II-C-10</td><td>另料五金</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8448">8448</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，盤體五金</td></tr>
+<tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8px">II-C 動力幹線及盤體 合計</td><td class="num" id="sIIC_total"></td><td></td></tr>
+
+<!-- D 衛浴給排水 -->
+<tr class="sub-header"><td colspan="7">D. 衛浴／給排水工程</td></tr>
+<tr class="sub-header2"><td colspan="7">D-1 董事長室</td></tr>
+<tr class="r-mkt"><td>II-D-1.1</td><td>HCG 兩件式馬桶 CS1404AW</td><td class="ctr">組</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="9000">9000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $7,000~$12,000，依業主確認</td></tr>
+<tr class="r-mkt"><td>II-D-1.2</td><td>TOTO 壁掛小便斗 UW904H/感應器 TWEA10R</td><td class="ctr">組</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="18000">18000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $15,000~$22,000/組</td></tr>
+<tr class="r-mkt"><td>II-D-1.3</td><td>HCG 洗手台下崁式面盆 L347</td><td class="ctr">組</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="6500">6500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，TOTO面盆同級</td></tr>
+<tr class="r-ok"><td>II-D-1.4</td><td>Caesar 單孔面盆龍頭 B760C</td><td class="ctr">組</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，面盆無鉛水龍頭</td></tr>
+<tr class="r-mkt"><td>II-D-1.5</td><td>Caesar 廁所衛生紙架 H106</td><td class="ctr">只</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="800">800</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $500~$1,500/只</td></tr>
+<tr class="r-mkt"><td>II-D-1.6</td><td>Caesar 壁掛式擦手紙箱 ST111</td><td class="ctr">只</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,000~$2,500/只</td></tr>
+<tr class="r-ok"><td>II-D-1.7</td><td>蓮蓬頭 SH351</td><td class="ctr">組</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8500">8500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，淋浴龍頭組</td></tr>
+<tr class="r-mkt"><td>II-D-1.8</td><td>蓮蓬頭滑桿 WG121</td><td class="ctr">組</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="2000">2000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,500~$3,000/組</td></tr>
+<tr class="r-mkt"><td>II-D-1.9</td><td>HCG 不鏽鋼方型防臭落水頭 BF2718</td><td class="ctr">只</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,000~$2,500/只</td></tr>
+<tr class="r-mkt"><td>II-D-1.10</td><td>LED燈照明鏡櫃</td><td class="ctr">組</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="12000">12000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $8,000~$18,000/組</td></tr>
+<tr class="r-mkt"><td>II-D-1.11</td><td>阿拉斯加直流變頻換氣抽風機</td><td class="ctr">台</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,500~$5,000/台</td></tr>
+<tr class="r-ok"><td>II-D-1.12</td><td>以上器具安裝工資</td><td class="ctr">只</td><td class="num" data-qty="11">11</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，衛生器具安裝工資</td></tr>
+<tr class="r-ok"><td>II-D-1.13</td><td>抽風機電源及安裝軟管</td><td class="ctr">台</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="2800">2800</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，排風機安裝及配電</td></tr>
+<tr class="r-ok"><td>II-D-1.14</td><td>小便斗電源</td><td class="ctr">處</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-ok"><td>II-D-1.15</td><td>感應龍頭電源</td><td class="ctr">處</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-ok"><td>II-D-1.16</td><td>給水出口（白鐵壓接）小便斗/馬桶/臉盆</td><td class="ctr">口</td><td class="num" data-qty="3">3</td><td class="num price-cell" contenteditable data-price="2500">2500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-ok"><td>II-D-1.17</td><td>給水幹管（白鐵壓接）</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $6,000~$12,000/式</td></tr>
+<tr class="r-ok"><td>II-D-1.18</td><td>排水出口（橘管）臉盆/地排</td><td class="ctr">口</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-mkt"><td>II-D-1.19</td><td>排水幹管（橘管）</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="6000">6000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $4,000~$9,000/式</td></tr>
+<tr class="r-ok"><td>II-D-1.20</td><td>污水出口（橘管）馬桶/小便斗</td><td class="ctr">口</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="4500">4500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，廁所污水管</td></tr>
+<tr class="r-mkt"><td>II-D-1.21</td><td>污水幹管（橘管）</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $5,000~$12,000/式</td></tr>
+<tr class="r-mkt"><td>II-D-1.22</td><td>污排水幹管銜接</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="5000">5000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $3,000~$8,000/式</td></tr>
+<tr class="r-mkt"><td>II-D-1.23</td><td>打鑿</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="8000">8000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $5,000~$12,000/式</td></tr>
+<tr class="r-mkt"><td>II-D-1.24</td><td>銑孔</td><td class="ctr">孔</td><td class="num" data-qty="3">3</td><td class="num price-cell" contenteditable data-price="1600">1600</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-mkt"><td>II-D-1.25</td><td>另料五金</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="5000">5000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $3,000~$8,000/式</td></tr>
+<tr class="r-mkt"><td>II-D-1.26</td><td>試水</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="3000">3000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,000~$5,000/式</td></tr>
+
+<tr class="sub-header2"><td colspan="7">D-2 廚房</td></tr>
+<tr class="r-mkt"><td>II-D-2.1</td><td>IH智慧感應雙口爐</td><td class="ctr">組</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>業主/設備另議，本項不計</td></tr>
+<tr class="r-mkt"><td>II-D-2.2</td><td>倒T式智能升降導流排油煙機</td><td class="ctr">組</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="0">0</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>業主/設備另議，本項不計</td></tr>
+<tr class="r-ok"><td>II-D-2.3</td><td>Caesar 單槍龍頭 K715CL</td><td class="ctr">只</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價，面盆龍頭同級</td></tr>
+<tr class="r-mkt"><td>II-D-2.4</td><td>HCG 不鏽鋼方型防臭落水頭 BF2718</td><td class="ctr">只</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $1,000~$2,500/只</td></tr>
+<tr class="r-ok"><td>II-D-2.5</td><td>以上器具安裝工資</td><td class="ctr">組</td><td class="num" data-qty="4">4</td><td class="num price-cell" contenteditable data-price="1500">1500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-ok"><td>II-D-2.7</td><td>給水出口（白鐵壓接）水槽×2</td><td class="ctr">口</td><td class="num" data-qty="2">2</td><td class="num price-cell" contenteditable data-price="2500">2500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-mkt"><td>II-D-2.8</td><td>給水幹管（白鐵壓接）</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="6000">6000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $4,000~$9,000/式</td></tr>
+<tr class="r-ok"><td>II-D-2.9</td><td>排水出口（橘管）水槽×2/地排×1</td><td class="ctr">口</td><td class="num" data-qty="3">3</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-mkt"><td>II-D-2.10</td><td>排水幹管（橘管）</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="6000">6000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $4,000~$9,000/式</td></tr>
+<tr class="r-mkt"><td>II-D-2.11</td><td>銑孔</td><td class="ctr">孔</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="1600">1600</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-mkt"><td>II-D-2.12</td><td>另料五金</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="3000">3000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $2,000~$5,000/式</td></tr>
+
+<tr class="sub-header2"><td colspan="7">D-3 茶水間/秘書室/露台/大廳接待/飲水機</td></tr>
+<tr class="r-ok"><td>II-D-3.1</td><td>給水出口（白鐵壓接）</td><td class="ctr">口</td><td class="num" data-qty="5">5</td><td class="num price-cell" contenteditable data-price="2500">2500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-mkt"><td>II-D-3.2</td><td>給水幹管（白鐵壓接）</td><td class="ctr">式</td><td class="num" data-qty="5">5</td><td class="num price-cell" contenteditable data-price="5000">5000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $3,500~$7,000/式</td></tr>
+<tr class="r-ok"><td>II-D-3.3</td><td>排水出口（橘管）</td><td class="ctr">口</td><td class="num" data-qty="5">5</td><td class="num price-cell" contenteditable data-price="3500">3500</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-mkt"><td>II-D-3.4</td><td>排水幹管（橘管）</td><td class="ctr">式</td><td class="num" data-qty="5">5</td><td class="num price-cell" contenteditable data-price="4000">4000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $3,000~$6,000/式</td></tr>
+<tr class="r-ok"><td>II-D-3.5</td><td>銑孔</td><td class="ctr">孔</td><td class="num" data-qty="5">5</td><td class="num price-cell" contenteditable data-price="1600">1600</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>系統價</td></tr>
+<tr class="r-mkt"><td>II-D-3.6</td><td>另料五金</td><td class="ctr">式</td><td class="num" data-qty="1">1</td><td class="num price-cell" contenteditable data-price="5000">5000</td><td class="num total-cell"></td><td class="remark-cell" contenteditable>🟡市場行情 $3,000~$8,000/式</td></tr>
+
+<tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8px">II-D 衛浴/給排水 合計</td><td class="num" id="sIID_total"></td><td></td></tr>
+
+    </tbody>
+  </table>
+</div>
+
+<!-- Summary -->
+<div class="summary-box">
+  <h3>費用總覽</h3>
+  <div class="summary-grid">
+    <div class="s-item"><span class="s-lbl">I-A 假設工程</span><span class="s-val" id="sum_A">-</span></div>
+    <div class="s-item"><span class="s-lbl">I-B 天花板</span><span class="s-val" id="sum_B">-</span></div>
+    <div class="s-item"><span class="s-lbl">I-C 隔間/門/窗</span><span class="s-val" id="sum_C">-</span></div>
+    <div class="s-item"><span class="s-lbl">I-D 牆面材料</span><span class="s-val" id="sum_D">-</span></div>
+    <div class="s-item"><span class="s-lbl">I-E 地面材料</span><span class="s-val" id="sum_E">-</span></div>
+    <div class="s-item"><span class="s-lbl">I-F 固定傢俱</span><span class="s-val" id="sum_F">-</span></div>
+    <div class="s-item"><span class="s-lbl">I-G 其它工程</span><span class="s-val" id="sum_G">-</span></div>
+    <div class="s-item"><span class="s-lbl">II-A 照明/插座</span><span class="s-val" id="sum_IIA">-</span></div>
+    <div class="s-item"><span class="s-lbl">II-B 弱電</span><span class="s-val" id="sum_IIB">-</span></div>
+    <div class="s-item"><span class="s-lbl">II-C 動力幹線盤體</span><span class="s-val" id="sum_IIC">-</span></div>
+    <div class="s-item"><span class="s-lbl">II-D 衛浴/給排水</span><span class="s-val" id="sum_IID">-</span></div>
+    <div class="s-item"><span class="s-lbl">Section I 小計</span><span class="s-val" id="sum_s1">-</span></div>
+    <div class="s-item"><span class="s-lbl">Section II 小計</span><span class="s-val" id="sum_s2">-</span></div>
+    <div class="s-item"><span class="s-lbl">管理費（<span id="mgmt_pct2">10</span>%）</span><span class="s-val" id="sum_mgmt">-</span></div>
+    <div class="s-item"><span class="s-lbl">稅前合計</span><span class="s-val" id="sum_pretax">-</span></div>
+    <div class="s-item"><span class="s-lbl">營業稅（<span id="tax_pct2">5</span>%）</span><span class="s-val" id="sum_tax">-</span></div>
+    <div class="s-item grand"><span class="s-lbl">總計（含稅）</span><span class="s-val" id="sum_grand">-</span></div>
+  </div>
+  <p style="font-size:10px;color:#aaa;margin-top:12px">※ 空調（III）及消防（IV）本次不列入，由業主另行發包</p>
+</div>
+
+<div style="font-size:10px;color:#bbb;text-align:center;padding:4px 0 20px">
+  宇德室內裝修股份有限公司｜本報價單由宇德報價系統輔助製作｜最終以簽約合約為準
+</div>
+
+</div>
+
+<script>
+document.getElementById('today').textContent = new Date().toLocaleDateString('zh-TW');
+
+function fmt(n){
+  if(n===null||n===undefined) return '-';
+  return '$\u00a0' + Math.round(n).toLocaleString('zh-TW');
+}
+
+// Make price cells editable and trigger recalc
+document.querySelectorAll('.price-cell').forEach(cell => {
+  cell.addEventListener('blur', function(){
+    const raw = this.textContent.replace(/[,$ ]/g,'');
+    const val = parseFloat(raw)||0;
+    this.dataset.price = val;
+    this.textContent = val.toLocaleString('zh-TW');
+    recalc();
+  });
+  cell.addEventListener('keydown', function(e){
+    if(e.key==='Enter'){e.preventDefault();this.blur();}
+  });
+});
+
+function sumRows(prefix) {
+  let t = 0;
+  document.querySelectorAll('tbody tr').forEach(row => {
+    const idCell = row.cells?.[0];
+    if(!idCell) return;
+    const id = idCell.textContent.trim();
+    if(!id.startsWith(prefix)) return;
+    if(row.classList.contains('total-row')||row.classList.contains('sub-header')||row.classList.contains('sub-header2')) return;
+    const qty = parseFloat(row.querySelector('[data-qty]')?.dataset.qty)||0;
+    const price = parseFloat(row.querySelector('.price-cell')?.dataset.price)||0;
+    t += qty * price;
+  });
+  return t;
+}
+
+function recalc(){
+  const mgmt = (parseFloat(document.getElementById('mgmtRate').value)||0)/100;
+  const tax  = (parseFloat(document.getElementById('taxRate').value)||0)/100;
+  document.getElementById('mgmt_pct2').textContent = Math.round(mgmt*100);
+  document.getElementById('tax_pct2').textContent  = Math.round(tax*100);
+
+  // Update all total cells
+  document.querySelectorAll('tbody tr').forEach(row => {
+    if(row.classList.contains('total-row')||row.classList.contains('sub-header')||row.classList.contains('sub-header2')) return;
+    const qEl = row.querySelector('[data-qty]');
+    const pEl = row.querySelector('.price-cell');
+    const tEl = row.querySelector('.total-cell');
+    if(!qEl||!pEl||!tEl) return;
+    const qty = parseFloat(qEl.dataset.qty)||0;
+    const price = parseFloat(pEl.dataset.price)||0;
+    tEl.textContent = (qty*price).toLocaleString('zh-TW');
+  });
+
+  // Section sums by prefix
+  const sA = sumRows('A-'); const sB = sumRows('B-'); const sC = sumRows('C-');
+  const sD = sumRows('D-'); const sE = sumRows('E-'); const sF = sumRows('F-');
+  const sG = sumRows('G-');
+  const sIIA = sumRows('II-A-'); const sIIB = sumRows('II-B-');
+  const sIIC = sumRows('II-C-'); const sIID = sumRows('II-D-');
+
+  const s1 = sA+sB+sC+sD+sE+sF+sG;
+  const s2 = sIIA+sIIB+sIIC+sIID;
+  const total = s1+s2;
+  const mgmtAmt = total*mgmt;
+  const pretax = total+mgmtAmt;
+  const taxAmt = pretax*tax;
+  const grand = pretax+taxAmt;
+
+  // Update section total rows
+  const map = {sA_total:sA,sB_total:sB,sC_total:sC,sD_total:sD,sE_total:sE,sF_total:sF,sG_total:sG,
+    sIIA_total:sIIA,sIIB_total:sIIB,sIIC_total:sIIC,sIID_total:sIID};
+  Object.entries(map).forEach(([id,val])=>{
+    const el=document.getElementById(id);
+    if(el) el.textContent=val.toLocaleString('zh-TW');
+  });
+
+  document.getElementById('s1_sub').textContent = fmt(s1);
+  document.getElementById('s2_sub').textContent = fmt(s2);
+
+  document.getElementById('sum_A').textContent=fmt(sA);
+  document.getElementById('sum_B').textContent=fmt(sB);
+  document.getElementById('sum_C').textContent=fmt(sC);
+  document.getElementById('sum_D').textContent=fmt(sD);
+  document.getElementById('sum_E').textContent=fmt(sE);
+  document.getElementById('sum_F').textContent=fmt(sF);
+  document.getElementById('sum_G').textContent=fmt(sG);
+  document.getElementById('sum_IIA').textContent=fmt(sIIA);
+  document.getElementById('sum_IIB').textContent=fmt(sIIB);
+  document.getElementById('sum_IIC').textContent=fmt(sIIC);
+  document.getElementById('sum_IID').textContent=fmt(sIID);
+  document.getElementById('sum_s1').textContent=fmt(s1);
+  document.getElementById('sum_s2').textContent=fmt(s2);
+  document.getElementById('sum_mgmt').textContent=fmt(mgmtAmt);
+  document.getElementById('sum_pretax').textContent=fmt(pretax);
+  document.getElementById('sum_tax').textContent=fmt(taxAmt);
+  document.getElementById('sum_grand').textContent=fmt(grand);
+}
+
+recalc();
+
+// ===== Firebase 自動存檔 =====
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAz-MeKorzgp__EjiMWvugiz_JFDjk4NIs",
+  authDomain: "yutesign-sync.firebaseapp.com",
+  databaseURL: "https://yutesign-sync-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "yutesign-sync",
+  storageBucket: "yutesign-sync.firebasestorage.app",
+  messagingSenderId: "709833651829",
+  appId: "1:709833651829:web:6d52a99ceefc1915caaa3c"
+};
+
+const FB_KEY = 'quotes/cheliwo_zhonghe';
+let fbDb = null;
+let fbSaveTimer = null;
+let fbLoading = true;
+
+function initFirebase() {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    fbDb = firebase.database();
+    showFbStatus('🔄 載入雲端資料...', '#888');
+    // Load saved data
+    fbDb.ref(FB_KEY).once('value').then(snap => {
+      const data = snap.val();
+      if (data) {
+        restoreFromData(data);
+        showFbStatus('✅ 雲端資料已載入', '#27ae60');
+      } else {
+        showFbStatus('☁️ 新報價（尚無雲端記錄）', '#888');
+      }
+      fbLoading = false;
+    }).catch(e => {
+      showFbStatus('⚠️ 載入失敗：' + e.message, '#e67e22');
+      fbLoading = false;
+    });
+  } catch(e) {
+    showFbStatus('⚠️ Firebase 初始化失敗', '#e67e22');
+    fbLoading = false;
+  }
+}
+
+function collectData() {
+  const prices = {};
+  const remarks = {};
+  document.querySelectorAll('.price-cell').forEach((el, i) => {
+    const row = el.closest('tr');
+    const id = row?.cells?.[0]?.textContent?.trim() || i;
+    prices[id] = el.dataset.price || '0';
+  });
+  document.querySelectorAll('.remark-cell').forEach((el, i) => {
+    const row = el.closest('tr');
+    const id = row?.cells?.[0]?.textContent?.trim() || i;
+    remarks[id] = el.textContent?.trim() || '';
+  });
+  return {
+    prices,
+    remarks,
+    mgmtRate: document.getElementById('mgmtRate').value,
+    taxRate: document.getElementById('taxRate').value,
+    savedAt: Date.now()
+  };
+}
+
+function restoreFromData(data) {
+  if (data.mgmtRate) document.getElementById('mgmtRate').value = data.mgmtRate;
+  if (data.taxRate)  document.getElementById('taxRate').value  = data.taxRate;
+
+  document.querySelectorAll('.price-cell').forEach((el) => {
+    const row = el.closest('tr');
+    const id = row?.cells?.[0]?.textContent?.trim();
+    if (id && data.prices && data.prices[id] !== undefined) {
+      el.dataset.price = data.prices[id];
+      el.textContent = parseFloat(data.prices[id]).toLocaleString('zh-TW');
+    }
+  });
+  document.querySelectorAll('.remark-cell').forEach((el) => {
+    const row = el.closest('tr');
+    const id = row?.cells?.[0]?.textContent?.trim();
+    if (id && data.remarks && data.remarks[id] !== undefined) {
+      el.textContent = data.remarks[id];
+    }
+  });
+  recalc();
+  if (data.savedAt) {
+    const d = new Date(data.savedAt);
+    showFbStatus('✅ 已載入 ' + d.toLocaleString('zh-TW'), '#27ae60');
+  }
+}
+
+function scheduleSave() {
+  if (fbLoading) return;
+  showFbStatus('✏️ 修改中，3秒後自動儲存...', '#e67e22');
+  clearTimeout(fbSaveTimer);
+  fbSaveTimer = setTimeout(saveToFirebase, 3000);
+}
+
+function saveToFirebase() {
+  if (!fbDb) return;
+  const data = collectData();
+  fbDb.ref(FB_KEY).set(data).then(() => {
+    const d = new Date();
+    showFbStatus('✅ 已自動儲存 ' + d.toLocaleTimeString('zh-TW'), '#27ae60');
+  }).catch(e => {
+    showFbStatus('❌ 儲存失敗：' + e.message, '#c0392b');
+  });
+}
+
+function showFbStatus(msg, color) {
+  const el = document.getElementById('fb_status');
+  if (el) { el.textContent = msg; el.style.color = color; }
+}
+
+// Hook all editable cells to trigger save
+document.addEventListener('DOMContentLoaded', () => {});
+// Override existing blur handlers to also trigger save
+const origPriceCellSetup = () => {
+  document.querySelectorAll('.price-cell').forEach(cell => {
+    cell.addEventListener('blur', scheduleSave);
+  });
+  document.querySelectorAll('.remark-cell').forEach(cell => {
+    cell.addEventListener('blur', scheduleSave);
+  });
+  document.getElementById('mgmtRate').addEventListener('change', scheduleSave);
+  document.getElementById('taxRate').addEventListener('change', scheduleSave);
+};
+origPriceCellSetup();
+initFirebase();
+</script>
+</body>
+</html>
