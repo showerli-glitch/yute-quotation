@@ -61,12 +61,14 @@ tr.r-missing td{background:#fff1f2}
 .s-item.grand .s-lbl{color:#aaa}
 .s-val{font-weight:600}
 @media print{
-  body{background:#fff;font-size:8.5pt}
-  .screen-wrap{max-width:none;padding:0}
+  body{background:#fff;font-size:8.5pt;margin:0;padding:0}
+  .screen-wrap{max-width:none;padding:0;margin:0}
   .controls,.mgmt-row,.btn,.notice-box,.legend{display:none!important}
-  .page-header,.meta-bar,.section-wrap,.summary-box{border-radius:0}
-  .section-wrap{margin-bottom:10pt;break-inside:avoid}
-  @page{size:A4;margin:10mm 10mm 12mm 10mm}
+  .page-header{border-radius:0;margin:0 0 4pt 0;padding:10pt 12pt}
+  .meta-bar{border-radius:0;margin:0 0 4pt 0;padding:6pt 12pt}
+  .section-wrap,.summary-box{border-radius:0}
+  .section-wrap{margin-bottom:8pt;break-inside:avoid}
+  @page{size:A4;margin:8mm 8mm 10mm 8mm}
 }
 </style>
 </head>
@@ -99,7 +101,7 @@ tr.r-missing td{background:#fff1f2}
 
 <div class="mgmt-row">
   <label>管理費 %</label>
-  <input class="mgmt-input" id="mgmtRate" type="number" value="10" min="0" max="30" oninput="recalc()">
+  <input class="mgmt-input" id="mgmtRate" type="number" value="6" min="0" max="30" oninput="recalc()">
   <label>稅率 %</label>
   <input class="mgmt-input" id="taxRate" type="number" value="5" min="0" max="10" oninput="recalc()">
   <span style="font-size:10px;color:#aaa">以上費率套用至 Section I + Section II</span>
