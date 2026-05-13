@@ -105,6 +105,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
 .btn-primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
 .btn-primary:hover{background:#333}
 .bottom-bar{display:flex;justify-content:space-between;align-items:center;padding:16px;background:#fff;border-radius:10px;border:1px solid #e0ddd5}
+.top-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:#fff;border-radius:10px;border:1px solid #e0ddd5;margin-bottom:12px}
 .total-block{text-align:right}
 .total-block .lbl{font-size:12px;color:#999;margin-bottom:4px}
 .total-block .amt{font-size:26px;font-weight:700;color:#1a1a1a}
@@ -326,6 +327,20 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
     </div>
     <button onclick="openSectionManager()" style="white-space:nowrap;padding:7px 14px;border:1px solid #e0ddd5;border-radius:8px;font-size:13px;background:#fff;cursor:pointer;color:#555">⚙ 大項管理</button>
   </div>
+  <div class="top-bar">
+    <div class="actions">
+      <button class="btn" onclick="clearAll()">清除全部</button>
+      <button class="btn" onclick="importJSON()" style="background:#f0f7ff;border-color:#b8d4f5;color:#1a5fb4">📂 開啟報價</button>
+      <button class="btn" onclick="exportJSON()" style="background:#f0fff4;border-color:#b8e4c5;color:#1a7a4a">💾 儲存報價</button>
+      <button class="btn btn-primary" onclick="doPrint()">列印 PDF</button>
+      <button class="btn" onclick="exportToExcel()" style="background:#1a7a4a;color:#fff;border-color:#1a7a4a">匯出 Excel</button>
+    </div>
+    <div class="total-block" style="text-align:right">
+      <div class="lbl">報價總金額（含稅）</div>
+      <div class="amt" id="grandTotal2" style="font-size:20px">$0</div>
+      <div class="tax" id="taxBreak2"></div>
+    </div>
+  </div>
   <!-- 大項管理 Modal -->
   <div id="sectionMgrOverlay" onclick="if(event.target===this)closeSectionManager()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:12px;width:440px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
@@ -411,7 +426,7 @@ const NUM_ZH=['一','二','三','四','五','六','七','八','九','十',
 
 // State
 let mode='quote';  // 'quote' | 'edit'
-const DB_VERSION='2026050503';
+const DB_VERSION='2026050504';
 let dbItems=[];    // working copy of item database
 let quoteItems=[];
 let undoHistory=[];let redoHistory=[];
@@ -913,12 +928,16 @@ function renderQuote(){saveQuoteState();refreshCatDropdowns();
   html+=`</div>`;
   area.innerHTML=html;
   updateStats(quoteItems.length,subtotal,mgmtPct);
-  document.getElementById('grandTotal').textContent='$'+Math.round(total).toLocaleString();
-  document.getElementById('taxBreak').textContent=`小計 $${Math.round(beforeTax).toLocaleString()} + 營業稅 $${Math.round(tax).toLocaleString()}`;
+  const _tAmt='$'+Math.round(total).toLocaleString();
+  const _tBreak=`小計 $${Math.round(beforeTax).toLocaleString()} + 營業稅 $${Math.round(tax).toLocaleString()}`;
+  document.getElementById('grandTotal').textContent=_tAmt;
+  document.getElementById('taxBreak').textContent=_tBreak;
+  document.getElementById('grandTotal2').textContent=_tAmt;
+  document.getElementById('taxBreak2').textContent=_tBreak;
 }
 
 function updateStats(count,subtotal,mgmtPct){
-  const mgmt=subtotal*(mgmtPct/100),total=(subtotal+mgmt)*1.05;
+  const {mgmt,total}=getCalc();
   document.getElementById('statItems').textContent=count;
   document.getElementById('statSubtotal').textContent='$'+Math.round(subtotal).toLocaleString();
   document.getElementById('statMgmt').textContent='$'+Math.round(mgmt).toLocaleString();
