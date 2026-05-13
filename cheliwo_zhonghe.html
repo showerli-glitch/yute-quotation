@@ -73,13 +73,8 @@ tr.r-missing td{background:#fff1f2}
     border:none!important;
   }
   .page-header{
-    border-radius:0;margin:0 0 3pt 0;padding:8pt 10pt;
-    border:none;border-bottom:1.5pt solid #000;
-    break-after:avoid;page-break-after:avoid;
-  }
-  .meta-bar{
-    border-radius:0;margin:0 0 3pt 0;padding:5pt 10pt;
-    border:none;border-bottom:0.5pt solid #ccc;
+    border-radius:0;margin:0 0 4pt 0;padding:8pt 10pt;
+    border:none;
     break-after:avoid;page-break-after:avoid;
   }
   .section-wrap,.summary-box{border-radius:0;border:none}
@@ -93,15 +88,32 @@ tr.r-missing td{background:#fff1f2}
 <div class="screen-wrap">
 
 <div class="page-header">
-  <div><div class="co-name">宇德室內裝修股份有限公司</div><div class="co-sub">YUDE INTERIOR RENOVATION CO., LTD.</div></div>
-  <div class="doc-title"><h1>工程報價單</h1><p>車麗屋汽車百貨股份有限公司｜中和辦公室裝修工程（不含1F及2F夾層）</p></div>
-</div>
-
-<div class="meta-bar">
-  <div class="meta-item"><label>業主</label><strong>車麗屋汽車百貨股份有限公司</strong></div>
-  <div class="meta-item"><label>工程</label><strong>中和辦公室裝修工程</strong></div>
-  <div class="meta-item"><label>報價日期</label><strong id="today"></strong></div>
-  <div class="meta-item"><label>版本</label><strong>v2.0</strong></div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <!-- 左：Logo + 公司資料 -->
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:52px;height:52px;background:#1a1a1a;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <span style="color:#fff;font-size:18px;font-weight:900;letter-spacing:-1px">宇德</span>
+      </div>
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#1a1a1a">宇德室內裝修股份有限公司</div>
+        <div style="font-size:10px;color:#888;margin-top:2px">YUDE INTERIOR RENOVATION CO., LTD.</div>
+        <div style="font-size:10px;color:#666;margin-top:3px">TEL: (02)2652-2112　台北市忠孝東路六段70巷21弄2號</div>
+        <div style="font-size:10px;color:#666">E-mail: shower.li@yutesign.com</div>
+      </div>
+    </div>
+    <!-- 右：報價單標題 + 日期 -->
+    <div style="text-align:right">
+      <div style="font-size:22px;font-weight:900;color:#c0392b;letter-spacing:2px">工　程　報　價　單</div>
+      <div style="font-size:11px;color:#888;margin-top:4px">日期：<span id="today"></span></div>
+    </div>
+  </div>
+  <!-- 下：工程資料欄 -->
+  <div style="margin-top:12px;border-top:1.5px solid #1a1a1a;border-bottom:1px solid #ccc;padding:7px 0;display:grid;grid-template-columns:1fr 1fr;gap:4px 32px;font-size:11px">
+    <div><span style="color:#888;margin-right:6px">工程名稱：</span><strong>車麗屋中和總部辦公室裝修工程</strong></div>
+    <div><span style="color:#888;margin-right:6px">業　　主：</span><strong>車麗屋汽車百貨股份有限公司</strong></div>
+    <div><span style="color:#888;margin-right:6px">工程地址：</span><strong>新北市中和區中正路990號2樓（不含1F及2F夾層）</strong></div>
+    <div><span style="color:#888;margin-right:6px">版　　本：</span><strong>v2.0</strong></div>
+  </div>
 </div>
 
 <div class="notice-box">
