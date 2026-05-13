@@ -596,15 +596,21 @@ function fbStatus(msg, color) {
   if (el) { el.textContent = msg; el.style.color = color || '#888'; }
 }
 
+function safeKey(id) {
+  // Firebase keys cannot contain . # $ / [ ]
+  return id.replace(/[.#$\/\[\]]/g, '_');
+}
+
 function fbCollect() {
   const prices = {}, remarks = {};
   document.querySelectorAll('tbody tr').forEach(row => {
     const id = row.cells?.[0]?.textContent?.trim();
     if (!id) return;
+    const k = safeKey(id);
     const p = row.querySelector('.price-cell');
     const r = row.querySelector('.remark-cell');
-    if (p) prices[id] = p.dataset.price || '0';
-    if (r) remarks[id] = r.innerText.trim();
+    if (p) prices[k] = p.dataset.price || '0';
+    if (r) remarks[k] = r.innerText.trim();
   });
   return {
     prices, remarks,
@@ -639,14 +645,15 @@ function fbRestore(data) {
   document.querySelectorAll('tbody tr').forEach(row => {
     const id = row.cells?.[0]?.textContent?.trim();
     if (!id) return;
+    const k = safeKey(id);
     const p = row.querySelector('.price-cell');
     const r = row.querySelector('.remark-cell');
-    if (p && data.prices?.[id] !== undefined) {
-      p.dataset.price = data.prices[id];
-      p.textContent = parseFloat(data.prices[id]).toLocaleString('zh-TW');
+    if (p && data.prices?.[k] !== undefined) {
+      p.dataset.price = data.prices[k];
+      p.textContent = parseFloat(data.prices[k]).toLocaleString('zh-TW');
     }
-    if (r && data.remarks?.[id] !== undefined) {
-      r.innerText = data.remarks[id];
+    if (r && data.remarks?.[k] !== undefined) {
+      r.innerText = data.remarks[k];
     }
   });
   recalc();
