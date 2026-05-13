@@ -666,14 +666,20 @@ function restoreFromData(data) {
 }
 
 function scheduleSave() {
-  if (fbLoading) return;
+  if (fbLoading) {
+    showFbStatus('⏳ 資料載入中，請稍後再修改...', '#888');
+    return;
+  }
   showFbStatus('✏️ 修改中，3秒後自動儲存...', '#e67e22');
-  clearTimeout(fbSaveTimer);
-  fbSaveTimer = setTimeout(saveToFirebase, 3000);
+  if (fbSaveTimer) clearTimeout(fbSaveTimer);
+  fbSaveTimer = setTimeout(() => {
+    fbSaveTimer = null;
+    saveToFirebase();
+  }, 3000);
 }
 
 function saveToFirebase() {
-  if (!fbDb) return;
+  if (!fbDb) { showFbStatus('❌ Firebase 未連線', '#c0392b'); return; }
   const data = collectData();
   fbDb.ref(FB_KEY).set(data).then(() => {
     const d = new Date();
@@ -689,20 +695,18 @@ function showFbStatus(msg, color) {
 }
 
 // Hook all editable cells to trigger save
-document.addEventListener('DOMContentLoaded', () => {});
-// Override existing blur handlers to also trigger save
-const origPriceCellSetup = () => {
-  document.querySelectorAll('.price-cell').forEach(cell => {
-    cell.addEventListener('blur', scheduleSave);
-  });
-  document.querySelectorAll('.remark-cell').forEach(cell => {
-    cell.addEventListener('blur', scheduleSave);
-  });
-  document.getElementById('mgmtRate').addEventListener('change', scheduleSave);
-  document.getElementById('taxRate').addEventListener('change', scheduleSave);
-};
-origPriceCellSetup();
-initFirebase();
+document.querySelectorAll('.price-cell').forEach(cell => {
+  cell.addEventListener('blur', scheduleSave);
+});
+document.querySelectorAll('.remark-cell').forEach(cell => {
+  cell.addEventListener('input', scheduleSave);
+  cell.addEventListener('blur', scheduleSave);
+});
+document.getElementById('mgmtRate').addEventListener('input', scheduleSave);
+document.getElementById('taxRate').addEventListener('input', scheduleSave);
+
+// Init Firebase after page fully loaded
+window.addEventListener('load', initFirebase);
 </script>
 </body>
 </html>
