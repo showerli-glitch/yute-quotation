@@ -589,124 +589,111 @@ const FIREBASE_CONFIG = {
 
 const FB_KEY = 'quotes/cheliwo_zhonghe';
 let fbDb = null;
-let fbSaveTimer = null;
-let fbLoading = true;
+let fbTimer = null;
 
-function initFirebase() {
-  try {
-    firebase.initializeApp(FIREBASE_CONFIG);
-    fbDb = firebase.database();
-    showFbStatus('🔄 載入雲端資料...', '#888');
-    // Load saved data
-    fbDb.ref(FB_KEY).once('value').then(snap => {
-      const data = snap.val();
-      if (data) {
-        restoreFromData(data);
-        showFbStatus('✅ 雲端資料已載入', '#27ae60');
-      } else {
-        showFbStatus('☁️ 新報價（尚無雲端記錄）', '#888');
-      }
-      fbLoading = false;
-    }).catch(e => {
-      showFbStatus('⚠️ 載入失敗：' + e.message, '#e67e22');
-      fbLoading = false;
-    });
-  } catch(e) {
-    showFbStatus('⚠️ Firebase 初始化失敗', '#e67e22');
-    fbLoading = false;
-  }
+function fbStatus(msg, color) {
+  const el = document.getElementById('fb_status');
+  if (el) { el.textContent = msg; el.style.color = color || '#888'; }
 }
 
-function collectData() {
-  const prices = {};
-  const remarks = {};
-  document.querySelectorAll('.price-cell').forEach((el, i) => {
-    const row = el.closest('tr');
-    const id = row?.cells?.[0]?.textContent?.trim() || i;
-    prices[id] = el.dataset.price || '0';
-  });
-  document.querySelectorAll('.remark-cell').forEach((el, i) => {
-    const row = el.closest('tr');
-    const id = row?.cells?.[0]?.textContent?.trim() || i;
-    remarks[id] = el.textContent?.trim() || '';
+function fbCollect() {
+  const prices = {}, remarks = {};
+  document.querySelectorAll('tbody tr').forEach(row => {
+    const id = row.cells?.[0]?.textContent?.trim();
+    if (!id) return;
+    const p = row.querySelector('.price-cell');
+    const r = row.querySelector('.remark-cell');
+    if (p) prices[id] = p.dataset.price || '0';
+    if (r) remarks[id] = r.innerText.trim();
   });
   return {
-    prices,
-    remarks,
+    prices, remarks,
     mgmtRate: document.getElementById('mgmtRate').value,
     taxRate: document.getElementById('taxRate').value,
     savedAt: Date.now()
   };
 }
 
-function restoreFromData(data) {
+function fbSave() {
+  if (!fbDb) { fbStatus('❌ 未連線', '#c0392b'); return; }
+  const data = fbCollect();
+  fbStatus('💾 儲存中...', '#e67e22');
+  fbDb.ref(FB_KEY).set(data)
+    .then(() => {
+      const t = new Date().toLocaleTimeString('zh-TW');
+      fbStatus('✅ 已儲存 ' + t, '#27ae60');
+    })
+    .catch(e => fbStatus('❌ 儲存失敗: ' + e.message, '#c0392b'));
+}
+
+function fbSchedule() {
+  fbStatus('✏️ 3秒後自動儲存...', '#e67e22');
+  clearTimeout(fbTimer);
+  fbTimer = setTimeout(fbSave, 3000);
+}
+
+function fbRestore(data) {
+  if (!data) return;
   if (data.mgmtRate) document.getElementById('mgmtRate').value = data.mgmtRate;
   if (data.taxRate)  document.getElementById('taxRate').value  = data.taxRate;
-
-  document.querySelectorAll('.price-cell').forEach((el) => {
-    const row = el.closest('tr');
-    const id = row?.cells?.[0]?.textContent?.trim();
-    if (id && data.prices && data.prices[id] !== undefined) {
-      el.dataset.price = data.prices[id];
-      el.textContent = parseFloat(data.prices[id]).toLocaleString('zh-TW');
+  document.querySelectorAll('tbody tr').forEach(row => {
+    const id = row.cells?.[0]?.textContent?.trim();
+    if (!id) return;
+    const p = row.querySelector('.price-cell');
+    const r = row.querySelector('.remark-cell');
+    if (p && data.prices?.[id] !== undefined) {
+      p.dataset.price = data.prices[id];
+      p.textContent = parseFloat(data.prices[id]).toLocaleString('zh-TW');
     }
-  });
-  document.querySelectorAll('.remark-cell').forEach((el) => {
-    const row = el.closest('tr');
-    const id = row?.cells?.[0]?.textContent?.trim();
-    if (id && data.remarks && data.remarks[id] !== undefined) {
-      el.textContent = data.remarks[id];
+    if (r && data.remarks?.[id] !== undefined) {
+      r.innerText = data.remarks[id];
     }
   });
   recalc();
-  if (data.savedAt) {
-    const d = new Date(data.savedAt);
-    showFbStatus('✅ 已載入 ' + d.toLocaleString('zh-TW'), '#27ae60');
-  }
 }
 
-function scheduleSave() {
-  if (fbLoading) {
-    showFbStatus('⏳ 資料載入中，請稍後再修改...', '#888');
-    return;
-  }
-  showFbStatus('✏️ 修改中，3秒後自動儲存...', '#e67e22');
-  if (fbSaveTimer) clearTimeout(fbSaveTimer);
-  fbSaveTimer = setTimeout(() => {
-    fbSaveTimer = null;
-    saveToFirebase();
-  }, 3000);
-}
-
-function saveToFirebase() {
-  if (!fbDb) { showFbStatus('❌ Firebase 未連線', '#c0392b'); return; }
-  const data = collectData();
-  fbDb.ref(FB_KEY).set(data).then(() => {
-    const d = new Date();
-    showFbStatus('✅ 已自動儲存 ' + d.toLocaleTimeString('zh-TW'), '#27ae60');
-  }).catch(e => {
-    showFbStatus('❌ 儲存失敗：' + e.message, '#c0392b');
+// Attach listeners to all editable cells
+function fbAttach() {
+  document.querySelectorAll('.price-cell').forEach(el => {
+    el.addEventListener('blur', fbSchedule);
   });
+  document.querySelectorAll('.remark-cell').forEach(el => {
+    el.addEventListener('blur', fbSchedule);
+  });
+  document.getElementById('mgmtRate').addEventListener('change', fbSchedule);
+  document.getElementById('taxRate').addEventListener('change', fbSchedule);
 }
 
-function showFbStatus(msg, color) {
-  const el = document.getElementById('fb_status');
-  if (el) { el.textContent = msg; el.style.color = color; }
-}
-
-// Hook all editable cells to trigger save
-document.querySelectorAll('.price-cell').forEach(cell => {
-  cell.addEventListener('blur', scheduleSave);
+// Init on window load
+window.addEventListener('load', function() {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    fbDb = firebase.database();
+    fbStatus('🔄 載入中...', '#888');
+    fbDb.ref(FB_KEY).once('value')
+      .then(snap => {
+        const data = snap.val();
+        if (data && data.prices) {
+          fbRestore(data);
+          const t = data.savedAt ? new Date(data.savedAt).toLocaleString('zh-TW') : '';
+          fbStatus('✅ 已載入（上次儲存：' + t + '）', '#27ae60');
+        } else {
+          fbStatus('☁️ 雲端無記錄，修改後將自動儲存', '#888');
+        }
+        fbAttach();
+      })
+      .catch(e => {
+        fbStatus('⚠️ 載入失敗：' + e.message, '#c0392b');
+        fbAttach();
+      });
+  } catch(e) {
+    fbStatus('⚠️ Firebase 錯誤：' + e.message, '#c0392b');
+    fbAttach();
+  }
 });
-document.querySelectorAll('.remark-cell').forEach(cell => {
-  cell.addEventListener('input', scheduleSave);
-  cell.addEventListener('blur', scheduleSave);
-});
-document.getElementById('mgmtRate').addEventListener('input', scheduleSave);
-document.getElementById('taxRate').addEventListener('input', scheduleSave);
 
-// Init Firebase after page fully loaded
-window.addEventListener('load', initFirebase);
+// Manual save button
+function saveToFirebase() { fbSave(); }
 </script>
 </body>
 </html>
