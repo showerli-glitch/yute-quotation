@@ -126,8 +126,12 @@ tr.r-missing td{background:#fff1f2}
 
 <div class="controls">
   <button class="btn btn-print" onclick="window.print()">🖨️ 列印 / 匯出PDF</button>
-  <button class="btn" onclick="saveToFirebase()">☁️ 立即儲存</button>
-  <span id="fb_status" style="font-size:11px;color:#888;margin-left:4px">Firebase 初始化中...</span>
+  <button class="btn" style="background:#27ae60;color:#fff;border-color:#27ae60" onclick="localSave()">💾 儲存到本機</button>
+  <label class="btn" style="cursor:pointer" title="載入之前儲存的JSON檔案">📂 載入存檔
+    <input type="file" accept=".json" onchange="localLoad(event)" style="display:none">
+  </label>
+  <button class="btn" onclick="firebaseSave()">☁️ 雲端備份</button>
+  <span id="fb_status" style="font-size:11px;color:#888;margin-left:4px">就緒</span>
 </div>
 
 <!-- ============================================================ -->
@@ -595,32 +599,14 @@ function recalc(){
 
 recalc();
 
-// ===== Firebase 自動存檔 =====
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAz-MeKorzgp__EjiMWvugiz_JFDjk4NIs",
-  authDomain: "yutesign-sync.firebaseapp.com",
-  databaseURL: "https://yutesign-sync-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "yutesign-sync",
-  storageBucket: "yutesign-sync.firebasestorage.app",
-  messagingSenderId: "709833651829",
-  appId: "1:709833651829:web:6d52a99ceefc1915caaa3c"
-};
+// ===== 本機儲存 + Firebase 雲端備份 =====
 
-const FB_KEY = 'quotes/cheliwo_zhonghe';
-let fbDb = null;
-let fbTimer = null;
-
-function fbStatus(msg, color) {
-  const el = document.getElementById('fb_status');
-  if (el) { el.textContent = msg; el.style.color = color || '#888'; }
-}
-
+// --- 收集資料 ---
 function safeKey(id) {
-  // Firebase keys cannot contain . # $ / [ ]
   return id.replace(/[.#$\/\[\]]/g, '_');
 }
 
-function fbCollect() {
+function collectData() {
   const prices = {}, remarks = {};
   document.querySelectorAll('tbody tr').forEach(row => {
     const id = row.cells?.[0]?.textContent?.trim();
@@ -634,30 +620,14 @@ function fbCollect() {
   return {
     prices, remarks,
     mgmtRate: document.getElementById('mgmtRate').value,
-    taxRate: document.getElementById('taxRate').value,
-    savedAt: Date.now()
+    taxRate:  document.getElementById('taxRate').value,
+    savedAt:  new Date().toLocaleString('zh-TW'),
+    project:  '車麗屋中和辦公室裝修工程'
   };
 }
 
-function fbSave() {
-  if (!fbDb) { fbStatus('❌ 未連線', '#c0392b'); return; }
-  const data = fbCollect();
-  fbStatus('💾 儲存中...', '#e67e22');
-  fbDb.ref(FB_KEY).set(data)
-    .then(() => {
-      const t = new Date().toLocaleTimeString('zh-TW');
-      fbStatus('✅ 已儲存 ' + t, '#27ae60');
-    })
-    .catch(e => fbStatus('❌ 儲存失敗: ' + e.message, '#c0392b'));
-}
-
-function fbSchedule() {
-  fbStatus('✏️ 3秒後自動儲存...', '#e67e22');
-  clearTimeout(fbTimer);
-  fbTimer = setTimeout(fbSave, 3000);
-}
-
-function fbRestore(data) {
+// --- 還原資料 ---
+function restoreData(data) {
   if (!data) return;
   if (data.mgmtRate) document.getElementById('mgmtRate').value = data.mgmtRate;
   if (data.taxRate)  document.getElementById('taxRate').value  = data.taxRate;
@@ -678,48 +648,97 @@ function fbRestore(data) {
   recalc();
 }
 
-// Attach listeners to all editable cells
-function fbAttach() {
-  document.querySelectorAll('.price-cell').forEach(el => {
-    el.addEventListener('blur', fbSchedule);
-  });
-  document.querySelectorAll('.remark-cell').forEach(el => {
-    el.addEventListener('blur', fbSchedule);
-  });
-  document.getElementById('mgmtRate').addEventListener('change', fbSchedule);
-  document.getElementById('taxRate').addEventListener('change', fbSchedule);
+function setStatus(msg, color) {
+  const el = document.getElementById('fb_status');
+  if (el) { el.textContent = msg; el.style.color = color || '#888'; }
 }
 
-// Init on window load
-window.addEventListener('load', function() {
+// --- 💾 儲存到本機 ---
+function localSave() {
+  const data = collectData();
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toISOString().slice(0,10);
+  a.href     = url;
+  a.download = `車麗屋中和報價_${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus('✅ 已下載到本機 ' + new Date().toLocaleTimeString('zh-TW'), '#27ae60');
+}
+
+// --- 📂 載入本機存檔 ---
+function localLoad(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      restoreData(data);
+      setStatus('✅ 已載入：' + file.name + (data.savedAt ? '（' + data.savedAt + '）' : ''), '#27ae60');
+    } catch(err) {
+      setStatus('❌ 載入失敗：' + err.message, '#c0392b');
+    }
+  };
+  reader.readAsText(file);
+  // reset input so same file can be loaded again
+  event.target.value = '';
+}
+
+// --- ☁️ Firebase 雲端備份（選用）---
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAz-MeKorzgp__EjiMWvugiz_JFDjk4NIs",
+  authDomain: "yutesign-sync.firebaseapp.com",
+  databaseURL: "https://yutesign-sync-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "yutesign-sync",
+  storageBucket: "yutesign-sync.firebasestorage.app",
+  messagingSenderId: "709833651829",
+  appId: "1:709833651829:web:6d52a99ceefc1915caaa3c"
+};
+const FB_KEY = 'quotes/cheliwo_zhonghe';
+let fbDb = null;
+
+function initFirebase() {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
     fbDb = firebase.database();
-    fbStatus('🔄 載入中...', '#888');
+  } catch(e) {}
+}
+
+function firebaseSave() {
+  if (!fbDb) { setStatus('⚠️ Firebase 未連線', '#e67e22'); return; }
+  const data = collectData();
+  setStatus('☁️ 上傳中...', '#e67e22');
+  fbDb.ref(FB_KEY).set(data)
+    .then(() => setStatus('✅ 雲端備份完成 ' + new Date().toLocaleTimeString('zh-TW'), '#27ae60'))
+    .catch(e => setStatus('❌ 雲端失敗：' + e.message, '#c0392b'));
+}
+
+// --- 頁面載入：嘗試從 Firebase 載入，但不強依賴 ---
+window.addEventListener('load', function() {
+  initFirebase();
+  if (fbDb) {
+    setStatus('🔄 嘗試載入雲端資料...', '#888');
     fbDb.ref(FB_KEY).once('value')
       .then(snap => {
         const data = snap.val();
         if (data && data.prices) {
-          fbRestore(data);
-          const t = data.savedAt ? new Date(data.savedAt).toLocaleString('zh-TW') : '';
-          fbStatus('✅ 已載入（上次儲存：' + t + '）', '#27ae60');
+          restoreData(data);
+          setStatus('✅ 已從雲端載入（' + (data.savedAt||'') + '）', '#27ae60');
         } else {
-          fbStatus('☁️ 雲端無記錄，修改後將自動儲存', '#888');
+          setStatus('📋 無雲端記錄，請載入本機存檔或直接編輯', '#888');
         }
-        fbAttach();
       })
-      .catch(e => {
-        fbStatus('⚠️ 載入失敗：' + e.message, '#c0392b');
-        fbAttach();
-      });
-  } catch(e) {
-    fbStatus('⚠️ Firebase 錯誤：' + e.message, '#c0392b');
-    fbAttach();
+      .catch(() => setStatus('📋 離線模式，請載入本機存檔', '#888'));
+  } else {
+    setStatus('📋 請載入本機存檔或直接編輯', '#888');
   }
 });
 
-// Manual save button
-function saveToFirebase() { fbSave(); }
+// 相容舊按鈕呼叫
+function saveToFirebase() { firebaseSave(); }
 </script>
 </body>
 </html>
