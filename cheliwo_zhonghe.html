@@ -790,21 +790,21 @@ const SVG_LOGO = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 55 60" wi
 
 function buildPrintHeader(){
   const today = document.getElementById('today') ? document.getElementById('today').textContent : new Date().toLocaleDateString('zh-TW');
-  return \`<div class="pd-header">
+  return `<div class="pd-header">
     <div class="pd-header-left">
       <div class="pd-header-logo-row">
-        \${SVG_LOGO}
+        ${SVG_LOGO}
         <div style="font-size:12pt;font-weight:700;color:#000;white-space:nowrap">宇德室內裝修股份有限公司</div>
       </div>
       <div class="pd-header-co-info">TEL: (02)2652-2112　台北市忠孝東路六段70巷21弄2號　E-mail: shower.li@yutesign.com</div>
     </div>
-    <div class="pd-header-right">日期：\${today}</div>
+    <div class="pd-header-right">日期：${today}</div>
   </div>
   <div class="pd-title">工　程　報　價　單</div>
   <div class="pd-meta">
     工程名稱：車麗屋中和總部辦公室裝修工程　　業　主：車麗屋汽車百貨股份有限公司<br>
     工程地址：新北市中和區中正路990號2樓（不含1F及2F夾層）　　版本：v2.0
-  </div>\`;
+  </div>`;
 }
 
 function buildPrintTable(){
@@ -815,7 +815,7 @@ function buildPrintTable(){
     const titleEl = sec.querySelector('.section-title-bar h3');
     const subtotalEl = sec.querySelector('.section-subtotal');
     if(!titleEl) return;
-    html += \`<div class="pd-cat-title">\${titleEl.textContent}</div>\`;
+    html += `<div class="pd-cat-title">${titleEl.textContent}</div>`;
     html += '<table><thead><tr><th style="width:36pt">項次</th><th style="text-align:left">工項名稱</th><th style="width:24pt">單位</th><th style="width:30pt">數量</th><th style="width:52pt">單價</th><th style="width:58pt">總價</th><th style="width:80pt">備註</th></tr></thead><tbody>';
     
     const rows = sec.querySelectorAll('tbody tr');
@@ -824,20 +824,20 @@ function buildPrintTable(){
       if(cells.length < 6) return;
       const isSubHeader = row.classList.contains('sub-header');
       if(isSubHeader){
-        html += \`<tr><td colspan="7" style="font-weight:700;background:#f0ede5;font-size:8.5pt;padding:3pt 4pt">\${cells[0].textContent}</td></tr>\`;
+        html += `<tr><td colspan="7" style="font-weight:700;background:#f0ede5;font-size:8.5pt;padding:3pt 4pt">${cells[0].textContent}</td></tr>`;
         return;
       }
       html += '<tr>';
       for(let i=0;i<7;i++){
         if(!cells[i]) { html+='<td></td>'; continue; }
         const cls = cells[i].classList.contains('num') ? ' class="tr"' : (cells[i].classList.contains('ctr') ? ' class="tc"' : '');
-        html += \`<td\${cls}>\${cells[i].textContent.trim()}</td>\`;
+        html += `<td${cls}>${cells[i].textContent.trim()}</td>`;
       }
       html += '</tr>';
     });
     
     if(subtotalEl){
-      html += \`<tr class="pd-subtotal"><td colspan="5"></td><td class="tr">\${subtotalEl.textContent.replace('小計：','').trim()}</td><td></td></tr>\`;
+      html += `<tr class="pd-subtotal"><td colspan="5"></td><td class="tr">${subtotalEl.textContent.replace('小計：','').trim()}</td><td></td></tr>`;
     }
     html += '</tbody></table>';
   });
@@ -852,7 +852,7 @@ function buildPrintSummary(){
     const val = item.querySelector('.s-val');
     if(!lbl||!val) return;
     const isGrand = item.classList.contains('grand');
-    rows += \`<tr class="\${isGrand?'pd-grand':'pd-tax'}"><td colspan="5" style="text-align:right">\${lbl.textContent}</td><td class="tr">\${val.textContent}</td><td></td></tr>\`;
+    rows += `<tr class="${isGrand?'pd-grand':'pd-tax'}"><td colspan="5" style="text-align:right">${lbl.textContent}</td><td class="tr">${val.textContent}</td><td></td></tr>`;
   });
   return '<table><tbody>' + rows + '</tbody></table>';
 }
