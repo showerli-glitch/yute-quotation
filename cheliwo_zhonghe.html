@@ -860,20 +860,6 @@ function buildPrintContent(){
     }
   });
 
-  // Summary rows
-  document.querySelectorAll('.s-item').forEach(item => {
-    const lbl = item.querySelector('.s-lbl');
-    const val = item.querySelector('.s-val');
-    if(!lbl||!val) return;
-    const isGrand = item.classList.contains('grand');
-    const style = isGrand
-      ? 'font-weight:700;font-size:11pt;border-top:1.5pt solid #000;border-bottom:1.5pt solid #000'
-      : 'border-top:0.5pt solid #aaa';
-    rows += '<tr><td colspan="5" style="'+style+';border-left:none;border-right:none;padding:3pt 4pt;text-align:right">'+lbl.textContent+'</td>'
-      +'<td style="'+style+';padding:3pt 4pt;text-align:right">'+val.textContent+'</td>'
-      +'<td style="'+style+';border-left:none;border-right:none"></td></tr>';
-  });
-
   return rows;
 }
 
