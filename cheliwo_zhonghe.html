@@ -983,18 +983,11 @@ function doPrint(){
     + '<tbody>'+buildPrintContent()+'</tbody>'
     + '</table>';
 
-  // 最後一頁總表（分頁）
-  const lastPage = '<div style="page-break-before:always">'
-    + makePageHeaderHTML(false)
-    + '<div style="margin-top:12pt">'+buildSummaryTable()+'</div>'
-    + '</div>';
-
   doc.innerHTML = '<div class="pd">'
     + summaryPage
     + '<div style="page-break-before:always">'
     + detailPage
     + '</div>'
-    + lastPage
     + '</div>';
 
   window.print();
