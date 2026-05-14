@@ -78,6 +78,9 @@ tr.r-missing td{background:#fff1f2}
 @media print{
   .screen-wrap{display:none!important}
   .print-doc{display:block!important}
+  .pd-detail-table{width:100%}
+  .pd-detail-table thead{display:table-header-group}
+  .pd-repeat-header td{border:none;padding:0 0 4pt 0}
   @page{size:A4;margin:10mm 10mm 12mm 10mm}
 }
 .print-doc{display:none}
@@ -788,78 +791,116 @@ function saveToFirebase() { firebaseSave(); }
 
 const SVG_LOGO = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 55 60" width="22" height="24" style="display:block;flex-shrink:0"><polygon points="27.5,0.0 9.86,10.6 9.86,4.46 6.26,4.46 6.26,12.76 0.0,16.53 0.0,27.76 1.44,27.76 1.44,17.24 27.5,1.58 53.56,17.24 53.56,28.11 55.0,28.11 55.0,16.53 27.5,0.0" fill="#4e4c4b"/><polygon points="53.56,42.76 27.5,58.42 1.44,42.76 1.44,32.24 0.0,32.24 0.0,43.47 27.5,60.0 55.0,43.47 55.0,32.59 53.56,32.59 53.56,42.76" fill="#4e4c4b"/><polygon points="36.26,40.65 36.26,17.92 19.18,17.92 19.18,41.3 24.41,41.3 24.41,47.13" fill="#4e4c4b"/><polygon points="25.6,24.44 35.29,19.1 35.29,40.06 25.38,45.35" fill="white"/><circle cx="27.89" cy="33.24" r="1.8" fill="#4e4c4b"/></svg>';
 
-function buildPrintHeader(){
+function makePageHeaderHTML(mini=false){
   const today = document.getElementById('today') ? document.getElementById('today').textContent : new Date().toLocaleDateString('zh-TW');
-  return `<div class="pd-header">
-    <div class="pd-header-left">
-      <div class="pd-header-logo-row">
-        ${SVG_LOGO}
-        <div style="font-size:12pt;font-weight:700;color:#000;white-space:nowrap">宇德室內裝修股份有限公司</div>
-      </div>
-      <div class="pd-header-co-info">TEL: (02)2652-2112　台北市忠孝東路六段70巷21弄2號　E-mail: shower.li@yutesign.com</div>
-    </div>
-    <div class="pd-header-right">日期：${today}</div>
-  </div>
-  <div class="pd-title">工　程　報　價　單</div>
-  <div class="pd-meta">
-    工程名稱：車麗屋中和總部辦公室裝修工程　　業　主：車麗屋汽車百貨股份有限公司<br>
-    工程地址：新北市中和區中正路990號2樓（不含1F及2F夾層）　　版本：v2.0
-  </div>`;
+  const svgLogo = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 55 60" width="20" height="22" style="display:block;flex-shrink:0"><polygon points="27.5,0.0 9.86,10.6 9.86,4.46 6.26,4.46 6.26,12.76 0.0,16.53 0.0,27.76 1.44,27.76 1.44,17.24 27.5,1.58 53.56,17.24 53.56,28.11 55.0,28.11 55.0,16.53 27.5,0.0" fill="#4e4c4b"/><polygon points="53.56,42.76 27.5,58.42 1.44,42.76 1.44,32.24 0.0,32.24 0.0,43.47 27.5,60.0 55.0,43.47 55.0,32.59 53.56,32.59 53.56,42.76" fill="#4e4c4b"/><polygon points="36.26,40.65 36.26,17.92 19.18,17.92 19.18,41.3 24.41,41.3 24.41,47.13" fill="#4e4c4b"/><polygon points="25.6,24.44 35.29,19.1 35.29,40.06 25.38,45.35" fill="white"/><circle cx="27.89" cy="33.24" r="1.8" fill="#4e4c4b"/></svg>';
+  if(mini){
+    // 每頁重複的精簡表頭（放在 thead 裡）
+    return '<div class="pd-header" style="margin-bottom:2pt">'
+      +'<div class="pd-header-left">'
+      +'<div class="pd-header-logo-row">'+svgLogo+'<div style="font-size:11pt;font-weight:700;color:#000;white-space:nowrap">宇德室內裝修股份有限公司</div></div>'
+      +'<div class="pd-header-co-info">TEL: (02)2652-2112　台北市忠孝東路六段70巷21弄2號　E-mail: shower.li@yutesign.com</div>'
+      +'</div>'
+      +'<div class="pd-header-right">日期：'+today+'</div>'
+      +'</div>'
+      +'<div class="pd-title" style="margin:2pt 0">工　程　報　價　單</div>'
+      +'<div class="pd-meta" style="font-size:8pt;margin-bottom:3pt">工程名稱：車麗屋中和總部辦公室裝修工程　　業主：車麗屋汽車百貨股份有限公司<br>工程地址：新北市中和區中正路990號2樓（不含1F及2F夾層）　　版本：v2.0</div>';
+  }
+  // 第一頁完整表頭
+  return '<div class="pd-header">'
+    +'<div class="pd-header-left">'
+    +'<div class="pd-header-logo-row">'+svgLogo+'<div style="font-size:12pt;font-weight:700;color:#000;white-space:nowrap">宇德室內裝修股份有限公司</div></div>'
+    +'<div class="pd-header-co-info">TEL: (02)2652-2112　台北市忠孝東路六段70巷21弄2號　E-mail: shower.li@yutesign.com</div>'
+    +'</div>'
+    +'<div class="pd-header-right">日期：'+today+'</div>'
+    +'</div>'
+    +'<div class="pd-title">工　程　報　價　單</div>'
+    +'<div class="pd-meta">工程名稱：車麗屋中和總部辦公室裝修工程　　業　主：車麗屋汽車百貨股份有限公司<br>工程地址：新北市中和區中正路990號2樓（不含1F及2F夾層）　　版本：v2.0</div>';
 }
 
-function buildPrintTable(){
-  // Collect all rows from screen table
+function buildPrintContent(){
   const sections = document.querySelectorAll('.section-wrap');
-  let html = '';
+  let rows = '';
+
   sections.forEach(sec => {
     const titleEl = sec.querySelector('.section-title-bar h3');
     const subtotalEl = sec.querySelector('.section-subtotal');
     if(!titleEl) return;
-    html += `<div class="pd-cat-title">${titleEl.textContent}</div>`;
-    html += '<table><thead><tr><th style="width:36pt">項次</th><th style="text-align:left">工項名稱</th><th style="width:24pt">單位</th><th style="width:30pt">數量</th><th style="width:52pt">單價</th><th style="width:58pt">總價</th><th style="width:80pt">備註</th></tr></thead><tbody>';
-    
-    const rows = sec.querySelectorAll('tbody tr');
-    rows.forEach(row => {
+
+    // Section title row (spans full width)
+    rows += '<tr><td colspan="7" style="border:none;padding:6pt 0 2pt;font-size:10.5pt;font-weight:700;border-bottom:0.5pt solid #888">'+titleEl.textContent.trim()+'</td></tr>';
+
+    // Sub-section and data rows
+    sec.querySelectorAll('tbody tr').forEach(row => {
       const cells = row.querySelectorAll('td');
-      if(cells.length < 6) return;
-      const isSubHeader = row.classList.contains('sub-header');
-      if(isSubHeader){
-        html += `<tr><td colspan="7" style="font-weight:700;background:#f0ede5;font-size:8.5pt;padding:3pt 4pt">${cells[0].textContent}</td></tr>`;
+      if(!cells.length) return;
+
+      if(row.classList.contains('sub-header') || cells.length < 4){
+        rows += '<tr><td colspan="7" style="font-weight:700;background:#f0ede5;border:0.5pt solid #ccc;padding:2.5pt 4pt;font-size:8.5pt">'+cells[0].textContent.trim()+'</td></tr>';
         return;
       }
-      html += '<tr>';
-      for(let i=0;i<7;i++){
-        if(!cells[i]) { html+='<td></td>'; continue; }
-        const cls = cells[i].classList.contains('num') ? ' class="tr"' : (cells[i].classList.contains('ctr') ? ' class="tc"' : '');
-        html += `<td${cls}>${cells[i].textContent.trim()}</td>`;
-      }
-      html += '</tr>';
-    });
-    
-    if(subtotalEl){
-      html += `<tr class="pd-subtotal"><td colspan="5"></td><td class="tr">${subtotalEl.textContent.replace('小計：','').trim()}</td><td></td></tr>`;
-    }
-    html += '</tbody></table>';
-  });
-  return html;
-}
 
-function buildPrintSummary(){
-  const items = document.querySelectorAll('.s-item');
-  let rows = '';
-  items.forEach(item => {
+      rows += '<tr>';
+      for(let i=0;i<7;i++){
+        if(!cells[i]){ rows+='<td style="border:0.5pt solid #aaa;padding:2.5pt 4pt"></td>'; continue; }
+        const isNum = cells[i].classList.contains('num');
+        const isCtr = cells[i].classList.contains('ctr');
+        const align = isNum ? 'text-align:right' : (isCtr ? 'text-align:center' : 'text-align:left');
+        const extra = i===1 ? 'word-break:break-all;white-space:normal' : 'white-space:nowrap';
+        rows += '<td style="border:0.5pt solid #aaa;padding:2.5pt 4pt;'+align+';'+extra+'">'+cells[i].textContent.trim()+'</td>';
+      }
+      rows += '</tr>';
+    });
+
+    // Subtotal row
+    if(subtotalEl){
+      const stText = subtotalEl.textContent.replace(/小計[：:]/,'').trim();
+      rows += '<tr style="background:#f5f5f5"><td colspan="5" style="border:0.5pt solid #777;padding:3pt 4pt;text-align:right;font-weight:600">小　計</td><td style="border:0.5pt solid #777;padding:3pt 4pt;text-align:right;font-weight:600">'+stText+'</td><td style="border:0.5pt solid #777;padding:3pt 4pt"></td></tr>';
+      rows += '<tr><td colspan="7" style="border:none;padding:2pt 0"></td></tr>';
+    }
+  });
+
+  // Summary rows
+  document.querySelectorAll('.s-item').forEach(item => {
     const lbl = item.querySelector('.s-lbl');
     const val = item.querySelector('.s-val');
     if(!lbl||!val) return;
     const isGrand = item.classList.contains('grand');
-    rows += `<tr class="${isGrand?'pd-grand':'pd-tax'}"><td colspan="5" style="text-align:right">${lbl.textContent}</td><td class="tr">${val.textContent}</td><td></td></tr>`;
+    const style = isGrand
+      ? 'font-weight:700;font-size:11pt;border-top:1.5pt solid #000;border-bottom:1.5pt solid #000'
+      : 'border-top:0.5pt solid #aaa';
+    rows += '<tr><td colspan="5" style="'+style+';border-left:none;border-right:none;padding:3pt 4pt;text-align:right">'+lbl.textContent+'</td>'
+      +'<td style="'+style+';padding:3pt 4pt;text-align:right">'+val.textContent+'</td>'
+      +'<td style="'+style+';border-left:none;border-right:none"></td></tr>';
   });
-  return '<table><tbody>' + rows + '</tbody></table>';
+
+  return rows;
 }
 
 function doPrint(){
   const doc = document.getElementById('printDoc');
-  doc.innerHTML = '<div class="pd">' + buildPrintHeader() + buildPrintTable() + buildPrintSummary() + '</div>';
+
+  // thead = 每頁重複的表頭
+  const theadHTML = '<thead>'
+    +'<tr class="pd-repeat-header"><td colspan="7" style="border:none;padding:0 0 4pt 0">'+makePageHeaderHTML(true)+'</td></tr>'
+    +'<tr style="background:#ebebeb">'
+    +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:30pt">項次</th>'
+    +'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:left">名稱與說明</th>'
+    +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:22pt">單位</th>'
+    +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:28pt">數量</th>'
+    +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:50pt">單價</th>'
+    +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:56pt">複價</th>'
+    +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:72pt">備註</th>'
+    +'</tr>'
+    +'</thead>';
+
+  doc.innerHTML = '<div class="pd">'
+    + makePageHeaderHTML(false)
+    + '<table class="pd-detail-table" style="width:100%;border-collapse:collapse;font-size:8.5pt">'
+    + theadHTML
+    + '<tbody>'+buildPrintContent()+'</tbody>'
+    + '</table></div>';
+
   window.print();
   setTimeout(()=>{ doc.innerHTML=''; }, 1500);
 }
