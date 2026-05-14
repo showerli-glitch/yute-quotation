@@ -81,7 +81,7 @@ tr.r-missing td{background:#fff1f2}
   .pd-detail-table{width:100%}
   .pd-detail-table thead{display:table-header-group}
   .pd-repeat-header td{border:none;padding:0 0 4pt 0}
-  @page{size:A4;margin:10mm 10mm 12mm 10mm}
+  @page{size:A4;margin:10mm 10mm 15mm 10mm}
 }
 .print-doc{display:none}
 
@@ -840,7 +840,7 @@ function buildPrintContent(){
         return;
       }
 
-      rows += '<tr>';
+      rows += '<tr style="break-inside:avoid;page-break-inside:avoid">';
       for(let i=0;i<7;i++){
         if(!cells[i]){ rows+='<td style="border:0.5pt solid #aaa;padding:2.5pt 4pt"></td>'; continue; }
         const isNum = cells[i].classList.contains('num');
@@ -882,7 +882,7 @@ function doPrint(){
 
   // thead = 每頁重複的表頭
   const theadHTML = '<thead>'
-    +'<tr class="pd-repeat-header"><td colspan="7" style="border:none;padding:0 0 4pt 0">'+makePageHeaderHTML(true)+'</td></tr>'
+    +'<tr class="pd-repeat-header"><td colspan="7" style="border:none;padding:0 0 3pt 0;height:88pt">'+makePageHeaderHTML(true)+'</td></tr>'
     +'<tr style="background:#ebebeb">'
     +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:30pt">項次</th>'
     +'<th style="border:0.5pt solid #888;padding:3pt 4pt;text-align:left">名稱與說明</th>'
