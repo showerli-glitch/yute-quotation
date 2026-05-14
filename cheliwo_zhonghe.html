@@ -846,7 +846,7 @@ function buildPrintContent(){
         const isNum = cells[i].classList.contains('num');
         const isCtr = cells[i].classList.contains('ctr');
         const align = isNum ? 'text-align:right' : (isCtr ? 'text-align:center' : 'text-align:left');
-        const extra = i===1 ? 'word-break:break-all;white-space:normal' : 'white-space:nowrap';
+        const extra = i===1 ? 'word-break:break-all;white-space:normal' : (i===6 ? 'word-break:break-all;white-space:normal;max-width:44pt;font-size:7.5pt' : 'white-space:nowrap');
         rows += '<td style="border:0.5pt solid #aaa;padding:2.5pt 4pt;'+align+';'+extra+'">'+cells[i].textContent.trim()+'</td>';
       }
       rows += '</tr>';
@@ -974,7 +974,7 @@ function doPrint(){
     +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:28pt">數量</th>'
     +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:50pt">單價</th>'
     +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:56pt">複價</th>'
-    +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:72pt">備註</th>'
+    +'<th style="border:0.5pt solid #888;padding:3pt 4pt;width:48pt">備註</th>'
     +'</tr>'
     +'</thead>';
 
