@@ -877,8 +877,92 @@ function buildPrintContent(){
   return rows;
 }
 
+function buildSummaryTable(){
+  // 從螢幕版讀取各分區小計和總計
+  const sections = document.querySelectorAll('.section-wrap');
+  let s1rows = '', s2rows = '';
+  let s1total = 0, s2total = 0;
+
+  sections.forEach(sec => {
+    const titleEl = sec.querySelector('.section-title-bar h3');
+    if(!titleEl) return;
+    const isS2 = titleEl.textContent.includes('水電');
+
+    sec.querySelectorAll('.sub-header').forEach(sub => {
+      const subTitle = sub.querySelector('td') ? sub.querySelector('td').textContent.trim() : '';
+      // calculate subtotal for this sub-section
+      let subTotal = 0;
+      let row = sub.nextElementSibling;
+      while(row && !row.classList.contains('sub-header')){
+        const priceCell = row.querySelector('.price-cell');
+        const qtyCell = row.querySelector('[data-qty]');
+        if(priceCell && qtyCell){
+          const p = parseFloat(priceCell.dataset.price||0);
+          const q = parseFloat(qtyCell.dataset.qty||qtyCell.textContent||0);
+          subTotal += p*q;
+        }
+        row = row.nextElementSibling;
+      }
+      if(subTotal > 0){
+        const tr = '<tr><td style="border:0.5pt solid #aaa;padding:3pt 6pt">'+subTitle+'</td>'
+          +'<td style="border:0.5pt solid #aaa;padding:3pt 6pt;text-align:right">'+Math.round(subTotal).toLocaleString()+'</td></tr>';
+        if(isS2){ s2rows += tr; s2total += subTotal; }
+        else     { s1rows += tr; s1total += subTotal; }
+      }
+    });
+  });
+
+  // Get grand total figures from screen summary
+  const sItems = document.querySelectorAll('.s-item');
+  let mgmtAmt=0, beforeTax=0, taxAmt=0, grandTotal=0;
+  sItems.forEach(item => {
+    const lbl = item.querySelector('.s-lbl');
+    const val = item.querySelector('.s-val');
+    if(!lbl||!val) return;
+    const v = parseFloat(val.textContent.replace(/[^0-9.-]/g,''))||0;
+    const t = lbl.textContent;
+    if(t.includes('管理費')) mgmtAmt = v;
+    else if(t.includes('稅前')||t.includes('合計')) beforeTax = v;
+    else if(t.includes('營業稅')) taxAmt = v;
+    else if(t.includes('總計')||item.classList.contains('grand')) grandTotal = v;
+  });
+
+  const fmt = n => Math.round(n).toLocaleString();
+
+  return '<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:8pt">'
+    +'<thead><tr style="background:#ebebeb"><th style="border:0.5pt solid #888;padding:4pt 6pt;text-align:left" colspan="2">I. 一般裝修工程</th></tr></thead>'
+    +'<tbody>'+s1rows
+    +'<tr style="background:#f5f5f5;font-weight:700"><td style="border:0.5pt solid #777;padding:3pt 6pt;text-align:right">Section I 小計</td>'
+    +'<td style="border:0.5pt solid #777;padding:3pt 6pt;text-align:right">'+fmt(s1total)+'</td></tr>'
+    +'</tbody></table>'
+
+    +'<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:8pt">'
+    +'<thead><tr style="background:#ebebeb"><th style="border:0.5pt solid #888;padding:4pt 6pt;text-align:left" colspan="2">II. 水電照明工程</th></tr></thead>'
+    +'<tbody>'+s2rows
+    +'<tr style="background:#f5f5f5;font-weight:700"><td style="border:0.5pt solid #777;padding:3pt 6pt;text-align:right">Section II 小計</td>'
+    +'<td style="border:0.5pt solid #777;padding:3pt 6pt;text-align:right">'+fmt(s2total)+'</td></tr>'
+    +'</tbody></table>'
+
+    +'<table style="width:100%;border-collapse:collapse;font-size:9pt">'
+    +'<tbody>'
+    +'<tr><td style="border:0.5pt solid #aaa;padding:3pt 6pt;text-align:right">合計（Section I + II）</td>'
+    +'<td style="border:0.5pt solid #aaa;padding:3pt 6pt;text-align:right;width:120pt">'+fmt(s1total+s2total)+'</td></tr>'
+    +(mgmtAmt>0?'<tr><td style="border:0.5pt solid #aaa;padding:3pt 6pt;text-align:right">監工管理費</td>'
+    +'<td style="border:0.5pt solid #aaa;padding:3pt 6pt;text-align:right">'+fmt(mgmtAmt)+'</td></tr>':'')
+    +(beforeTax>0?'<tr><td style="border:0.5pt solid #aaa;padding:3pt 6pt;text-align:right">稅前合計</td>'
+    +'<td style="border:0.5pt solid #aaa;padding:3pt 6pt;text-align:right">'+fmt(beforeTax)+'</td></tr>':'')
+    +(taxAmt>0?'<tr><td style="border:0.5pt solid #aaa;padding:3pt 6pt;text-align:right">營業稅（5%）</td>'
+    +'<td style="border:0.5pt solid #aaa;padding:3pt 6pt;text-align:right">'+fmt(taxAmt)+'</td></tr>':'')
+    +'<tr style="font-weight:700;font-size:11pt"><td style="border-top:1.5pt solid #000;border-bottom:1.5pt solid #000;padding:4pt 6pt;text-align:right">總　金　額（含稅）</td>'
+    +'<td style="border-top:1.5pt solid #000;border-bottom:1.5pt solid #000;padding:4pt 6pt;text-align:right">'+fmt(grandTotal)+'</td></tr>'
+    +'</tbody></table>';
+}
+
 function doPrint(){
   const doc = document.getElementById('printDoc');
+
+  const summaryPage = makePageHeaderHTML(false)
+    + '<div style="margin-top:12pt">'+buildSummaryTable()+'</div>';
 
   // thead = 每頁重複的表頭
   const theadHTML = '<thead>'
@@ -894,11 +978,24 @@ function doPrint(){
     +'</tr>'
     +'</thead>';
 
-  doc.innerHTML = '<div class="pd">'
-    + '<table class="pd-detail-table" style="width:100%;border-collapse:collapse;font-size:8.5pt">'
+  const detailPage = '<table class="pd-detail-table" style="width:100%;border-collapse:collapse;font-size:8.5pt">'
     + theadHTML
     + '<tbody>'+buildPrintContent()+'</tbody>'
-    + '</table></div>';
+    + '</table>';
+
+  // 最後一頁總表（分頁）
+  const lastPage = '<div style="page-break-before:always">'
+    + makePageHeaderHTML(false)
+    + '<div style="margin-top:12pt">'+buildSummaryTable()+'</div>'
+    + '</div>';
+
+  doc.innerHTML = '<div class="pd">'
+    + summaryPage
+    + '<div style="page-break-before:always">'
+    + detailPage
+    + '</div>'
+    + lastPage
+    + '</div>';
 
   window.print();
   setTimeout(()=>{ doc.innerHTML=''; }, 1500);
