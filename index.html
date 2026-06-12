@@ -1804,14 +1804,17 @@ function renderDriveFiles(){
   const container = document.getElementById('driveFiles');
   if(!container) return;
   const kw = (document.getElementById('driveFileSearch')?.value || '').trim().toLowerCase();
-  const files = kw ? driveFilesCache.filter(f => f.name.toLowerCase().includes(kw)) : driveFilesCache;
+  const matched = kw ? driveFilesCache.filter(f => f.name.toLowerCase().includes(kw)) : driveFilesCache;
+  const files = matched.slice(0,5);
   if(!files.length){ container.innerHTML = `<div style="font-size:12px;color:#999;padding:4px 0">${kw?'沒有符合的檔案':''}</div>`; return; }
-  container.innerHTML = files.map(f => `
+  let html = files.map(f => `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
       <span style="font-size:12px;flex:1;color:#333">${escHtml(f.name)}</span>
       <button onclick="driveLoad('${f.id}')" style="font-size:11px;padding:2px 8px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;cursor:pointer;color:#2e7d32">載入</button>
       <button onclick="driveDeleteFile('${f.id}')" style="font-size:11px;padding:2px 8px;background:#fff3f3;border:1px solid #ffcdd2;border-radius:4px;cursor:pointer;color:#c62828">刪除</button>
     </div>`).join('');
+  if(matched.length>5) html += `<div style="font-size:11px;color:#999;padding:2px 0">還有 ${matched.length-5} 筆，請輸入關鍵字縮小範圍</div>`;
+  container.innerHTML = html;
 }
 
 async function driveLoad(fileId){
