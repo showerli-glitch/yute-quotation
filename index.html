@@ -181,7 +181,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
     if(!s)return;
     var d=JSON.parse(s);
     if(!d.email||!d.email.endsWith('@yutesign.com'))return;
-    if(Date.now()-d.loginTime>8*3600*1000)return;
+    if(Date.now()-d.loginTime>4*3600*1000)return;
     document.addEventListener('DOMContentLoaded',function(){
       var ls=document.getElementById('loginScreen');
       var ma=document.getElementById('mainApp');
@@ -1689,13 +1689,8 @@ function initGsi(){
       await driveListFiles();
     }
   });
-  // session 自動登入：靜默取得 Drive token（不跳 popup）
-  try {
-    const s = JSON.parse(localStorage.getItem('yutesign_session')||'{}');
-    if(s.email && s.email.endsWith('@yutesign.com') && Date.now()-s.loginTime < 8*3600*1000){
-      setTimeout(()=>{ tokenClient.requestAccessToken({prompt:''}); }, 500);
-    }
-  } catch(e){}
+  // 重新整理時不自動要求 Drive token，避免 Google 將靜默授權改成帳號選擇視窗。
+  // 只有使用者實際開啟雲端功能時，才由 driveAuth() 要求授權。
 }
 
 function driveAuth(){
@@ -1897,7 +1892,7 @@ loadGsi();
 
 // ===== 登入驗證 =====
 const ALLOWED_DOMAIN = 'yutesign.com';
-const SESSION_HOURS = 8; // 重開頁面幾小時內免重新登入
+const SESSION_HOURS = 4; // 重開頁面幾小時內免重新登入
 let loginTokenClient;
 
 function startLogin(){
