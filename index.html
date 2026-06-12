@@ -165,6 +165,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 (function(){
@@ -1656,6 +1657,7 @@ let driveAccessToken = null;
 const SHARED_FOLDER_ID = '17fGaw38tzYoQ3kPXnMN8bOhCSpjkjqwX';
 let driveFolderId = SHARED_FOLDER_ID;
 let currentDriveFileId = null;
+let lastFolderModifiedTime = null;
 
 function initGsi(){
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -1664,6 +1666,8 @@ function initGsi(){
     callback: async (resp) => {
       if(resp.error){ alert('授權失敗：'+resp.error); return; }
       driveAccessToken = resp.access_token;
+      const session = JSON.parse(localStorage.getItem('yutesign_session')||'{}');
+      await fbSignIn(resp.access_token, session.email).catch(err => console.warn('Firebase 登入失敗', err));
       await driveListFiles();
     }
   });
@@ -1783,6 +1787,7 @@ const FIREBASE_CONFIG = {
 };
 let fbDb = null;
 let fbMyEmail = null;
+let fbListening = false;
 
 function initFirebase(){
   if(fbDb) return;
@@ -1790,22 +1795,43 @@ function initFirebase(){
   fbDb = firebase.database();
 }
 
-function fbSyncNotify(email, fileName){
-  if(!fbDb) return;
-  fbDb.ref('sync/lastSave').set({ who: email, fileName, at: Date.now() });
+async function fbSignIn(accessToken, expectedEmail){
+  initFirebase();
+  if(!accessToken) throw new Error('缺少 Google access token');
+  const credential = firebase.auth.GoogleAuthProvider.credential(null, accessToken);
+  const result = await firebase.auth().signInWithCredential(credential);
+  const email = result.user && result.user.email;
+  if(!email || !email.endsWith('@yutesign.com') || (expectedEmail && email !== expectedEmail)){
+    await firebase.auth().signOut();
+    throw new Error('Firebase 帳號不符合公司網域');
+  }
+  fbSyncListen(email);
+  return result.user;
+}
+
+async function fbSyncNotify(email, fileName){
+  if(!fbDb || !firebase.auth().currentUser) return;
+  try {
+    await fbDb.ref('sync/lastSave').set({ who: email, fileName, at: Date.now() });
+  } catch(err) {
+    console.warn('Firebase 同步通知失敗', err);
+  }
 }
 
 function fbSyncListen(email){
-  if(!fbDb) return;
+  if(!fbDb || !firebase.auth().currentUser) return;
   fbMyEmail = email;
-  fbDb.ref('sync/lastSave').on('value', snap => {
+  const ref = fbDb.ref('sync/lastSave');
+  if(fbListening) ref.off();
+  fbListening = true;
+  ref.on('value', snap => {
     const d = snap.val();
     if(!d) return;
     if(d.who === fbMyEmail) return;
     if(Date.now() - d.at > 5 * 60 * 1000) return; // 超過 5 分鐘的舊通知不顯示
     const who = d.who.replace('@yutesign.com', '');
     showSyncBanner(`${who} 剛存了「${d.fileName}」`);
-  });
+  }, err => console.warn('Firebase 同步監聽失敗', err));
 }
 
 function showSyncBanner(msg){
@@ -1849,8 +1875,6 @@ function getQuoteData(){
 }
 
 initFirebase();
-// session 自動登入時也啟動 Firebase 監聽
-try{const _s=JSON.parse(localStorage.getItem('yutesign_session')||'{}');if(_s.email)fbSyncListen(_s.email);}catch(e){}
 loadGsi();
 
 // ===== 登入驗證 =====
@@ -1894,8 +1918,8 @@ function initLoginGsi(){
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('mainApp').style.display = '';
         localStorage.setItem('yutesign_session', JSON.stringify({email: user.email, loginTime: Date.now()}));
+        await fbSignIn(resp.access_token, user.email).catch(err => console.warn('Firebase 登入失敗', err));
         await driveListFiles();
-        fbSyncListen(user.email);
       } catch(e){
         showLoginError('驗證失敗：' + e.message);
         document.getElementById('btnLogin').textContent = '使用公司帳號登入';
