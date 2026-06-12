@@ -169,6 +169,13 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 (function(){
+  // Google OAuth 不接受 file:// 來源；從雲端同步資料夾點開時改用正式網址。
+  if(location.protocol === 'file:'){
+    location.replace('https://showerli-glitch.github.io/yute-quotation/');
+    return;
+  }
+})();
+(function(){
   try{
     var s=localStorage.getItem('yutesign_session');
     if(!s)return;
