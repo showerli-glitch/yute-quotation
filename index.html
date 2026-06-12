@@ -338,8 +338,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
   <div class="top-bar">
     <div class="actions" style="gap:10px">
       <button class="btn" onclick="clearAll()" style="font-size:12px;color:#999">🗑 清除全部</button>
-      <button class="btn" onclick="importJSON()" style="background:#f0f7ff;border-color:#b8d4f5;color:#1a5fb4;font-size:13px">📂 開啟報價</button>
-      <button class="btn" onclick="exportJSON()" style="background:#f0fff4;border-color:#b8e4c5;color:#1a7a4a;font-size:13px">💾 儲存報價</button>
+      <button class="btn" onclick="openDriveQuotes()" style="background:#f0f7ff;border-color:#b8d4f5;color:#1a5fb4;font-size:13px">☁️ 雲端開啟</button>
+      <button class="btn" onclick="saveQuoteToDrive()" style="background:#f0fff4;border-color:#b8e4c5;color:#1a7a4a;font-size:13px">☁️ 雲端儲存</button>
+      <button class="btn" onclick="importJSON()" style="font-size:12px;color:#777">匯入 JSON</button>
+      <button class="btn" onclick="exportJSON()" style="font-size:12px;color:#777">下載 JSON 備份</button>
       <button class="btn btn-primary" onclick="doPrint()" style="font-size:14px;padding:10px 20px;letter-spacing:0.5px">🖨️ 列印 PDF</button>
       <button class="btn" onclick="exportToExcel()" style="background:#1a7a4a;color:#fff;border-color:#1a7a4a;font-size:14px;padding:10px 20px;letter-spacing:0.5px">📊 匯出 Excel</button>
     </div>
@@ -387,12 +389,13 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
   <div class="bottom-bar">
     <div class="actions">
       <button class="btn" onclick="clearAll()">清除全部</button>
-      <button class="btn" onclick="importJSON()" style="background:#f0f7ff;border-color:#b8d4f5;color:#1a5fb4">📂 開啟報價</button>
-      <button class="btn" onclick="exportJSON()" style="background:#f0fff4;border-color:#b8e4c5;color:#1a7a4a">💾 儲存報價</button>
+      <button class="btn" onclick="openDriveQuotes()" style="background:#f0f7ff;border-color:#b8d4f5;color:#1a5fb4">☁️ 雲端開啟</button>
+      <button class="btn" onclick="saveQuoteToDrive()" style="background:#f0fff4;border-color:#b8e4c5;color:#1a7a4a">☁️ 雲端儲存</button>
+      <button class="btn" onclick="exportJSON()" style="font-size:11px;color:#777">下載 JSON 備份</button>
       <button class="btn btn-primary" onclick="doPrint()">🖨️ 列印 PDF</button>
       <button class="btn" onclick="exportToExcel()" style="background:#1a7a4a;color:#fff;border-color:#1a7a4a">📊 匯出 Excel</button>
     </div>
-    <div id="driveFileList" style="display:none"><div id="driveFiles"></div></div>
+    <div id="driveFileList" style="display:none;width:100%;padding:10px 12px;background:#fff;border:1px solid #dce8f5;border-radius:8px"><div style="font-size:12px;font-weight:600;color:#1a5fb4;margin-bottom:7px">公司 Google Drive 報價清單</div><div id="driveFiles"></div></div>
     <div id="selectionSumBlock" style="display:none;padding:6px 14px;background:#fffbf0;border:1px solid #f5c518;border-radius:6px;text-align:right;min-width:120px">
       <div style="font-size:10px;color:#999;margin-bottom:1px">選取加總</div>
       <div id="selectionSumAmt" style="font-size:15px;font-weight:700;color:#c0392b">$0</div>
@@ -996,7 +999,7 @@ function toggleReviewed(e,id){
   numSpan.innerHTML=nowReviewed?`<span style="font-size:13px">✓</span>${num}`:`<span class="drag-icon">⠿</span>${num}`;
   requestAnimationFrame(()=>setTimeout(saveQuoteState,0));
 }
-function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();selectedRowIds.clear();updateSelectionSum();reviewedIds.clear();customSectionOrder=null;quoteItems=[];miscItems=[];renderMiscItems();renderQuote();}}
+function clearAll(){if(!quoteItems.length||confirm('確定要清除所有工項？')){saveHistory();selectedRowIds.clear();updateSelectionSum();reviewedIds.clear();customSectionOrder=null;quoteItems=[];miscItems=[];currentDriveFileId=null;lastFolderModifiedTime=null;renderMiscItems();renderQuote();}}
 
 // ===== 大項管理 =====
 function openSectionManager(){
@@ -1573,9 +1576,7 @@ async function exportJSON(){
     a.click();
     URL.revokeObjectURL(a.href);
   }
-  // 通知同事（Firebase 即時推送）
-  const _sess = JSON.parse(localStorage.getItem('yutesign_session')||'{}');
-  if(_sess.email) fbSyncNotify(_sess.email, actualFileName);
+  // JSON 下載僅作本機備份，不觸發雲端版本通知。
 }
 
 async function importJSON(){
@@ -1607,6 +1608,8 @@ async function importJSON(){
     const data=JSON.parse(text);
     if(!data.quoteItems){alert('檔案格式不正確');return;}
     if(!confirm('載入「'+(data.projName||'未命名工程')+'」？目前的報價內容會被取代。'))return;
+    currentDriveFileId=null;
+    lastFolderModifiedTime=null;
     document.getElementById('projName').value=data.projName||'';
     document.getElementById('projClient').value=data.projClient||'';
     document.getElementById('projAddr').value=data.projAddr||'';
@@ -1676,6 +1679,7 @@ const SHARED_FOLDER_ID = '17fGaw38tzYoQ3kPXnMN8bOhCSpjkjqwX';
 let driveFolderId = SHARED_FOLDER_ID;
 let currentDriveFileId = null;
 let lastFolderModifiedTime = null;
+let pendingDriveAction = null;
 
 function initGsi(){
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -1686,16 +1690,78 @@ function initGsi(){
       driveAccessToken = resp.access_token;
       const session = JSON.parse(localStorage.getItem('yutesign_session')||'{}');
       await fbSignIn(resp.access_token, session.email).catch(err => console.warn('Firebase 登入失敗', err));
-      await driveListFiles();
+      const action = pendingDriveAction;
+      pendingDriveAction = null;
+      if(action) await action();
     }
   });
   // 重新整理時不自動要求 Drive token，避免 Google 將靜默授權改成帳號選擇視窗。
   // 只有使用者實際開啟雲端功能時，才由 driveAuth() 要求授權。
 }
 
-function driveAuth(){
+function driveAuth(action){
   if(!tokenClient){ alert('Google 授權模組尚未載入，請稍候再試'); return; }
-  tokenClient.requestAccessToken({prompt: driveAccessToken ? '' : 'consent'});
+  if(driveAccessToken){ action(); return; }
+  pendingDriveAction = action;
+  tokenClient.requestAccessToken({prompt:''});
+}
+
+function quoteDriveFileName(){
+  const name=(document.getElementById('projName').value||'未命名工程').trim().replace(/[\\/:*?"<>|]/g,'_');
+  const date=document.getElementById('projDate').value||new Date().toISOString().slice(0,10);
+  return `宇德報價_${name}_${date}.json`;
+}
+
+function buildQuoteJson(){
+  return JSON.stringify(Object.assign({version:1,savedAt:new Date().toISOString()},getQuoteData()),null,2);
+}
+
+async function uploadQuoteJson(fileName, json){
+  if(currentDriveFileId && lastFolderModifiedTime){
+    const latest=await driveApi(`https://www.googleapis.com/drive/v3/files/${currentDriveFileId}?fields=modifiedTime&supportsAllDrives=true`);
+    if(latest.modifiedTime && latest.modifiedTime!==lastFolderModifiedTime && !confirm('這份報價已被其他人更新。\n若繼續，將覆寫雲端的較新版本，確定嗎？')) return null;
+  }
+  const boundary='yutesign_'+Date.now().toString(36);
+  const metadata=currentDriveFileId ? {name:fileName} : {name:fileName,parents:[driveFolderId],mimeType:'application/json'};
+  const body=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${json}\r\n--${boundary}--`;
+  const method=currentDriveFileId?'PATCH':'POST';
+  const target=currentDriveFileId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${currentDriveFileId}?uploadType=multipart&supportsAllDrives=true&fields=id,name,modifiedTime`
+    : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,modifiedTime';
+  const saved=await driveApi(target,{method,headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body});
+  currentDriveFileId=saved.id;
+  lastFolderModifiedTime=saved.modifiedTime||null;
+  return saved;
+}
+
+function saveQuoteToDrive(){
+  if(!quoteItems.length){alert('請先加入工項再儲存');return;}
+  driveAuth(async()=>{
+    try{
+      const saved=await uploadQuoteJson(quoteDriveFileName(),buildQuoteJson());
+      if(!saved) return;
+      const session=JSON.parse(localStorage.getItem('yutesign_session')||'{}');
+      if(session.email) await fbSyncNotify(session.email,saved.name);
+      await driveListFiles();
+      alert(`✅ 已儲存到公司 Google Drive\n${saved.name}`);
+    }catch(err){
+      console.error(err);
+      alert('雲端儲存失敗：'+err.message);
+    }
+  });
+}
+
+function openDriveQuotes(){
+  driveAuth(async()=>{
+    try{
+      await driveListFiles();
+      const box=document.getElementById('driveFileList');
+      if(box){ box.style.display='block'; box.scrollIntoView({behavior:'smooth',block:'center'}); }
+    }catch(err){
+      console.error(err);
+      alert('雲端清單載入失敗：'+err.message);
+    }
+  });
 }
 
 async function driveApi(url, options={}){
@@ -1747,6 +1813,7 @@ async function driveLoad(fileId){
       }),
       driveApi(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime&supportsAllDrives=true`)
     ]);
+    if(!res.ok) throw new Error(await res.text());
     const data = await res.json();
     currentDriveFileId = fileId;
     lastFolderModifiedTime = meta.modifiedTime;
