@@ -1,0 +1,13 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "sync": {
+      "lastSave": {
+        ".read": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/)",
+        ".write": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/)",
+        ".validate": "newData.hasChildren(['who', 'fileName', 'at']) && newData.child('who').val() == auth.token.email && newData.child('fileName').isString() && newData.child('fileName').val().length <= 200 && newData.child('at').isNumber()"
+      }
+    }
+  }
+}

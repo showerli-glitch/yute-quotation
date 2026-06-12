@@ -446,6 +446,16 @@ let miscItems=[]; // 自訂雜項費用（不計入管理費/設計費基礎）
 let activeCat='全部';
 let dbModified=false;
 
+function escHtml(value){
+  return String(value == null ? '' : value)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function jsonForHtmlAttr(value){
+  return JSON.stringify(value).replace(/&/g,'\\u0026').replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/"/g,'&quot;');
+}
+
 // ── Init ──
 function init(){
   initLogo();
@@ -533,7 +543,7 @@ function getCats(){
 }
 function refreshCatDropdowns(){
   const allCats=getAllCatOrder();
-  const opts=allCats.map(s=>`<option value="${s}">${s}</option>`).join('');
+  const opts=allCats.map(s=>`<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('');
   ['newItemCat','customCat'].forEach(id=>{
     const el=document.getElementById(id);
     if(!el)return;
@@ -548,7 +558,8 @@ function renderCatTabs(){
   const cats=getCats();
   el.innerHTML=cats.map(c=>{
     const count=c==='全部'?dbItems.length:dbItems.filter(i=>i['類別']===c).length;
-    return `<button class="cat-tab${c===activeCat?' active':''}" onclick="setCat('${c.replace(/'/g,"\'")}')">${c==='全部'?'全部':c.replace('工程','').replace('及系統櫃','').replace('及輕鋼架天花','').replace('及貼磚','').replace('及貼膜','').replace('、設備及其他','').replace('及鋁窗','')}<span class="tag-freq" style="margin-left:3px">${count}</span></button>`;
+    const label=c==='全部'?'全部':c.replace('工程','').replace('及系統櫃','').replace('及輕鋼架天花','').replace('及貼磚','').replace('及貼膜','').replace('、設備及其他','').replace('及鋁窗','');
+    return `<button class="cat-tab${c===activeCat?' active':''}" data-cat="${escHtml(c)}" onclick="setCat(this.dataset.cat)">${escHtml(label)}<span class="tag-freq" style="margin-left:3px">${count}</span></button>`;
   }).join('');
 }
 
@@ -575,13 +586,13 @@ function renderQuoteList(){
   const el=document.getElementById('itemList');
   if(!items.length){el.innerHTML='<div class="no-results">沒有符合的工項</div>';return;}
   el.innerHTML=items.slice(0,200).map(item=>{
-    const safe=JSON.stringify(item).replace(/"/g,'&quot;');
+    const safe=jsonForHtmlAttr(item);
     return `<div class="item-row" onclick="addItem(${safe})">
       <div class="item-info">
-        <div class="item-name">${item['工項名稱']}</div>
-        <div class="item-sub">${item['類別'].replace('工程','').slice(0,8)} ${item['出現次數']>1?'<span class=\"tag-freq\">×'+item['出現次數']+'</span>':''}</div>
+        <div class="item-name">${escHtml(item['工項名稱'])}</div>
+        <div class="item-sub">${escHtml(item['類別'].replace('工程','').slice(0,8))} ${item['出現次數']>1?'<span class=\"tag-freq\">×'+item['出現次數']+'</span>':''}</div>
       </div>
-      <div><div class="item-price">$${item['參考單價'].toLocaleString()}</div><div class="item-unit">${item['單位']}</div></div>
+      <div><div class="item-price">$${item['參考單價'].toLocaleString()}</div><div class="item-unit">${escHtml(item['單位'])}</div></div>
       <button class="add-btn">+</button>
     </div>`;
   }).join('');
@@ -596,14 +607,14 @@ function renderEditList(){
     const globalIdx=dbItems.indexOf(item);
     return `<div class="edit-row" id="erow_${globalIdx}">
       <div class="edit-row-top">
-        <input class="edit-name" value="${item['工項名稱']}" onchange="updateDbItem(${globalIdx},'工項名稱',this.value)" style="flex:1;font-size:12px;border:1px solid #ddd;border-radius:3px;padding:2px 4px">
+        <input class="edit-name" value="${escHtml(item['工項名稱'])}" onchange="updateDbItem(${globalIdx},'工項名稱',this.value)" style="flex:1;font-size:12px;border:1px solid #ddd;border-radius:3px;padding:2px 4px">
         <button class="edit-del-btn" onclick="deleteDbItem(${globalIdx})" title="刪除">×</button>
       </div>
       <div class="edit-row-fields">
         <select class="edit-select" onchange="updateDbItem(${globalIdx},'類別',this.value)">${
-          SECTION_ORDER.map(s=>`<option value="${s}"${s===item['類別']?' selected':''}>${s}</option>`).join('')
+          SECTION_ORDER.map(s=>`<option value="${escHtml(s)}"${s===item['類別']?' selected':''}>${escHtml(s)}</option>`).join('')
         }</select>
-        <input class="edit-unit" value="${item['單位']}" placeholder="單位" onchange="updateDbItem(${globalIdx},'單位',this.value)">
+        <input class="edit-unit" value="${escHtml(item['單位'])}" placeholder="單位" onchange="updateDbItem(${globalIdx},'單位',this.value)">
         <input class="edit-input" type="number" value="${item['參考單價']}" placeholder="單價" onchange="updateDbItem(${globalIdx},'參考單價',parseFloat(this.value)||0)">
       </div>
     </div>`;
@@ -715,8 +726,8 @@ function renderMiscItems(){
   if(!el)return;
   el.innerHTML=miscItems.map((m,i)=>
     `<div style="display:flex;align-items:center;gap:3px;flex-wrap:nowrap">
-      <input value="${(m.name||'').replace(/"/g,'&quot;')}" placeholder="費用名稱" style="flex:1;min-width:80px;font-size:11px;padding:2px 6px;border:1px solid #ddd;border-radius:4px" onchange="miscItems[${i}].name=this.value;renderQuote()">
-      <input value="${m.unit||'式'}" placeholder="單位" style="width:36px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;text-align:center" onchange="miscItems[${i}].unit=this.value">
+      <input value="${escHtml(m.name||'')}" placeholder="費用名稱" style="flex:1;min-width:80px;font-size:11px;padding:2px 6px;border:1px solid #ddd;border-radius:4px" onchange="miscItems[${i}].name=this.value;renderQuote()">
+      <input value="${escHtml(m.unit||'式')}" placeholder="單位" style="width:36px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;text-align:center" onchange="miscItems[${i}].unit=this.value">
       <input type="number" value="${m.qty||1}" min="1" style="width:44px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;text-align:center" onchange="miscItems[${i}].qty=parseFloat(this.value)||1;renderQuote()">
       <span style="font-size:11px;color:#aaa">×</span>
       <input type="number" value="${m.price||0}" placeholder="單價" style="width:80px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;text-align:right" onchange="miscItems[${i}].price=parseFloat(this.value)||0;renderQuote()">
@@ -759,7 +770,7 @@ function removeItem(id){saveHistory();quoteItems=quoteItems.filter(i=>i.id!==id)
 function updateField(id,field,val){saveHistory();const item=quoteItems.find(i=>i.id===id);if(item)item[field]=parseFloat(val)||0;renderQuote();}
 function updateStrField(id,field,val){saveHistory();const item=quoteItems.find(i=>i.id===id);if(item)item[field]=val;}
 function buildCatOptions(sel){
-  return getAllCatOrder().map(s=>`<option value="${s}"${s===sel?' selected':''}>${s.replace('工程','').replace('及系統櫃','').replace('及輕鋼架天花','').replace('及貼磚','').replace('及貼膜','').replace('、設備及其他','').replace('及鋁窗','')}</option>`).join('');
+  return getAllCatOrder().map(s=>`<option value="${escHtml(s)}"${s===sel?' selected':''}>${escHtml(s.replace('工程','').replace('及系統櫃','').replace('及輕鋼架天花','').replace('及貼磚','').replace('及貼膜','').replace('、設備及其他','').replace('及鋁窗',''))}</option>`).join('');
 }
 function updateItemCat(id,newCat){
   saveHistory();
@@ -889,7 +900,7 @@ function renderQuote(){saveQuoteState();refreshCatDropdowns();
     });
   }
   if(qKeyword && !Object.keys(grouped).length){
-    area.innerHTML=`<div class="empty-state">找不到含「${qKeyword}」的工項</div>`;
+    area.innerHTML=`<div class="empty-state">找不到含「${escHtml(qKeyword)}」的工項</div>`;
     return;
   }
   let num=1;
@@ -903,9 +914,9 @@ function renderQuote(){saveQuoteState();refreshCatDropdowns();
   Object.entries(grouped).forEach(([cat,items])=>{
     const catTotal=items.reduce((s,i)=>s+i.qty*i.price,0);
     html+=`<div class="section-header"><span></span>
-      <span class="section-title">${cat} <span class="section-subtotal">$${Math.round(catTotal).toLocaleString()}</span></span>
+      <span class="section-title">${escHtml(cat)} <span class="section-subtotal">$${Math.round(catTotal).toLocaleString()}</span></span>
       <span></span><span></span><span></span><span></span>
-      <input class="row-input" placeholder="大表備註" value="${catNotes[cat]||''}" style="width:100%;font-size:11px" onchange="catNotes['${cat}']=this.value">
+      <input class="row-input" placeholder="大表備註" value="${escHtml(catNotes[cat]||'')}" data-cat="${escHtml(cat)}" style="width:100%;font-size:11px" onchange="catNotes[this.dataset.cat]=this.value">
       <span></span></div>`;
     items.forEach(item=>{
       const amt=item.qty*item.price;
@@ -914,14 +925,14 @@ function renderQuote(){saveQuoteState();refreshCatDropdowns();
       html+=`<div class="quote-row${selectedRowIds.has(item.id)?' selected':''}${isReviewed?' reviewed':''}" data-id="${item.id}" ondragover="qDO(event)" ondragleave="qDL(event)" ondrop="qDP(event,${item.id})">
         <span class="row-num" draggable="true" ondragstart="qDS(event,${item.id})" ondragend="qDE()" onclick="toggleReviewed(event,${item.id})" title="點擊標記已審閱｜拖曳排序" style="cursor:grab">${isReviewed?'<span style="font-size:13px">✓</span>'+(num++):'<span class="drag-icon">⠿</span>'+num++}</span>
         <div style="display:flex;flex-direction:column;gap:2px">
-          <input class="row-input row-name" value="${item.name}" onchange="updateStrField(${item.id},'name',this.value)" style="width:100%;text-align:left">
+          <input class="row-input row-name" value="${escHtml(item.name)}" onchange="updateStrField(${item.id},'name',this.value)" style="width:100%;text-align:left">
           <select style="font-size:10px;padding:1px 3px;border:1px solid #e0ddd5;border-radius:3px;background:#fafaf8;color:#888;width:100%" onchange="updateItemCat(${item.id},this.value)">${buildCatOptions(item.cat)}</select>
         </div>
-        <span style="text-align:right"><input class="row-input" value="${item.unit}" style="width:60px;text-align:center" onchange="updateStrField(${item.id},'unit',this.value)"></span>
+        <span style="text-align:right"><input class="row-input" value="${escHtml(item.unit)}" style="width:60px;text-align:center" onchange="updateStrField(${item.id},'unit',this.value)"></span>
         <span style="text-align:right"><input class="row-input" type="number" value="${item.qty}" onchange="updateField(${item.id},'qty',this.value)" style="width:60px"></span>
         <span style="text-align:right"><input class="row-input" type="number" value="${item.price}" onchange="updateField(${item.id},'price',this.value)" style="width:90px">${hint}</span>
         <span class="row-amount" onclick="selectRow(event,${item.id})" title="點擊選取加總" style="cursor:pointer;border-radius:4px;padding:2px 4px;transition:background 0.1s">$${Math.round(amt).toLocaleString()}</span>
-        <span><input class="row-input" value="${item.note||''}" placeholder="備註" style="width:100%;font-size:11px" onchange="updateStrField(${item.id},'note',this.value)"></span>
+        <span><input class="row-input" value="${escHtml(item.note||'')}" placeholder="備註" style="width:100%;font-size:11px" onchange="updateStrField(${item.id},'note',this.value)"></span>
         <button class="row-delete" onclick="removeItem(${item.id})">×</button>
       </div>`;
     });
@@ -999,7 +1010,7 @@ function renderSectionManager(){
   document.getElementById('sectionMgrList').innerHTML=(customSectionOrder||[]).map((cat,i)=>{
     const hasItems=inQuote.has(cat);
     return `<div style="display:flex;align-items:center;gap:6px;padding:7px 4px;border-bottom:0.5px solid #f0ede5">
-      <span style="flex:1;font-size:13px;color:${hasItems?'#1a1a1a':'#aaa'}">${cat}${hasItems?'':' <span style="font-size:10px">（空）</span>'}</span>
+      <span style="flex:1;font-size:13px;color:${hasItems?'#1a1a1a':'#aaa'}">${escHtml(cat)}${hasItems?'':' <span style="font-size:10px">（空）</span>'}</span>
       ${btn('↑',`moveSectionUp(${i})`,i===0)}
       ${btn('↓',`moveSectionDown(${i})`,i===(customSectionOrder.length-1))}
       ${!hasItems?btn('×',`removeCustomSection(${i})`,false,'#c0392b'):''}
@@ -1625,7 +1636,7 @@ function renderRemarks(){
   list.innerHTML=remarksItems.map((r,i)=>`
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
       <span style="font-size:11px;color:#999;min-width:16px">${i+1}.</span>
-      <input value="${r.replace(/"/g,'&quot;')}" style="flex:1;font-size:12px;border:1px solid #e0ddd5;border-radius:4px;padding:3px 6px"
+      <input value="${escHtml(r)}" style="flex:1;font-size:12px;border:1px solid #e0ddd5;border-radius:4px;padding:3px 6px"
         onchange="remarksItems[${i}]=this.value">
       <button onclick="removeRemark(${i})" style="font-size:11px;padding:1px 7px;background:#fff3f3;border:1px solid #ffcdd2;border-radius:4px;cursor:pointer;color:#c62828">✕</button>
     </div>`).join('');
@@ -1720,7 +1731,7 @@ async function driveListFiles(){
   if(!files.length){ container.innerHTML = ''; return; }
   container.innerHTML = files.map(f => `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-      <span style="font-size:12px;flex:1;color:#333">${f.name}</span>
+      <span style="font-size:12px;flex:1;color:#333">${escHtml(f.name)}</span>
       <button onclick="driveLoad('${f.id}')" style="font-size:11px;padding:2px 8px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;cursor:pointer;color:#2e7d32">載入</button>
       <button onclick="driveDeleteFile('${f.id}')" style="font-size:11px;padding:2px 8px;background:#fff3f3;border:1px solid #ffcdd2;border-radius:4px;cursor:pointer;color:#c62828">刪除</button>
     </div>`).join('');
