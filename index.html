@@ -395,7 +395,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-
       <button class="btn btn-primary" onclick="doPrint()">🖨️ 列印 PDF</button>
       <button class="btn" onclick="exportToExcel()" style="background:#1a7a4a;color:#fff;border-color:#1a7a4a">📊 匯出 Excel</button>
     </div>
-    <div id="driveFileList" style="display:none;width:100%;padding:10px 12px;background:#fff;border:1px solid #dce8f5;border-radius:8px"><div style="font-size:12px;font-weight:600;color:#1a5fb4;margin-bottom:7px">公司 Google Drive 報價清單</div><div id="driveFiles"></div></div>
+    <div id="driveFileList" style="display:none;width:100%;padding:10px 12px;background:#fff;border:1px solid #dce8f5;border-radius:8px"><div style="font-size:12px;font-weight:600;color:#1a5fb4;margin-bottom:7px">公司 Google Drive 報價清單</div><input id="driveFileSearch" type="text" placeholder="搜尋檔名…" oninput="renderDriveFiles()" style="width:100%;box-sizing:border-box;font-size:12px;padding:5px 8px;margin-bottom:7px;border:1px solid #dce8f5;border-radius:4px"><div id="driveFiles"></div></div>
     <div id="selectionSumBlock" style="display:none;padding:6px 14px;background:#fffbf0;border:1px solid #f5c518;border-radius:6px;text-align:right;min-width:120px">
       <div style="font-size:10px;color:#999;margin-bottom:1px">選取加總</div>
       <div id="selectionSumAmt" style="font-size:15px;font-weight:700;color:#c0392b">$0</div>
@@ -1679,6 +1679,7 @@ const SHARED_FOLDER_ID = '17fGaw38tzYoQ3kPXnMN8bOhCSpjkjqwX';
 let driveFolderId = SHARED_FOLDER_ID;
 let currentDriveFileId = null;
 let lastFolderModifiedTime = null;
+let driveFilesCache = [];
 let pendingDriveAction = null;
 
 function initGsi(){
@@ -1795,8 +1796,16 @@ async function driveListFiles(){
   const files = data.files || [];
   // 初始化資料夾最新時間戳（只在第一次設定，之後由 polling 更新）
   if(!lastFolderModifiedTime && files.length) lastFolderModifiedTime = files[0].modifiedTime;
+  driveFilesCache = files;
+  renderDriveFiles();
+}
+
+function renderDriveFiles(){
   const container = document.getElementById('driveFiles');
-  if(!files.length){ container.innerHTML = ''; return; }
+  if(!container) return;
+  const kw = (document.getElementById('driveFileSearch')?.value || '').trim().toLowerCase();
+  const files = kw ? driveFilesCache.filter(f => f.name.toLowerCase().includes(kw)) : driveFilesCache;
+  if(!files.length){ container.innerHTML = `<div style="font-size:12px;color:#999;padding:4px 0">${kw?'沒有符合的檔案':''}</div>`; return; }
   container.innerHTML = files.map(f => `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
       <span style="font-size:12px;flex:1;color:#333">${escHtml(f.name)}</span>
