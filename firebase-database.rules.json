@@ -8,6 +8,10 @@
         ".write": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/)",
         ".validate": "newData.hasChildren(['who', 'fileName', 'at']) && newData.child('who').val() == auth.token.email && newData.child('fileName').isString() && newData.child('fileName').val().length <= 200 && newData.child('at').isNumber()"
       }
+    },
+    "ops": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com')",
+      ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com')"
     }
   }
 }
