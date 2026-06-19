@@ -307,6 +307,14 @@ body.auth-pending .auth-screen{display:flex}
 .topbar-title{font-size:16px;font-weight:600;letter-spacing:-0.01em}
 .topbar-sub{font-size:12px;color:var(--text3);font-family:'DM Mono',monospace}
 .topbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.mobile-menu-btn{display:none}
+.sidebar-backdrop{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.38);
+  z-index:90;
+}
 
 /* Content */
 .content{
@@ -702,8 +710,16 @@ body.auth-pending .auth-screen{display:flex}
   .kpi-grid,.kpi-row{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:768px){
-  .sidebar{position:fixed;left:-240px;transition:left 0.3s;z-index:100}
+  .sidebar{position:fixed;left:-260px;transition:left 0.3s;z-index:100;box-shadow:18px 0 50px rgba(0,0,0,.18)}
   .sidebar.open{left:0}
+  .sidebar-backdrop.show{display:block}
+  .mobile-menu-btn{display:inline-flex}
+  .topbar{height:auto;min-height:58px;padding:10px 12px;gap:10px;align-items:flex-start}
+  .topbar-title{font-size:15px}
+  .topbar-sub{font-size:10px}
+  .topbar-actions{gap:6px;overflow-x:auto;max-width:58vw;padding-bottom:2px}
+  .topbar-actions .btn{white-space:nowrap}
+  .content{padding:18px 14px 90px}
   .form-grid,.form-grid-3{grid-template-columns:1fr}
 }
 @media(max-height:760px){
@@ -837,15 +853,17 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">🗑 清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.16 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.17 · 2026</div>
   </div>
 </nav>
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
 
 <!-- ════════ MAIN ════════ -->
 <div class="main">
 
   <!-- Topbar -->
   <div class="topbar">
+    <button class="btn btn-ghost btn-sm mobile-menu-btn" onclick="toggleMobileSidebar()">☰ 功能</button>
     <div>
       <div class="topbar-title" id="topbar-title">個案總覽</div>
       <div class="topbar-sub" id="topbar-sub">Project Dashboard</div>
@@ -4103,7 +4121,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.16', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.17', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4751,6 +4769,19 @@ const PAGE_TITLES = {
   vendors:    ['廠商主檔',      'Vendor Master'],
 };
 
+function toggleMobileSidebar(force) {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (!sidebar) return;
+  const shouldOpen = typeof force === 'boolean' ? force : !sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', shouldOpen);
+  if (backdrop) backdrop.classList.toggle('show', shouldOpen);
+}
+
+function closeMobileSidebar() {
+  toggleMobileSidebar(false);
+}
+
 function navTo(page, el) {
   // Permission check
   if (!canAccess(page)) {
@@ -4781,6 +4812,7 @@ function navTo(page, el) {
   if (page === 'receivable') { refreshAllCaseDropdowns(); renderReceivable(); }
   if (page === 'payable')    { refreshAllCaseDropdowns(); renderPayable(); }
   if (page === 'expenses')   { refreshAllCaseDropdowns(); }
+  closeMobileSidebar();
 }
 
 // ══════════════════════════════════
