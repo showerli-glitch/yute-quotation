@@ -315,6 +315,29 @@ body.auth-pending .auth-screen{display:flex}
   background:rgba(0,0,0,.38);
   z-index:90;
 }
+.expense-table-scroll,
+.expense-batch-scroll{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.expense-table{
+  min-width:1180px;
+}
+.expense-table th,
+.expense-table td{
+  vertical-align:middle;
+}
+.expense-batch-table{
+  width:1180px;
+  min-width:1180px;
+  border-collapse:collapse;
+}
+.expense-mobile-hint{
+  display:none;
+  font-size:11px;
+  color:var(--text3);
+  margin:8px 0 0;
+}
 
 /* Content */
 .content{
@@ -720,6 +743,14 @@ body.auth-pending .auth-screen{display:flex}
   .topbar-actions{gap:6px;overflow-x:auto;max-width:58vw;padding-bottom:2px}
   .topbar-actions .btn{white-space:nowrap}
   .content{padding:18px 14px 90px}
+  .page-toolbar{align-items:flex-start}
+  #page-expense .page-toolbar{gap:10px}
+  #page-expense .page-toolbar > div:first-child{overflow-x:auto;flex-wrap:nowrap;width:100%;padding-bottom:4px}
+  #page-expense .search-input{width:100%;min-width:220px}
+  #exp-stats{grid-template-columns:repeat(2,1fr)!important;padding:12px 14px!important}
+  .expense-mobile-hint{display:block}
+  .expense-modal{width:100vw!important;max-width:100vw!important;max-height:100vh!important;border-radius:0}
+  .expense-modal .modal-body{padding:12px 14px!important}
   .form-grid,.form-grid-3{grid-template-columns:1fr}
 }
 @media(max-height:760px){
@@ -853,7 +884,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">🗑 清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.17 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.18 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1229,8 +1260,23 @@ body.auth-pending .auth-screen{display:flex}
       <div class="stat-item"><div class="stat-label">本月申請筆數</div><div class="stat-value" id="exp-stat-count">0 筆</div></div>
       <div class="stat-item"><div class="stat-label">本月合計</div><div class="stat-value" id="exp-stat-total">$0</div></div>
     </div>
-    <div id="exp-list-view" class="table-wrap">
-      <table class="data-table">
+    <div class="expense-mobile-hint">提示：費用明細可左右滑動查看完整欄位。</div>
+    <div id="exp-list-view" class="table-wrap expense-table-scroll">
+      <table class="data-table expense-table">
+        <colgroup>
+          <col style="width:54px">
+          <col style="width:132px">
+          <col style="width:92px">
+          <col style="width:190px">
+          <col style="width:116px">
+          <col style="width:230px">
+          <col style="width:110px">
+          <col style="width:110px">
+          <col style="width:90px">
+          <col style="width:180px">
+          <col style="width:92px">
+          <col style="width:120px">
+        </colgroup>
         <thead>
           <tr>
             <th style="width:36px">#</th>
@@ -2787,7 +2833,7 @@ body.auth-pending .auth-screen{display:flex}
 
 <!-- ════════ MODAL: ADD EXPENSE ════════ -->
 <div class="modal-overlay" id="modal-add-expense" onclick="if(event.target===this)closeModal('modal-add-expense')">
-  <div class="modal" style="max-width:1000px;width:96vw">
+  <div class="modal expense-modal" style="max-width:1100px;width:96vw">
     <div class="modal-hd">
       <div class="modal-title">月份費用批次申請</div>
       <button class="modal-close" onclick="closeModal('modal-add-expense')">✕</button>
@@ -2807,18 +2853,19 @@ body.auth-pending .auth-screen{display:flex}
         <button type="button" onclick="expBatchCopyLastMonth()" class="btn btn-ghost btn-sm">複製上月固定開銷</button>
         <span style="font-size:11px;color:var(--text3);margin-left:auto">可從試算表整段複製貼到任一格，自動分列填入 ／ Tab 跳格 ／ 付款項目＋金額為必填 ／ 空白列自動略過</span>
       </div>
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse">
+      <div class="expense-mobile-hint">提示：表格可左右滑動，先填歸屬個案、日期、付款項目與金額。</div>
+      <div class="expense-batch-scroll">
+        <table class="expense-batch-table">
           <colgroup>
             <col style="width:34px">
+            <col style="width:180px">
+            <col style="width:170px">
+            <col style="width:132px">
+            <col style="width:250px">
             <col style="width:120px">
-            <col style="width:150px">
-            <col style="width:115px">
-            <col>
-            <col style="width:86px">
-            <col style="width:110px">
-            <col style="width:78px">
-            <col style="width:120px">
+            <col style="width:135px">
+            <col style="width:95px">
+            <col style="width:210px">
             <col style="width:30px">
           </colgroup>
           <thead>
@@ -4121,7 +4168,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.17', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.18', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
