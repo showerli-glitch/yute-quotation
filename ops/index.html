@@ -971,7 +971,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">🗑 清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.20 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.21 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1058,6 +1058,7 @@ body.auth-pending .auth-screen{display:flex}
             <th>到期日</th>
             <th>待收狀態</th>
             <th>負責人</th>
+            <th>案場定位</th>
             <th></th>
           </tr>
         </thead>
@@ -2462,6 +2463,52 @@ body.auth-pending .auth-screen{display:flex}
   </div>
 </div>
 
+<!-- ════════ MODAL: CASE LOCATION ════════ -->
+<div class="modal-overlay" id="modal-case-location" onclick="if(event.target===this)closeModal('modal-case-location')">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title">案場座標設定</div>
+        <div id="case-location-subtitle" style="font-size:12px;color:var(--text3);margin-top:4px"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-case-location')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="case-location-code">
+      <div class="form-grid">
+        <div class="form-field form-full">
+          <label class="form-label">工程地址</label>
+          <input class="form-input" id="case-location-address" placeholder="例：台北市大安區安和路一段135巷22號1樓">
+        </div>
+        <div class="form-field">
+          <label class="form-label">緯度</label>
+          <input class="form-input" id="case-location-lat" type="number" step="0.000001" placeholder="25.05030">
+        </div>
+        <div class="form-field">
+          <label class="form-label">經度</label>
+          <input class="form-input" id="case-location-lng" type="number" step="0.000001" placeholder="121.59180">
+        </div>
+        <div class="form-field">
+          <label class="form-label">允許半徑（公尺）</label>
+          <input class="form-input" id="case-location-radius" type="number" min="50" step="10" value="200">
+        </div>
+        <div class="form-field" style="display:flex;align-items:flex-end">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="caseUseCurrentLocation('case-location')" style="width:100%">使用目前定位</button>
+        </div>
+        <div class="form-field form-full">
+          <div style="font-size:12px;color:var(--text3);line-height:1.7">
+            工地 GPS 打卡會用這組座標與半徑判斷是否可打卡。若案場尚未設定座標，出勤管理會阻擋工地打卡。
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-case-location')">取消</button>
+      <button class="btn btn-primary" onclick="saveCaseLocation()">儲存座標</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════════ MODAL: NEW CASE ════════ -->
 <div class="modal-overlay" id="modal-new-case" onclick="if(event.target===this)closeModal('modal-new-case')">
   <div class="modal">
@@ -2508,7 +2555,22 @@ body.auth-pending .auth-screen{display:flex}
         </div>
         <div class="form-field form-full">
           <label class="form-label">工程地址</label>
-          <input class="form-input" placeholder="例：台北市大安區安和路一段135巷22號1樓" type="text">
+          <input class="form-input" id="new-case-address" placeholder="例：台北市大安區安和路一段135巷22號1樓" type="text">
+        </div>
+        <div class="form-field">
+          <label class="form-label">案場緯度</label>
+          <input class="form-input" id="new-case-site-lat" placeholder="例：25.05030" type="number" step="0.000001">
+        </div>
+        <div class="form-field">
+          <label class="form-label">案場經度</label>
+          <input class="form-input" id="new-case-site-lng" placeholder="例：121.59180" type="number" step="0.000001">
+        </div>
+        <div class="form-field">
+          <label class="form-label">工地打卡半徑（公尺）</label>
+          <input class="form-input" id="new-case-site-radius" placeholder="200" type="number" min="50" step="10" value="200">
+        </div>
+        <div class="form-field" style="display:flex;align-items:flex-end">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="caseUseCurrentLocation('new-case')" style="width:100%">使用目前定位</button>
         </div>
         <div class="form-field form-full">
           <label class="form-label">狀態</label>
@@ -4285,7 +4347,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.20', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.21', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5324,14 +5386,18 @@ function renderCases() {
       <td class="nowrap-col" style="font-size:12px;text-align:center">${retentionDue || '—'}</td>
       <td style="text-align:center">${retentionAmt ? `<span class="tag ${retentionTag}">${retentionLabel}</span>` : '<span style="color:var(--text3)">—</span>'}</td>
       <td style="font-size:12px;color:var(--text2)">${c.person}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="openCaseDetail('${c.code}')">詳情</button></td>
+      <td style="text-align:center">${caseHasSiteLocation(c) ? '<span class="tag tag-done">已設定</span>' : '<span class="tag tag-pending">未設定</span>'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="openCaseLocation('${c.code}')">座標</button>
+        <button class="btn btn-ghost btn-sm" onclick="openCaseDetail('${c.code}')">詳情</button>
+      </td>
     </tr>`;
   };
   const open = data.filter(c => c.status !== '結案');
   const closed = data.filter(c => c.status === '結案');
   let html = open.map(renderRow).join('');
   if (closed.length) {
-    html += `<tr><td colspan="11" style="padding:4px 14px;border-top:2px solid var(--border2);background:var(--surface2);font-size:11px;color:var(--text3)">已結案個案</td></tr>`;
+    html += `<tr><td colspan="12" style="padding:4px 14px;border-top:2px solid var(--border2);background:var(--surface2);font-size:11px;color:var(--text3)">已結案個案</td></tr>`;
     html += closed.map(renderRow).join('');
   }
   tbody.innerHTML = html;
@@ -5345,6 +5411,97 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 function tfEsc(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function caseHasSiteLocation(c) {
+  return c && c.siteLat !== '' && c.siteLat !== null && c.siteLat !== undefined &&
+    c.siteLng !== '' && c.siteLng !== null && c.siteLng !== undefined &&
+    Number.isFinite(Number(c.siteLat)) && Number.isFinite(Number(c.siteLng));
+}
+
+function caseLocationFields(prefix) {
+  return {
+    address: document.getElementById(`${prefix}-address`),
+    lat: document.getElementById(`${prefix}-lat`) || document.getElementById(`${prefix}-site-lat`),
+    lng: document.getElementById(`${prefix}-lng`) || document.getElementById(`${prefix}-site-lng`),
+    radius: document.getElementById(`${prefix}-radius`) || document.getElementById(`${prefix}-site-radius`)
+  };
+}
+
+function openCaseLocation(caseCode) {
+  if (!requireManage('dashboard', '您沒有設定案場座標的權限')) return;
+  const c = CASES.find(x => x.code === caseCode);
+  if (!c) return;
+  document.getElementById('case-location-code').value = c.code;
+  document.getElementById('case-location-subtitle').textContent = `${c.code} ｜ ${c.name}`;
+  document.getElementById('case-location-address').value = c.address || c.siteAddress || '';
+  document.getElementById('case-location-lat').value = c.siteLat ?? '';
+  document.getElementById('case-location-lng').value = c.siteLng ?? '';
+  document.getElementById('case-location-radius').value = c.siteRadiusMeters || 200;
+  openModal('modal-case-location');
+}
+
+function readCaseLocation(prefix) {
+  const f = caseLocationFields(prefix);
+  const latRaw = f.lat?.value?.trim() || '';
+  const lngRaw = f.lng?.value?.trim() || '';
+  const radius = Number(f.radius?.value || 200) || 200;
+  const lat = latRaw === '' ? null : Number(latRaw);
+  const lng = lngRaw === '' ? null : Number(lngRaw);
+  if ((latRaw || lngRaw) && (!Number.isFinite(lat) || !Number.isFinite(lng))) {
+    showToast('座標格式不正確', 'error');
+    return null;
+  }
+  if ((latRaw || lngRaw) && (lat < -90 || lat > 90 || lng < -180 || lng > 180)) {
+    showToast('座標超出有效範圍', 'error');
+    return null;
+  }
+  if (radius < 50) {
+    showToast('打卡半徑至少 50 公尺', 'error');
+    return null;
+  }
+  return {
+    address: f.address?.value?.trim() || '',
+    siteLat: latRaw ? lat : '',
+    siteLng: lngRaw ? lng : '',
+    siteRadiusMeters: radius
+  };
+}
+
+function saveCaseLocation() {
+  if (!requireManage('dashboard', '您沒有設定案場座標的權限')) return;
+  const code = document.getElementById('case-location-code')?.value || '';
+  const c = CASES.find(x => x.code === code);
+  if (!c) return;
+  const loc = readCaseLocation('case-location');
+  if (!loc) return;
+  c.address = loc.address;
+  c.siteAddress = loc.address;
+  c.siteLat = loc.siteLat;
+  c.siteLng = loc.siteLng;
+  c.siteRadiusMeters = loc.siteRadiusMeters;
+  c.locationUpdatedAt = new Date().toISOString();
+  c.locationUpdatedBy = currentUser.name;
+  saveData();
+  renderCases();
+  attFillCaseOptions();
+  attGpsRefresh();
+  closeModal('modal-case-location');
+  showToast('案場座標已儲存 ✓', 'success');
+}
+
+function caseUseCurrentLocation(prefix) {
+  if (!navigator.geolocation) { showToast('瀏覽器不支援定位', 'error'); return; }
+  showToast('正在取得目前定位…', 'success');
+  navigator.geolocation.getCurrentPosition(pos => {
+    const f = caseLocationFields(prefix);
+    if (f.lat) f.lat.value = pos.coords.latitude.toFixed(6);
+    if (f.lng) f.lng.value = pos.coords.longitude.toFixed(6);
+    if (f.radius && !f.radius.value) f.radius.value = 200;
+    showToast('已填入目前定位 ✓', 'success');
+  }, () => {
+    showToast('無法取得目前定位，請允許瀏覽器定位權限', 'error');
+  }, { enableHighAccuracy:true, timeout:12000, maximumAge:30000 });
 }
 
 function tfStatusColor(status) {
@@ -5780,7 +5937,15 @@ function attGpsTarget() {
   }
   const caseCode = document.getElementById('att-gps-case')?.value || '';
   const c = CASES.find(x => x.code === caseCode);
-  return { type, label:c?.name || '工地', lat:Number(c?.siteLat), lng:Number(c?.siteLng), radius:Number(c?.siteRadiusMeters) || 200, caseCode, caseName:c?.name || '' };
+  return {
+    type,
+    label:c?.name || '工地',
+    lat:caseHasSiteLocation(c) ? Number(c.siteLat) : NaN,
+    lng:caseHasSiteLocation(c) ? Number(c.siteLng) : NaN,
+    radius:Number(c?.siteRadiusMeters) || 200,
+    caseCode,
+    caseName:c?.name || ''
+  };
 }
 
 function attGpsRefresh() {
@@ -6282,6 +6447,9 @@ function openNewCaseModal() {
   document.getElementById('new-case-code').value = '';
   document.getElementById('new-case-name').value = '';
   if (document.getElementById('new-case-amount')) document.getElementById('new-case-amount').value = '';
+  ['new-case-address','new-case-site-lat','new-case-site-lng'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const radiusEl = document.getElementById('new-case-site-radius');
+  if (radiusEl) radiusEl.value = 200;
   openModal('modal-new-case');
 }
 
@@ -6301,6 +6469,8 @@ function submitNewCase() {
   const amtRaw  = document.getElementById('new-case-amount')?.value.trim()||'';
   const amount  = parseInt(amtRaw.replace(/[^0-9]/g,''))||0;
   const person  = document.getElementById('new-case-person')?.value||currentUser.name;
+  const loc = readCaseLocation('new-case');
+  if (!loc) return;
   CASES.push({
     code: caseCodeFinal,
     name: caseName,
@@ -6310,7 +6480,12 @@ function submitNewCase() {
     amount,
     collected: 0,
     person,
-    pct: 0
+    pct: 0,
+    address: loc.address,
+    siteAddress: loc.address,
+    siteLat: loc.siteLat,
+    siteLng: loc.siteLng,
+    siteRadiusMeters: loc.siteRadiusMeters
   });
   refreshAllCaseDropdowns();
   renderCases();
