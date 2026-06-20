@@ -971,7 +971,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">🗑 清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.22 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.23 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3248,7 +3248,7 @@ function tagCompany(arr) {
 }
 
 function normalizeCompanyData() {
-  [CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, PAYROLL, CLIENTS, VENDORS, EMPLOYEES, PROFIT_SETTLEMENTS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES]
+  [CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, PAYROLL, CLIENTS, VENDORS, EMPLOYEES, PROFIT_SETTLEMENTS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, AUDIT_LOGS]
     .forEach(tagCompany);
   EMPLOYEES.forEach(e => {
     if (!('email' in e)) e.email = '';
@@ -3588,6 +3588,8 @@ let ATTENDANCE_RECORDS = [];
 let ATTENDANCE_LEAVES = [];
 let attNextId = 1;
 let attLeaveNextId = 1;
+let AUDIT_LOGS = [];
+let auditNextId = 1;
 const ATTENDANCE_SETTINGS = {
   workdayMinutes: 540,
   paidWorkMinutes: 480,
@@ -4371,12 +4373,76 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.22', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.23', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
-    PROFIT_SETTLEMENTS, PS_TAX_RATE,
-    pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
+    PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
+    pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
     savedAt: new Date().toISOString()
   };
+}
+
+function auditClone(value) {
+  if (value === undefined) return null;
+  try { return JSON.parse(JSON.stringify(value)); }
+  catch(e) { return { error:'clone_failed' }; }
+}
+
+function auditDiff(before, after, fields) {
+  const prev = before && typeof before === 'object' ? before : {};
+  const next = after && typeof after === 'object' ? after : {};
+  const keys = fields || Array.from(new Set([...Object.keys(prev), ...Object.keys(next)]));
+  return keys.filter(key => JSON.stringify(prev[key] ?? null) !== JSON.stringify(next[key] ?? null))
+    .slice(0, 80)
+    .map(key => ({ field:key, beforeValue:prev[key] ?? null, afterValue:next[key] ?? null }));
+}
+
+function auditSummary() {
+  return {
+    cases: CASES.length,
+    payables: PAYABLES.length,
+    receivables: RECEIVABLES.length,
+    expenses: EXPENSES.length,
+    employees: EMPLOYEES.length,
+    payroll: PAYROLL.length,
+    profitSettlements: PROFIT_SETTLEMENTS.length,
+    taxLiabilities: TAX_LIABILITIES.length,
+    auditLogs: AUDIT_LOGS.length
+  };
+}
+
+function recordAuditLog(action, targetType, targetId, before, after, options = {}) {
+  try {
+    const actor = currentUser || {};
+    const row = {
+      id: auditNextId++,
+      companyId: COMPANY_ID,
+      at: new Date().toISOString(),
+      actorUid: opsAuthenticatedUserId || actor.id || '',
+      actorEmail: opsAuthenticatedEmail || actor.email || '',
+      actorName: actor.name || '',
+      actorRole: actor.roleCode || actor.role || '',
+      action,
+      targetType,
+      targetId: String(targetId ?? ''),
+      targetLabel: options.targetLabel || '',
+      source: OPS_AUTH_ENFORCED ? 'ops-web' : 'ops-local',
+      reason: options.reason || '',
+      before: auditClone(before),
+      after: auditClone(after),
+      diff: options.diff || auditDiff(before, after, options.fields),
+      riskLevel: options.riskLevel || 'medium',
+      requestId: options.requestId || '',
+      sessionId: opsAuthenticatedEmail || actor.id || '',
+      clientInfo: { appVersion:'1.0.23', userAgent:navigator.userAgent },
+      schemaVersion: 1
+    };
+    AUDIT_LOGS.unshift(row);
+    if (AUDIT_LOGS.length > 1000) AUDIT_LOGS.length = 1000;
+    return row;
+  } catch(e) {
+    console.warn('recordAuditLog failed:', e);
+    return null;
+  }
 }
 
 function saveData() {
@@ -4520,7 +4586,13 @@ function importBackupFile(input) {
       const summary = `${data.CASES.length} 個案、${data.PAYABLES.length} 筆應付、${data.RECEIVABLES.length} 筆應收、${data.EXPENSES.length} 筆費用`;
       if (!confirm(`確定匯入此備份？\n備份時間：${savedAt}\n資料內容：${summary}\n\n目前資料會先自動下載備份，再由此檔案取代。`)) return;
       exportBackup({ silent:true, fileName:backupFileName() });
+      const beforeSummary = auditSummary();
       if (!applyDataSnapshot(data)) { showToast('備份套用失敗', 'error'); return; }
+      recordAuditLog('import', 'backup', file.name || 'backup', beforeSummary, auditSummary(), {
+        riskLevel:'critical',
+        targetLabel:file.name || 'OPS backup',
+        reason:'完整備份匯入'
+      });
       saveData();
       renderAll();
       showToast(opsCloudReady ? '備份匯入完成，正在同步雲端…' : '備份匯入完成', 'success');
@@ -4548,6 +4620,7 @@ function applyDataSnapshot(d) {
   if (Array.isArray(d.TEST_FEEDBACK)) { TEST_FEEDBACK.length = 0; TEST_FEEDBACK.push(...d.TEST_FEEDBACK); }
   if (Array.isArray(d.ATTENDANCE_RECORDS)) { ATTENDANCE_RECORDS.length = 0; ATTENDANCE_RECORDS.push(...d.ATTENDANCE_RECORDS); }
   if (Array.isArray(d.ATTENDANCE_LEAVES)) { ATTENDANCE_LEAVES.length = 0; ATTENDANCE_LEAVES.push(...d.ATTENDANCE_LEAVES); }
+  if (Array.isArray(d.AUDIT_LOGS)) { AUDIT_LOGS.length = 0; AUDIT_LOGS.push(...d.AUDIT_LOGS); }
   if (d.ATTENDANCE_SETTINGS && typeof d.ATTENDANCE_SETTINGS === 'object') Object.assign(ATTENDANCE_SETTINGS, d.ATTENDANCE_SETTINGS);
   if (d.OVERHEAD)    {
     Object.keys(OVERHEAD).forEach(k => delete OVERHEAD[k]);
@@ -4573,11 +4646,13 @@ function applyDataSnapshot(d) {
   if (d.tfNextId)    tfNextId  = d.tfNextId;
   if (d.attNextId)   attNextId = d.attNextId;
   if (d.attLeaveNextId) attLeaveNextId = d.attLeaveNextId;
+  if (d.auditNextId) auditNextId = d.auditNextId;
   const derivedEmpNextId = Math.max(1, ...EMPLOYEES.map(e => Number(String(e.id || '').match(/^emp(\d+)$/)?.[1]) + 1 || 1));
   empNextId = Math.max(Number(d.empNextId) || 1, derivedEmpNextId);
   tfNextId = Math.max(Number(tfNextId) || 1, Math.max(0, ...TEST_FEEDBACK.map(r => Number(r.id) || 0)) + 1);
   attNextId = Math.max(Number(attNextId) || 1, Math.max(0, ...ATTENDANCE_RECORDS.map(r => Number(r.id) || 0)) + 1);
   attLeaveNextId = Math.max(Number(attLeaveNextId) || 1, Math.max(0, ...ATTENDANCE_LEAVES.map(r => Number(r.id) || 0)) + 1);
+  auditNextId = Math.max(Number(auditNextId) || 1, Math.max(0, ...AUDIT_LOGS.map(r => Number(r.id) || 0)) + 1);
   if (d.expNextId && typeof expNextId !== 'undefined') expNextId = d.expNextId;
   normalizeCompanyData();
   return true;
@@ -4614,6 +4689,7 @@ function toggleTheme() {
 function clearData() {
   if (!requireManage('dashboard', '只有完整管理者可以清除所有資料')) return;
   if (!confirm('確定要清除所有資料嗎？此動作無法還原。')) return;
+  const beforeSummary = auditSummary();
   localStorage.removeItem(STORAGE_KEY);
   // 重設回歷史預設資料
   CASES.length = 0;    CASES.push(...JSON.parse(JSON.stringify(INIT_CASES)));
@@ -4630,6 +4706,7 @@ function clearData() {
   TEST_FEEDBACK.length = 0;
   ATTENDANCE_RECORDS.length = 0;
   ATTENDANCE_LEAVES.length = 0;
+  AUDIT_LOGS.length = 0;
   PROFIT_SETTLEMENTS.length = 0;
   PS_TAX_RATE = 0.03;
   PS_SELECTED_CASES = null;
@@ -4642,12 +4719,18 @@ function clearData() {
   tfNextId = 1;
   attNextId = 1;
   attLeaveNextId = 1;
+  auditNextId = 1;
   pyNextId = Math.max(pyNextId, Math.max(0, ...PAYABLES.map(p => Number(p.id) || 0)) + 1);
   rvNextId = Math.max(rvNextId, Math.max(0, ...RECEIVABLES.map(r => Number(r.id) || 0)) + 1);
   if (typeof expNextId !== 'undefined') expNextId = Math.max(expNextId, Math.max(0, ...EXPENSES.map(e => Number(e.id) || 0)) + 1);
   tfNextId = Math.max(tfNextId, Math.max(0, ...TEST_FEEDBACK.map(r => Number(r.id) || 0)) + 1);
   attNextId = Math.max(attNextId, Math.max(0, ...ATTENDANCE_RECORDS.map(r => Number(r.id) || 0)) + 1);
   attLeaveNextId = Math.max(attLeaveNextId, Math.max(0, ...ATTENDANCE_LEAVES.map(r => Number(r.id) || 0)) + 1);
+  recordAuditLog('delete', 'backup', 'clearData', beforeSummary, auditSummary(), {
+    riskLevel:'critical',
+    targetLabel:'清除所有資料',
+    reason:'管理者重設為歷史資料'
+  });
   saveData();
   renderCases(); renderPayable(); renderReceivable();
   renderExpense(); renderOverhead(); renderPayroll(); renderProfit(); renderProfitShare(); renderEmployees();
@@ -6757,11 +6840,17 @@ function markPaid(id) {
   if (!requireManage('payable', '您沒有標記付款的權限')) return;
   const p = PAYABLES.find(x => x.id===id);
   if (!p) return;
+  const before = auditClone(p);
   const today = new Date().toISOString().split('T')[0];
   p.status = 'paid';
   p.transferDate = p.transferDate || today;
   p.doneDate = today;
   pySyncRentToOverhead(p);
+  recordAuditLog('markPaid', 'payable', p.id, before, p, {
+    riskLevel:'high',
+    targetLabel:`${p.vendor || '受款人未填'}／${p.summary || '付款項目未填'}`,
+    fields:['status','amount','vendor','summary','transferDate','doneDate','bank','paymentType','case','caseName']
+  });
   renderPayable(); renderPayreq(); renderProfit();
   renderProfitShare();
   saveData();
@@ -7306,6 +7395,7 @@ function submitAddReceivable() {
     // 編輯模式
     const r = RECEIVABLES.find(x => x.id === parseInt(editId));
     if (r) {
+      const before = auditClone(r);
       const caseName = caseVal ? (caseEl.selectedOptions[0].text.split(' ').slice(1).join(' ')) : r.caseName;
       Object.assign(r, {
         case:        caseVal || r.case,
@@ -7328,6 +7418,11 @@ function submitAddReceivable() {
         const c = CASES.find(x => x.code === (caseVal || r.case));
         if (c) { c.retentionAmt = invoiceAmt; c.retentionDue = retentionDue; }
       }
+      recordAuditLog('update', 'receivable', r.id, before, r, {
+        riskLevel:['collected','pending'].includes(r.status) ? 'high' : 'medium',
+        targetLabel:`${r.buyer || '付款方未填'}／${r.item || '收款項目未填'}`,
+        fields:['status','collectAmt','collectDate','buyer','item','invoiceAmt','invoiceDate','invoiceNo','case','caseName','receivableType','retentionDue']
+      });
     }
     closeModal('modal-add-receivable');
     renderReceivable(); renderCases(); renderProfit();
@@ -7338,7 +7433,7 @@ function submitAddReceivable() {
     if (!caseVal) { showToast('請選擇個案名稱', 'error'); return; }
     if (!item)    { showToast('請填寫項目', 'error'); return; }
     const caseName = caseEl.selectedOptions[0].text.split(' ').slice(1).join(' ');
-    RECEIVABLES.push({
+    const row = {
       id: rvNextId++, case: caseVal, caseName,
       collectDate: document.getElementById('rv-add-collect-date').value,
       buyer:       document.getElementById('rv-add-buyer').value.trim(),
@@ -7351,11 +7446,16 @@ function submitAddReceivable() {
       invoiceLink: '',
       status:      document.getElementById('rv-add-status').value,
       note:        document.getElementById('rv-add-note').value.trim(),
-    });
+    };
+    RECEIVABLES.push(row);
     if (receivableType === 'retention') {
       const c = CASES.find(x => x.code === caseVal);
       if (c) { c.retentionAmt = invoiceAmt; c.retentionDue = retentionDue; }
     }
+    recordAuditLog('create', 'receivable', row.id, null, row, {
+      riskLevel:'high',
+      targetLabel:`${row.buyer || '付款方未填'}／${row.item || '收款項目未填'}`
+    });
     closeModal('modal-add-receivable');
     renderReceivable(); renderCases();
     saveData();
@@ -8484,6 +8584,7 @@ function psRunSettlement() {
   if (!confirm('結算後，本次納入的個案與公司開銷月份將被鎖定，無法再被下次結算重複計算，確定要執行嗎？')) return;
   const result = psComputeData();
   if (!result.caseRows.length) { showToast('沒有可結算的個案','error'); return; }
+  const beforeSummary = auditSummary();
   const settlementId = PROFIT_SETTLEMENTS.reduce((m,s)=>Math.max(m,s.id||0),0) + 1;
   const settlementDate = new Date().toISOString().slice(0,10);
   const caseCodes = result.caseRows.map(c => c.code);
@@ -8553,6 +8654,16 @@ function psRunSettlement() {
   result.profitPayables.forEach(r => { r.psSettled = true; });
   PS_SELECTED_CASES = null;
   PS_OH_START = null; PS_OH_END = null;
+  recordAuditLog('settle', 'profitSettlement', settlementId, beforeSummary, auditSummary(), {
+    riskLevel:'critical',
+    targetLabel:`分潤結算 #${settlementId}`,
+    diff:[
+      { field:'caseCount', beforeValue:0, afterValue:result.caseRows.length },
+      { field:'generatedPayables', beforeValue:0, afterValue:generatedPayables.length },
+      { field:'grandNet', beforeValue:null, afterValue:result.grandNet },
+      { field:'grandTax', beforeValue:null, afterValue:result.grandTax }
+    ]
+  });
   renderProfitShare(); renderPayable(); renderPayreq(); renderCases(); renderDashboard();
   saveData();
   showToast(`結算完成，已建立 ${generatedPayables.length} 筆待付分潤款 ✓`,'success');
@@ -8562,6 +8673,7 @@ function psUndoSettlement(id) {
   if (!requireManage('profitshare')) return;
   const settlement = PROFIT_SETTLEMENTS.find(s => s.id === id);
   if (!settlement) return;
+  const before = auditClone(settlement);
   const generatedIds = settlement.generatedPayableIds || [];
   const generated = PAYABLES.filter(p => generatedIds.includes(p.id));
   if (generated.some(p => p.status === 'paid')) {
@@ -8592,6 +8704,10 @@ function psUndoSettlement(id) {
   const idx = PROFIT_SETTLEMENTS.findIndex(s => s.id === id);
   if (idx >= 0) PROFIT_SETTLEMENTS.splice(idx, 1);
   PS_SELECTED_CASES = null;
+  recordAuditLog('void', 'profitSettlement', id, before, null, {
+    riskLevel:'critical',
+    targetLabel:`撤銷分潤結算 #${id}`
+  });
   renderProfitShare(); renderPayable(); renderPayreq(); renderCases(); renderDashboard();
   saveData();
   showToast('已撤銷結算並還原資料','success');
