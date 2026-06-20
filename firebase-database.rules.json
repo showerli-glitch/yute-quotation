@@ -10,8 +10,194 @@
       }
     },
     "ops": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com')",
-      ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com')"
+      ".read": false,
+      ".write": false,
+      "yutesign": {
+        ".read": false,
+        ".write": false,
+        "snapshot": {
+          ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com')",
+          ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com') && newData.hasChildren(['data', 'meta']) && newData.child('meta/companyId').val() == 'yutesign' && newData.child('meta/savedBy').val() == auth.token.email && newData.child('meta/source').val() == 'ops-v2-cloud-sync' && newData.child('data/format').val() == 'yutesign-ops-backup' && newData.child('data/companyId').val() == 'yutesign'",
+          ".validate": "newData.child('meta/savedAt').isString() && newData.child('meta/appVersion').isString() && newData.child('meta/appVersion').val().length <= 20 && newData.child('data/formatVersion').isNumber() && newData.child('data').hasChildren(['CASES', 'PAYABLES', 'RECEIVABLES', 'EMPLOYEES'])"
+        },
+        "v1": {
+          ".read": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/) && root.child('ops/yutesign/v1/users').child(auth.uid).child('active').val() == true",
+          ".write": false,
+          "users": {
+            "$uid": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.uid == $uid || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'finance')",
+              ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'owner')",
+              ".validate": "newData.hasChildren(['email', 'employeeId', 'role', 'active']) && newData.child('email').isString() && newData.child('email').val().matches(/^[^@]+@yutesign[.]com$/) && newData.child('employeeId').isString() && newData.child('role').val().matches(/^(owner|finance|accounting|pm|design|admin|none)$/) && newData.child('active').isBoolean()"
+            }
+          },
+          "employees": {
+            "$employeeId": {
+              ".write": "auth != null && auth.token.email_verified == true && (root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'finance')",
+              ".validate": "newData.hasChildren(['id', 'name', 'status', 'companyId']) && newData.child('companyId').val() == 'yutesign'"
+            }
+          },
+          "cases": {
+            "$caseCode": {
+              ".write": "auth != null && auth.token.email_verified == true && (root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'pm')",
+              ".validate": "newData.hasChildren(['code', 'name', 'status', 'companyId']) && newData.child('companyId').val() == 'yutesign'"
+            }
+          },
+          "payables": {
+            "$payableId": {
+              ".write": "auth != null && auth.token.email_verified == true && (root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'accounting')",
+              ".validate": "newData.hasChildren(['id', 'amount', 'status', 'companyId']) && newData.child('companyId').val() == 'yutesign'"
+            }
+          },
+          "receivables": {
+            "$receivableId": {
+              ".write": "auth != null && auth.token.email_verified == true && (root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'accounting')",
+              ".validate": "newData.hasChildren(['id', 'status', 'companyId']) && newData.child('companyId').val() == 'yutesign'"
+            }
+          },
+          "expenses": {
+            "$expenseId": {
+              ".write": "auth != null && auth.token.email_verified == true && root.child('ops/yutesign/v1/users').child(auth.uid).child('active').val() == true",
+              ".validate": "newData.hasChildren(['id', 'person', 'amount', 'status', 'companyId']) && newData.child('companyId').val() == 'yutesign'"
+            }
+          },
+          "payroll": {
+            "$payrollId": {
+              ".write": "auth != null && auth.token.email_verified == true && (root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'accounting')",
+              ".validate": "newData.hasChildren(['person', 'month', 'companyId']) && newData.child('companyId').val() == 'yutesign'"
+            }
+          },
+          "profitSettlements": {
+            "$settlementId": {
+              ".write": "auth != null && auth.token.email_verified == true && (root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'finance')",
+              ".validate": "newData.hasChildren(['id', 'status', 'companyId']) && newData.child('companyId').val() == 'yutesign'"
+            }
+          },
+          "taxLiabilities": {
+            "$taxId": {
+              ".write": "auth != null && auth.token.email_verified == true && (root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/yutesign/v1/users').child(auth.uid).child('role').val() == 'accounting')",
+              ".validate": "newData.hasChildren(['id', 'companyId']) && newData.child('companyId').val() == 'yutesign'"
+            }
+          },
+          "auditLogs": {
+            "$logId": {
+              ".write": "auth != null && auth.token.email_verified == true && root.child('ops/yutesign/v1/users').child(auth.uid).child('active').val() == true && !data.exists() && newData.child('actorUid').val() == auth.uid",
+              ".validate": "newData.hasChildren(['actorUid', 'action', 'targetType', 'targetId', 'at', 'companyId']) && newData.child('companyId').val() == 'yutesign' && newData.child('action').isString() && newData.child('targetType').isString() && newData.child('targetId').isString() && newData.child('at').isNumber()"
+            }
+          }
+        }
+      },
+      "companies": {
+        "$companyId": {
+          ".read": false,
+          ".write": false,
+          "snapshot": {
+            ".read": "auth != null && auth.token.email_verified == true && $companyId == 'yutesign' && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com')",
+            ".write": "auth != null && auth.token.email_verified == true && $companyId == 'yutesign' && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com') && newData.hasChildren(['data', 'meta']) && newData.child('meta/companyId').val() == $companyId && newData.child('meta/savedBy').val() == auth.token.email && newData.child('meta/source').val() == 'ops-v2-cloud-sync' && newData.child('data/companyId').val() == $companyId",
+            ".validate": "newData.child('meta/savedAt').isString() && newData.child('meta/appVersion').isString() && newData.child('meta/appVersion').val().length <= 20 && newData.child('data/formatVersion').isNumber()"
+          },
+          "v1": {
+            ".read": false,
+            ".write": false,
+            "settings": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('active').val() == true)",
+              ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin')",
+              ".validate": "newData.hasChildren(['companyId', 'name', 'status']) && newData.child('companyId').val() == $companyId && newData.child('name').isString() && newData.child('status').val().matches(/^(trial|active|paused|closed)$/)"
+            },
+            "users": {
+              "$uid": {
+                ".read": "auth != null && auth.token.email_verified == true && (auth.uid == $uid || auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance')",
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin')",
+                ".validate": "newData.hasChildren(['companyId', 'email', 'role', 'userType', 'active']) && newData.child('companyId').val() == $companyId && newData.child('email').isString() && newData.child('role').val().matches(/^(owner|tenantAdmin|finance|accounting|pm|design|staff|client|vendor|partner|none)$/) && newData.child('userType').val().matches(/^(internal|client|vendor|partner|system)$/) && newData.child('active').isBoolean()"
+              }
+            },
+            "employees": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('active').val() == true)",
+              "$employeeId": {
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance')",
+                ".validate": "newData.hasChildren(['id', 'companyId', 'name', 'status']) && newData.child('companyId').val() == $companyId"
+              }
+            },
+            "vendors": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('active').val() == true)",
+              "$vendorId": {
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'accounting')",
+                ".validate": "newData.hasChildren(['id', 'companyId', 'name', 'status']) && newData.child('companyId').val() == $companyId"
+              }
+            },
+            "clients": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('active').val() == true)",
+              "$clientId": {
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'pm')",
+                ".validate": "newData.hasChildren(['id', 'companyId', 'name', 'status']) && newData.child('companyId').val() == $companyId"
+              }
+            },
+            "cases": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('active').val() == true)",
+              "$caseCode": {
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'pm')",
+                ".validate": "newData.hasChildren(['code', 'companyId', 'name', 'status']) && newData.child('companyId').val() == $companyId"
+              }
+            },
+            "payables": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'accounting' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'pm')",
+              "$payableId": {
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'accounting')",
+                ".validate": "newData.hasChildren(['id', 'companyId', 'amount', 'status']) && newData.child('companyId').val() == $companyId"
+              }
+            },
+            "receivables": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'accounting' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'pm')",
+              "$receivableId": {
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'accounting')",
+                ".validate": "newData.hasChildren(['id', 'companyId', 'status']) && newData.child('companyId').val() == $companyId"
+              }
+            },
+            "expenses": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('active').val() == true)",
+              "$expenseId": {
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('active').val() == true)",
+                ".validate": "newData.hasChildren(['id', 'companyId', 'amount', 'status']) && newData.child('companyId').val() == $companyId"
+              }
+            },
+            "attendanceRecords": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'accounting')",
+              "$recordId": {
+                ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || auth.uid == data.child('uid').val() || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'accounting')",
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('active').val() == true)",
+                ".validate": "newData.hasChildren(['id', 'companyId', 'employeeId', 'uid', 'type', 'at']) && newData.child('companyId').val() == $companyId && newData.child('type').val().matches(/^(clockIn|clockOut|manual|leave)$/)"
+              }
+            },
+            "payroll": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'accounting')",
+              "$payrollId": {
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'accounting')",
+                ".validate": "newData.hasChildren(['companyId', 'employeeId', 'month']) && newData.child('companyId').val() == $companyId"
+              }
+            },
+            "profitSettlements": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance')",
+              "$settlementId": {
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance')",
+                ".validate": "newData.hasChildren(['id', 'companyId', 'status']) && newData.child('companyId').val() == $companyId"
+              }
+            },
+            "taxLiabilities": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'accounting')",
+              "$taxId": {
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'accounting')",
+                ".validate": "newData.hasChildren(['id', 'companyId']) && newData.child('companyId').val() == $companyId"
+              }
+            },
+            "auditLogs": {
+              ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'owner' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'tenantAdmin' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('role').val() == 'finance')",
+              "$logId": {
+                ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || root.child('ops/companies').child($companyId).child('v1/users').child(auth.uid).child('active').val() == true) && !data.exists() && newData.child('actorUid').val() == auth.uid",
+                ".validate": "newData.hasChildren(['companyId', 'actorUid', 'action', 'targetType', 'targetId', 'at']) && newData.child('companyId').val() == $companyId && newData.child('action').isString() && newData.child('targetType').isString() && newData.child('targetId').isString() && newData.child('at').isNumber()"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
