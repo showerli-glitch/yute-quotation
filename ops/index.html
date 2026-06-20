@@ -780,6 +780,25 @@ body.auth-pending .auth-screen{display:flex}
 .pay-date{font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;white-space:nowrap}
 .pay-amt{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;white-space:nowrap}
 
+/* Attendance GPS punch */
+.att-gps-card{padding:16px}
+.att-gps-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.att-gps-title{font-size:14px;font-weight:800}
+.att-gps-sub{font-size:11px;color:var(--text3);margin-top:3px;line-height:1.6}
+.att-gps-pill{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text3);font-size:11px;font-family:'DM Mono',monospace;line-height:1.5}
+.att-gps-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);flex-shrink:0}
+.att-gps-pill.checking .att-gps-dot{background:var(--warning);animation:pulse 1s infinite}
+.att-gps-pill.ok{border-color:rgba(106,168,140,.35);color:var(--success)}
+.att-gps-pill.ok .att-gps-dot{background:var(--success)}
+.att-gps-pill.fail{border-color:rgba(224,112,112,.35);color:var(--error)}
+.att-gps-pill.fail .att-gps-dot{background:var(--error)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.att-gps-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.att-punch-btn{min-height:58px;justify-content:center;font-size:14px}
+.att-gps-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.att-gps-meta div{padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:11px;color:var(--text3);line-height:1.5}
+.att-gps-meta strong{display:block;color:var(--text);font-size:12px}
+
 /* ══════ RESPONSIVE ══════ */
 @media(max-width:1100px){
   .kpi-grid,.kpi-row{grid-template-columns:repeat(2,1fr)}
@@ -810,6 +829,9 @@ body.auth-pending .auth-screen{display:flex}
   .att-entry-grid,.att-record-grid{grid-template-columns:1fr}
   .att-form-grid,.att-leave-grid{grid-template-columns:1fr}
   .att-form-grid .form-full,.att-leave-grid .form-full{grid-column:auto}
+  .att-gps-head{display:block}
+  .att-gps-pill{margin-top:10px}
+  .att-gps-meta{grid-template-columns:1fr}
   #page-attendance .form-input,#page-attendance .form-select{min-width:0;font-size:16px}
   .profit-toolbar{align-items:flex-start;overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;margin-bottom:14px}
   .profit-kpi-grid{display:flex;overflow-x:auto;gap:12px;margin-bottom:18px;padding-bottom:4px}
@@ -949,7 +971,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">🗑 清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.19 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.20 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1536,10 +1558,34 @@ body.auth-pending .auth-screen{display:flex}
     <div class="att-page-body">
       <div class="announce" style="margin-bottom:16px">
         <span class="announce-icon">◒</span>
-        <span>目前先做 OPS 內部出勤資料與薪資草稿。正式手機 GPS 打卡上線前，這裡可先手動登錄／補登，核准後再寫入薪資單。</span>
+        <span>手機 GPS 打卡已接入 OPS 出勤資料；定位打卡、手動補登與請假紀錄都會進入同一份薪資草稿，正式發薪前仍須財務覆核。</span>
       </div>
       <div id="att-summary" style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px"></div>
       <div class="att-entry-grid">
+        <div class="card att-gps-card">
+          <div class="att-gps-head">
+            <div>
+              <div class="att-gps-title">手機定位打卡</div>
+              <div class="att-gps-sub">公司打卡需在允許半徑內；工地打卡會保存案場、座標與距離，供後續覆核。</div>
+            </div>
+            <div class="att-gps-pill" id="att-gps-pill"><span class="att-gps-dot"></span><span id="att-gps-text">尚未取得定位</span></div>
+          </div>
+          <div class="att-form-grid">
+            <div class="form-field"><label class="form-label">打卡人員</label><select class="form-select" id="att-gps-person"></select></div>
+            <div class="form-field"><label class="form-label">打卡地點</label><select class="form-select" id="att-gps-location-type" onchange="attGpsRefresh()"><option value="office">公司</option><option value="site">工地</option></select></div>
+            <div class="form-field"><label class="form-label">案場／地點</label><select class="form-select" id="att-gps-case" onchange="attGpsRefresh()"></select></div>
+            <div class="form-field"><label class="form-label">公司半徑（公尺）</label><input class="form-input" type="number" id="att-gps-radius" min="50" step="10" value="200" onchange="attGpsRefresh()"></div>
+          </div>
+          <div class="att-gps-actions">
+            <button class="btn btn-primary att-punch-btn" id="att-gps-in-btn" onclick="attGpsPunch('in')" disabled>上班打卡</button>
+            <button class="btn btn-ghost att-punch-btn" id="att-gps-out-btn" onclick="attGpsPunch('out')" disabled>下班打卡</button>
+          </div>
+          <div class="att-gps-meta">
+            <div><strong id="att-gps-now">--:--:--</strong>目前時間</div>
+            <div><strong id="att-gps-distance">--</strong>定位距離</div>
+            <div><strong id="att-gps-coords">--</strong>目前座標</div>
+          </div>
+        </div>
         <div class="card" style="padding:16px">
           <div style="font-size:14px;font-weight:800;margin-bottom:10px">新增／補登打卡紀錄</div>
           <div class="att-form-grid">
@@ -3465,8 +3511,14 @@ const ATTENDANCE_SETTINGS = {
   graceEarlyLeaveMinutes: 10,
   monthlyGraceMinutes: 30,
   fullAttendancePenalty: 1000,
-  hourlyBase: 'monthly30'
+  hourlyBase: 'monthly30',
+  officeLat: 25.0503,
+  officeLng: 121.5918,
+  officeRadiusMeters: 200
 };
+let attGpsWatchId = null;
+let attGpsPosition = null;
+let attGpsResult = { ok:false, reason:'尚未取得定位' };
 
 
 // ══════════════════════════════════
@@ -4233,7 +4285,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.19', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.20', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5642,7 +5694,7 @@ function attFillPersonOptions() {
   const opts = people.length
     ? people.map(p => `<option value="${p.id}">${p.name}</option>`).join('')
     : '<option value="">目前無需打卡人員</option>';
-  ['att-filter-person','att-rec-person','att-leave-person'].forEach(id => {
+  ['att-filter-person','att-rec-person','att-leave-person','att-gps-person'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value || currentUser.id;
@@ -5673,11 +5725,13 @@ function attFillMonthOptions() {
 }
 
 function attFillCaseOptions() {
-  const el = document.getElementById('att-rec-case');
-  if (!el) return;
-  const cur = el.value;
-  el.innerHTML = '<option value="">公司／無指定案場</option>' + CASES.filter(c => c.status !== '結案').map(c => `<option value="${c.code}">${c.name}</option>`).join('');
-  el.value = cur || '';
+  ['att-rec-case','att-gps-case'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="">公司／無指定案場</option>' + CASES.filter(c => c.status !== '結案').map(c => `<option value="${c.code}">${c.name}</option>`).join('');
+    el.value = cur || '';
+  });
 }
 
 function attDefaultFormValues() {
@@ -5696,6 +5750,154 @@ function attRecordStatus(row) {
   if (!row.inTime || !row.outTime) return '缺卡';
   if (row.approvedBy) return '已核准';
   return row.source === 'manual' ? '補登待核' : '正常';
+}
+
+function attGpsSetStatus(state, text) {
+  const pill = document.getElementById('att-gps-pill');
+  const txt = document.getElementById('att-gps-text');
+  if (pill) pill.className = 'att-gps-pill ' + (state || '');
+  if (txt) txt.textContent = text || '';
+}
+
+function attGpsDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function attGpsNowTime() {
+  return new Date().toLocaleTimeString('zh-TW', { hour12:false });
+}
+
+function attGpsTarget() {
+  const type = document.getElementById('att-gps-location-type')?.value || 'office';
+  if (type === 'office') {
+    const radius = Number(document.getElementById('att-gps-radius')?.value || ATTENDANCE_SETTINGS.officeRadiusMeters) || 200;
+    ATTENDANCE_SETTINGS.officeRadiusMeters = radius;
+    return { type, label:'公司', lat:ATTENDANCE_SETTINGS.officeLat, lng:ATTENDANCE_SETTINGS.officeLng, radius, caseCode:'', caseName:'' };
+  }
+  const caseCode = document.getElementById('att-gps-case')?.value || '';
+  const c = CASES.find(x => x.code === caseCode);
+  return { type, label:c?.name || '工地', lat:Number(c?.siteLat), lng:Number(c?.siteLng), radius:Number(c?.siteRadiusMeters) || 200, caseCode, caseName:c?.name || '' };
+}
+
+function attGpsRefresh() {
+  const nowEl = document.getElementById('att-gps-now');
+  if (nowEl) nowEl.textContent = attGpsNowTime();
+  const caseEl = document.getElementById('att-gps-case');
+  const type = document.getElementById('att-gps-location-type')?.value || 'office';
+  if (caseEl) caseEl.disabled = type !== 'site';
+  const radiusEl = document.getElementById('att-gps-radius');
+  if (radiusEl) radiusEl.disabled = type !== 'office';
+  const coordEl = document.getElementById('att-gps-coords');
+  if (coordEl) coordEl.textContent = attGpsPosition ? `${attGpsPosition.lat.toFixed(5)}, ${attGpsPosition.lng.toFixed(5)}` : '--';
+  const distEl = document.getElementById('att-gps-distance');
+  const inBtn = document.getElementById('att-gps-in-btn');
+  const outBtn = document.getElementById('att-gps-out-btn');
+  const person = attCanManage() ? document.getElementById('att-gps-person')?.value : currentUser.id;
+  const target = attGpsTarget();
+  const hasPerson = !!person && attPeople().some(p => p.id === person);
+
+  if (!attGpsPosition) {
+    attGpsResult = { ok:false, reason:'尚未取得定位' };
+    attGpsSetStatus('', '尚未取得定位');
+    if (distEl) distEl.textContent = '--';
+  } else if (target.type === 'site' && (!target.caseCode || !Number.isFinite(target.lat) || !Number.isFinite(target.lng))) {
+    attGpsResult = { ok:false, reason:'工地尚未設定座標' };
+    attGpsSetStatus('fail', '請選擇已設定座標的工地');
+    if (distEl) distEl.textContent = '--';
+  } else {
+    const dist = attGpsDistance(attGpsPosition.lat, attGpsPosition.lng, target.lat, target.lng);
+    const rounded = Math.round(dist);
+    const ok = dist <= target.radius;
+    attGpsResult = { ok, reason: ok ? `已在${target.label}範圍內` : `距${target.label} ${rounded} 公尺`, target, distance:rounded };
+    attGpsSetStatus(ok ? 'ok' : 'fail', ok ? `已在${target.label}範圍內（${rounded} 公尺）` : `距${target.label} ${rounded} 公尺，超出範圍`);
+    if (distEl) distEl.textContent = `${rounded} m / ${target.radius} m`;
+  }
+  const canPunch = hasPerson && attGpsResult.ok;
+  if (inBtn) inBtn.disabled = !canPunch;
+  if (outBtn) outBtn.disabled = !canPunch;
+}
+
+function attGpsStart() {
+  if (!document.getElementById('page-attendance') || attGpsWatchId !== null) return;
+  const radiusEl = document.getElementById('att-gps-radius');
+  if (radiusEl) radiusEl.value = ATTENDANCE_SETTINGS.officeRadiusMeters || 200;
+  if (!navigator.geolocation) {
+    attGpsSetStatus('fail', '瀏覽器不支援定位');
+    return;
+  }
+  attGpsSetStatus('checking', '定位取得中...');
+  attGpsWatchId = navigator.geolocation.watchPosition(pos => {
+    attGpsPosition = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy,
+      capturedAt: new Date().toISOString()
+    };
+    attGpsRefresh();
+  }, () => {
+    attGpsPosition = null;
+    attGpsResult = { ok:false, reason:'無法取得定位' };
+    attGpsSetStatus('fail', '無法取得位置，請允許定位權限');
+    attGpsRefresh();
+  }, { enableHighAccuracy:true, timeout:12000, maximumAge:30000 });
+}
+
+function attGpsPunch(type) {
+  if (!canAccess('attendance')) { showToast('您沒有出勤功能權限', 'error'); return; }
+  attGpsRefresh();
+  const person = attCanManage() ? document.getElementById('att-gps-person')?.value : currentUser.id;
+  if (!person) { showToast('請先選擇打卡人員', 'error'); return; }
+  if (!attGpsResult.ok || !attGpsPosition) { showToast(attGpsResult.reason || '定位未通過，無法打卡', 'error'); return; }
+  const now = new Date();
+  const date = now.toISOString().slice(0,10);
+  const time = now.toLocaleTimeString('zh-TW', { hour12:false }).slice(0,5);
+  const target = attGpsResult.target || attGpsTarget();
+  let row = ATTENDANCE_RECORDS.find(r => r.person === person && r.date === date && r.source === 'gps');
+  if (!row) {
+    row = {
+      id: attNextId++,
+      person, date, inTime:'', outTime:'',
+      locationType: target.type === 'site' ? 'site' : 'office',
+      caseCode: target.caseCode || '',
+      caseName: target.caseName || '',
+      source:'gps',
+      approvedBy:'',
+      approvedAt:'',
+      note:'',
+      gpsPunches:[],
+      createdAt:now.toISOString(),
+      createdBy:currentUser.name,
+      companyId:COMPANY_ID
+    };
+    ATTENDANCE_RECORDS.unshift(row);
+  }
+  if (type === 'in') row.inTime = time;
+  else row.outTime = time;
+  row.locationType = target.type === 'site' ? 'site' : row.locationType || 'office';
+  row.caseCode = target.caseCode || row.caseCode || '';
+  row.caseName = target.caseName || row.caseName || '';
+  row.updatedAt = now.toISOString();
+  row.updatedBy = currentUser.name;
+  if (!Array.isArray(row.gpsPunches)) row.gpsPunches = [];
+  row.gpsPunches.push({
+    type,
+    time,
+    timestamp: now.toISOString(),
+    lat: attGpsPosition.lat,
+    lng: attGpsPosition.lng,
+    accuracy: attGpsPosition.accuracy,
+    targetLabel: target.label,
+    distanceMeters: attGpsResult.distance,
+    radiusMeters: target.radius
+  });
+  row.note = `${target.label} GPS ${type === 'in' ? '上班' : '下班'}打卡；距離 ${attGpsResult.distance}m`;
+  saveData();
+  renderAttendance();
+  showToast(`${type === 'in' ? '上班' : '下班'}打卡已寫入 OPS ✓`, 'success');
 }
 
 function attAddRecord() {
@@ -5845,6 +6047,8 @@ function renderAttendance() {
   attFillPersonOptions();
   attFillCaseOptions();
   attDefaultFormValues();
+  attGpsStart();
+  attGpsRefresh();
   const monthSel = document.getElementById('att-filter-month');
   if (monthSel && !monthSel.value) attFillMonthOptions();
   const person = attVisiblePerson();
@@ -5885,7 +6089,7 @@ function renderAttendance() {
   if (tbody) {
     tbody.innerHTML = rows.length ? rows.map(r => `<tr>
       <td>${r.date || '—'}</td><td>${nameOf(r.person)}</td><td>${r.inTime || '—'}</td><td>${r.outTime || '—'}</td>
-      <td>${r.locationType === 'site' ? '工地' : '公司'}${r.caseName ? '｜'+tfEsc(r.caseName) : ''}</td>
+      <td>${r.locationType === 'site' ? '工地' : '公司'}${r.caseName ? '｜'+tfEsc(r.caseName) : ''}${r.source === 'gps' ? '<br><span style="font-size:10px;color:var(--success)">GPS</span>' : ''}</td>
       <td><span class="tag ${attRecordStatus(r)==='缺卡'?'tag-pending':'tag-done'}">${attRecordStatus(r)}</span></td>
       <td style="text-align:center">${attCanManage() ? `<button class="btn btn-ghost btn-sm" onclick="attDeleteRecord(${r.id})" style="color:var(--error)">刪除</button>` : '—'}</td>
     </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px">尚無出勤紀錄</td></tr>`;
