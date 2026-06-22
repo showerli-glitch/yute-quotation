@@ -964,14 +964,17 @@ body.auth-pending .auth-screen{display:flex}
       <div class="data-status-line"><span>儲存方式</span><span id="ds-storage">本機瀏覽器</span></div>
       <div class="data-status-line"><span>最後存檔</span><span id="ds-saved">尚未讀取</span></div>
       <div class="data-status-line"><span>同步狀態</span><span id="ds-sync">未啟用雲端同步</span></div>
+      <div class="data-status-line"><span>雲端快照</span><span id="ds-cloud">尚未檢查</span></div>
     </div>
     <div style="padding:0 12px 8px">
       <button class="btn btn-ghost btn-sm" id="btn-export-backup" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="exportBackup()">↓ 下載資料備份</button>
       <button class="btn btn-ghost btn-sm" id="btn-import-backup" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="openBackupImport()">↑ 匯入資料備份</button>
+      <button class="btn btn-ghost btn-sm" id="btn-cloud-check" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="opsCloudCheckNow()">檢查雲端快照</button>
+      <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="opsCloudPushLocalNow()">上傳本機快照</button>
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
-      <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">🗑 清除所有資料</button>
+      <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.27 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.28 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3249,6 +3252,7 @@ let opsApplyingRemote = false;
 let opsCloudSaveTimer = null;
 let opsCloudLastSavedAt = '';
 let opsCloudLastSavedBy = '';
+let opsCloudLastSummary = '';
 
 function tagCompany(arr) {
   (arr || []).forEach(x => { if (x && typeof x === 'object' && !x.companyId) x.companyId = COMPANY_ID; });
@@ -4408,7 +4412,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.27', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.28', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4468,7 +4472,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.27', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.28', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -4523,11 +4527,21 @@ function getLocalDataMeta() {
   }
 }
 
+function opsSnapshotSummary(data) {
+  if (!data || typeof data !== 'object') return '';
+  const cases = Array.isArray(data.CASES) ? data.CASES.length : 0;
+  const payables = Array.isArray(data.PAYABLES) ? data.PAYABLES.length : 0;
+  const receivables = Array.isArray(data.RECEIVABLES) ? data.RECEIVABLES.length : 0;
+  const attendance = Array.isArray(data.ATTENDANCE_RECORDS) ? data.ATTENDANCE_RECORDS.length : 0;
+  return `${cases} 案｜應付 ${payables}｜應收 ${receivables}｜出勤 ${attendance}`;
+}
+
 function updateDataStatus(snapshot) {
   const savedEl = document.getElementById('ds-saved');
   const storageEl = document.getElementById('ds-storage');
   const syncEl = document.getElementById('ds-sync');
-  if (!savedEl && !storageEl && !syncEl) return;
+  const cloudEl = document.getElementById('ds-cloud');
+  if (!savedEl && !storageEl && !syncEl && !cloudEl) return;
   const meta = snapshot ? {
     savedAt: snapshot.savedAt,
     appVersion: snapshot.appVersion,
@@ -4547,6 +4561,11 @@ function updateDataStatus(snapshot) {
     } else {
       syncEl.textContent = '已上雲端網址；等待資料庫同步';
     }
+  }
+  if (cloudEl) {
+    if (!OPS_AUTH_ENFORCED) cloudEl.textContent = '本機模式不檢查';
+    else if (opsCloudLastSummary) cloudEl.textContent = opsCloudLastSummary;
+    else cloudEl.textContent = '尚未讀取 Firebase';
   }
   if (savedEl) {
     if (!meta) savedEl.textContent = '尚未存檔';
@@ -4912,6 +4931,7 @@ async function opsCloudSaveNow(snapshot) {
   opsCloudReady = true;
   opsCloudLastSavedAt = payload.meta.savedAt;
   opsCloudLastSavedBy = payload.meta.savedBy;
+  opsCloudLastSummary = `${formatDateTimeTW(payload.meta.savedAt)}｜${opsSnapshotSummary(payload.data)}`;
   updateDataStatus(payload.data);
   return true;
 }
@@ -4945,6 +4965,7 @@ function opsApplyCloudPayload(payload, options = {}) {
     opsCloudReady = true;
     opsCloudLastSavedAt = meta.savedAt || data.savedAt || '';
     opsCloudLastSavedBy = meta.savedBy || '';
+    opsCloudLastSummary = `${formatDateTimeTW(opsCloudLastSavedAt)}｜${opsSnapshotSummary(data)}`;
     renderAll();
     updateDataStatus(data);
     if (!options.silent) {
@@ -4954,6 +4975,67 @@ function opsApplyCloudPayload(payload, options = {}) {
     return true;
   } finally {
     opsApplyingRemote = false;
+  }
+}
+
+async function opsCloudCheckNow() {
+  if (!OPS_AUTH_ENFORCED) { showToast('本機 file 模式不會連 Firebase', 'warning'); return false; }
+  if (!opsAuthenticatedEmail) { showToast('請先用 Google 帳號登入', 'error'); return false; }
+  if (!requireManage('dashboard', '只有完整管理者可以檢查雲端快照')) return false;
+  try {
+    opsInitFirebase();
+    const snap = await opsCloudRef().get();
+    if (!snap.exists()) {
+      opsCloudReady = false;
+      opsCloudLastSavedAt = '';
+      opsCloudLastSavedBy = '';
+      opsCloudLastSummary = 'Firebase 尚無資料';
+      updateDataStatus();
+      showToast('Firebase 尚無 OPS 快照，可按「上傳本機快照」建立', 'warning');
+      return false;
+    }
+    const payload = snap.val();
+    const data = payload?.data || payload;
+    const meta = payload?.meta || {};
+    const error = validateBackupSnapshot(data);
+    if (error) {
+      opsCloudLastSummary = `格式異常：${error}`;
+      updateDataStatus();
+      showToast(`雲端快照格式異常：${error}`, 'error');
+      return false;
+    }
+    opsCloudReady = true;
+    opsCloudLastSavedAt = meta.savedAt || data.savedAt || '';
+    opsCloudLastSavedBy = meta.savedBy || '';
+    opsCloudLastSummary = `${formatDateTimeTW(opsCloudLastSavedAt)}｜${opsSnapshotSummary(data)}`;
+    updateDataStatus();
+    showToast('雲端快照檢查完成', 'success');
+    return true;
+  } catch(e) {
+    console.warn('OPS cloud check failed:', e);
+    opsCloudReady = false;
+    opsCloudLastSummary = 'Firebase 檢查失敗';
+    updateDataStatus();
+    showToast('雲端快照檢查失敗，請確認 Firebase 權限', 'error');
+    return false;
+  }
+}
+
+async function opsCloudPushLocalNow() {
+  if (!OPS_AUTH_ENFORCED) { showToast('本機 file 模式不會連 Firebase', 'warning'); return false; }
+  if (!opsAuthenticatedEmail) { showToast('請先用 Google 帳號登入', 'error'); return false; }
+  if (!requireManage('dashboard', '只有完整管理者可以上傳雲端快照')) return false;
+  const snapshot = createDataSnapshot();
+  const summary = opsSnapshotSummary(snapshot);
+  if (!confirm(`確定要用目前這台瀏覽器資料覆蓋 Firebase 快照？\n\n${summary}\n\n測試前建議先下載資料備份。`)) return false;
+  try {
+    await opsCloudSaveNow(snapshot);
+    showToast('本機快照已上傳到 Firebase', 'success');
+    return true;
+  } catch(e) {
+    console.warn('OPS cloud push failed:', e);
+    showToast('上傳雲端快照失敗，請確認 Firebase 權限', 'error');
+    return false;
   }
 }
 
