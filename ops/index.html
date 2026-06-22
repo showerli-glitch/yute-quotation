@@ -971,7 +971,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">🗑 清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.24 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.25 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3597,6 +3597,8 @@ let attNextId = 1;
 let attLeaveNextId = 1;
 let AUDIT_LOGS = [];
 let auditNextId = 1;
+const OFFICE_LOCATION_DEFAULT = { lat: 25.046124, lng: 121.584709 };
+const OFFICE_LOCATION_OLD_DEFAULT = { lat: 25.0503, lng: 121.5918 };
 const ATTENDANCE_SETTINGS = {
   workdayMinutes: 540,
   paidWorkMinutes: 480,
@@ -3607,10 +3609,10 @@ const ATTENDANCE_SETTINGS = {
   monthlyGraceMinutes: 30,
   fullAttendancePenalty: 1000,
   hourlyBase: 'monthly30',
-  officeLat: 25.0503,
-  officeLng: 121.5918,
-  defaultOfficeLat: 25.0503,
-  defaultOfficeLng: 121.5918,
+  officeLat: OFFICE_LOCATION_DEFAULT.lat,
+  officeLng: OFFICE_LOCATION_DEFAULT.lng,
+  defaultOfficeLat: OFFICE_LOCATION_DEFAULT.lat,
+  defaultOfficeLng: OFFICE_LOCATION_DEFAULT.lng,
   officeRadiusMeters: 200
 };
 let attGpsWatchId = null;
@@ -4221,6 +4223,7 @@ const CODEX_SEED_OH_DETAIL = [
 function ensureCodexSeedData() {
   const clone = v => JSON.parse(JSON.stringify(v));
   const maxId = arr => Math.max(0, ...arr.map(x => Number(x.id) || 0));
+  const near = (a, b) => Math.abs(Number(a) - Number(b)) < 0.000001;
   const addByKey = (arr, rows, keyFn) => {
     const existing = new Set(arr.map(keyFn));
     rows.forEach(seed => {
@@ -4238,6 +4241,15 @@ function ensureCodexSeedData() {
     else if (typeof e.attendanceRequired !== 'boolean') e.attendanceRequired = true;
     if (!e.accessRole) e.accessRole = defaultEmployeeAccessRole(e);
   });
+  ATTENDANCE_SETTINGS.defaultOfficeLat = OFFICE_LOCATION_DEFAULT.lat;
+  ATTENDANCE_SETTINGS.defaultOfficeLng = OFFICE_LOCATION_DEFAULT.lng;
+  if (
+    near(ATTENDANCE_SETTINGS.officeLat, OFFICE_LOCATION_OLD_DEFAULT.lat) &&
+    near(ATTENDANCE_SETTINGS.officeLng, OFFICE_LOCATION_OLD_DEFAULT.lng)
+  ) {
+    ATTENDANCE_SETTINGS.officeLat = OFFICE_LOCATION_DEFAULT.lat;
+    ATTENDANCE_SETTINGS.officeLng = OFFICE_LOCATION_DEFAULT.lng;
+  }
   addByKey(CASES, CODEX_SEED_CASES, r => r.code);
   CASES.forEach(row => {
     // 舊版匯入時曾把「完工」誤標為「結案」；分潤尚未鎖定前統一還原為完工。
@@ -4382,7 +4394,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.24', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.25', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4442,7 +4454,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.24', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.25', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6164,8 +6176,8 @@ function attGpsUseCurrentAsOffice() {
 function attGpsResetOfficeLocation() {
   if (!attCanManage()) { showToast('只有出勤管理者可還原公司座標', 'error'); return; }
   const before = auditClone(ATTENDANCE_SETTINGS);
-  ATTENDANCE_SETTINGS.officeLat = ATTENDANCE_SETTINGS.defaultOfficeLat || 25.0503;
-  ATTENDANCE_SETTINGS.officeLng = ATTENDANCE_SETTINGS.defaultOfficeLng || 121.5918;
+  ATTENDANCE_SETTINGS.officeLat = ATTENDANCE_SETTINGS.defaultOfficeLat || OFFICE_LOCATION_DEFAULT.lat;
+  ATTENDANCE_SETTINGS.officeLng = ATTENDANCE_SETTINGS.defaultOfficeLng || OFFICE_LOCATION_DEFAULT.lng;
   recordAuditLog('update', 'companySettings', 'attendanceOfficeLocation', before, auditClone(ATTENDANCE_SETTINGS), {
     riskLevel:'medium',
     reason:'還原預設公司 GPS 打卡座標',
