@@ -978,7 +978,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.30 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.31 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -2428,7 +2428,7 @@ body.auth-pending .auth-screen{display:flex}
 
         <div class="form-field form-full">
           <label class="form-label">備註</label>
-          <textarea class="form-textarea" placeholder="其他說明、特殊付款條件…"></textarea>
+          <textarea class="form-textarea" id="payreq-note" placeholder="其他說明、特殊付款條件…"></textarea>
         </div>
       </div>
 
@@ -2438,7 +2438,7 @@ body.auth-pending .auth-screen{display:flex}
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-payreq')">取消</button>
-      <button class="btn btn-primary" onclick="submitPayReq()">送出申請</button>
+      <button class="btn btn-primary" id="pr-submit-btn" onclick="submitPayReq()">送出申請</button>
     </div>
   </div>
 </div>
@@ -3616,6 +3616,7 @@ let ATTENDANCE_LEAVES = [];
 let attNextId = 1;
 let attLeaveNextId = 1;
 let attEditRecordId = null;
+let payreqEditId = null;
 let AUDIT_LOGS = [];
 let auditNextId = 1;
 const OFFICE_LOCATION_DEFAULT = { lat: 25.046124, lng: 121.584709 };
@@ -4416,7 +4417,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.30', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.31', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4476,7 +4477,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.30', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.31', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6722,21 +6723,75 @@ function selectRadio(groupId, el) {
 // ══════════════════════════════════
 function openPayreqModal() {
   if (!canApplySelf('payreq')) { showToast('您沒有新增請款的權限', 'error'); return; }
+  payreqEditId = null;
   // 動態填充案件下拉
   const prCase = document.getElementById('pr-case');
   if (prCase) {
     prCase.innerHTML = buildCaseOptions('── 不指定個案（選填）──', false, true);
+    prCase.value = '';
   }
   // 動態填充廠商 datalist
   const dl = document.getElementById('dl-vendors');
   if (dl) {
     dl.innerHTML = VENDORS.map(v => `<option value="${v.code} - ${v.name}">${v.trade}</option>`).join('');
   }
+  ['pr-vendor','pr-amount','pr-summary','pr-date','payreq-note'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
   const applicantEl = document.getElementById('pr-applicant');
   if (applicantEl) {
     applicantEl.value = canManage('payreq') ? applicantEl.value : currentUser.name;
     applicantEl.disabled = !canManage('payreq');
   }
+  setPayreqRadio('rg-invoice', '有');
+  setPayreqRadio('rg-receipt', '有');
+  const titleEl = document.querySelector('#modal-payreq .modal-title');
+  if (titleEl) titleEl.textContent = '廠商請款申請';
+  const btn = document.getElementById('pr-submit-btn');
+  if (btn) btn.textContent = '送出申請';
+  openModal('modal-payreq');
+}
+
+function setPayreqRadio(groupId, value) {
+  const group = document.getElementById(groupId);
+  if (!group) return;
+  group.querySelectorAll('.radio-opt').forEach(opt => {
+    const active = opt.textContent.trim() === value;
+    opt.classList.toggle('selected', active);
+    opt.querySelector('.radio-dot')?.classList.toggle('filled', active);
+  });
+}
+
+function openEditPayreqModal(id) {
+  if (!requireManage('payreq', '您沒有編輯請款申請的權限')) return;
+  const p = PAYABLES.find(x => Number(x.id) === Number(id) && x.status === 'pending');
+  if (!p) { showToast('找不到這筆待審核請款', 'error'); return; }
+  payreqEditId = p.id;
+  const prCase = document.getElementById('pr-case');
+  if (prCase) {
+    prCase.innerHTML = buildCaseOptions('── 不指定個案（選填）──', false, true, p.case || '');
+    prCase.value = p.case || '';
+  }
+  const dl = document.getElementById('dl-vendors');
+  if (dl) dl.innerHTML = VENDORS.map(v => `<option value="${v.code} - ${v.name}">${v.trade}</option>`).join('');
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value || ''; };
+  set('pr-vendor', p.vendor);
+  set('pr-amount', p.amount ? p.amount.toLocaleString('zh-TW') : '');
+  set('pr-summary', p.summary);
+  set('pr-date', p.wantDate);
+  set('payreq-note', p.note);
+  const applicantEl = document.getElementById('pr-applicant');
+  if (applicantEl) {
+    applicantEl.value = p.person || currentUser.name;
+    applicantEl.disabled = !canManage('payreq');
+  }
+  setPayreqRadio('rg-invoice', p.invoice || '有');
+  setPayreqRadio('rg-receipt', p.receipt || '有');
+  const titleEl = document.querySelector('#modal-payreq .modal-title');
+  if (titleEl) titleEl.textContent = '編輯廠商請款申請';
+  const btn = document.getElementById('pr-submit-btn');
+  if (btn) btn.textContent = '儲存修改';
   openModal('modal-payreq');
 }
 
@@ -6752,6 +6807,7 @@ function submitPayReq() {
   const applicant   = canManage('payreq') ? document.getElementById('pr-applicant').value : currentUser.name;
   const invoiceVal  = document.querySelector('#rg-invoice .radio-opt.selected')?.textContent.trim() || '—';
   const receiptVal  = document.querySelector('#rg-receipt .radio-opt.selected')?.textContent.trim() || '—';
+  const note        = document.getElementById('payreq-note')?.value.trim() || '';
 
   // 案件為選填
   if (!vendor)   { showToast('請填寫受款廠商', 'error'); return; }
@@ -6764,18 +6820,11 @@ function submitPayReq() {
   // const today = new Date().toISOString().split('T')[0];
   // if (payDate <= today) { showToast('付款日不能是今日或過去日期', 'error'); return; }
 
-  // 清空表單
-  document.getElementById('pr-case').value = '';
-  document.getElementById('pr-vendor').value = '';
-  document.getElementById('pr-amount').value = '';
-  document.getElementById('pr-summary').value = '';
-  document.getElementById('pr-date').value = '';
-
   const caseCode = caseVal ? caseVal : '';
   const caseObj = caseCode ? CASES.find(c => c.code === caseCode) : null;
   const caseNameFull = caseObj ? caseObj.name : '';
-  PAYABLES.push({
-    id: pyNextId++,
+  const wasEditing = !!payreqEditId;
+  const data = {
     case: caseCode,
     caseName: caseNameFull,
     vendor, summary,
@@ -6786,8 +6835,16 @@ function submitPayReq() {
     invoiceLink: '', receiptLink: '',
     person: applicant,
     status: 'pending',
-    note: ''
-  });
+    note
+  };
+  if (payreqEditId) {
+    const row = PAYABLES.find(x => Number(x.id) === Number(payreqEditId) && x.status === 'pending');
+    if (!row) { showToast('找不到要更新的待審核請款', 'error'); return; }
+    Object.assign(row, data, { id: row.id, status: 'pending' });
+  } else {
+    PAYABLES.push({ id: pyNextId++, ...data });
+  }
+  payreqEditId = null;
 
   renderPayable();
   renderCases();
@@ -6795,7 +6852,7 @@ function submitPayReq() {
   renderDashboard();
   closeModal('modal-payreq');
   saveData();
-  showToast('請款申請已送出，等待財務審核 ✓', 'success');
+  showToast(wasEditing ? '請款申請已更新 ✓' : '請款申請已送出，等待財務審核 ✓', 'success');
 }
 
 function approveReq(id) {
@@ -10095,7 +10152,7 @@ function renderPayreq() {
             <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
               ${manage ? `<button class="btn btn-sm" style="background:var(--success-bg);color:var(--success);border:1px solid rgba(110,184,148,0.3)" onclick="approveReq(${p.id})">核准</button>
               <button class="btn btn-ghost btn-sm" onclick="rejectPayreq(${p.id})">退回</button>
-              <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px" onclick="openEditPayableModal(${p.id})" title="編輯">✎</button>
+              <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px" onclick="openEditPayreqModal(${p.id})" title="編輯請款申請">✎</button>
               <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px;color:var(--error)" onclick="deletePayableConfirm(${p.id})" title="刪除">✕</button>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>'}
             </div>
           </td>
