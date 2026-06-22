@@ -4,9 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Yutesign OPS - Codex Review Build</title>
-<link rel="icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.ico?v=202606221917" sizes="any">
-<link rel="icon" type="image/png" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221917">
-<link rel="apple-touch-icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221917">
+<link rel="icon" type="image/svg+xml" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.svg?v=202606221952">
+<link rel="icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.ico?v=202606221952" sizes="any">
+<link rel="icon" type="image/png" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221952">
+<link rel="apple-touch-icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221952">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -977,7 +978,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.29 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.30 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4415,7 +4416,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.29', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.30', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4475,7 +4476,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.29', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.30', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -4919,9 +4920,23 @@ function opsCloudErrorMessage(error, action = '雲端操作') {
   if (code === 'PERMISSION_DENIED' || message.includes('PERMISSION_DENIED') || message.includes('permission_denied')) {
     return `${action}被 Firebase 規則拒絕；請確認 Realtime Database rules 已發布，並登出後重新登入。`;
   }
-  if (message.includes('contains undefined')) return `${action}失敗：資料內有空值格式需要清理。`;
+  if (message.includes('contains undefined')) return `${action}失敗：資料內仍有空值格式需要清理，請重新整理後再試一次。`;
   if (message.includes('Firebase SDK not loaded')) return 'Firebase 模組尚未載入，請重新整理頁面。';
   return `${action}失敗：${message.slice(0, 80) || '未知錯誤'}`;
+}
+
+function opsCloudSanitizeValue(value) {
+  if (value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (Array.isArray(value)) return value.map(opsCloudSanitizeValue);
+  if (value && typeof value === 'object') {
+    const out = {};
+    Object.entries(value).forEach(([key, child]) => {
+      out[key] = opsCloudSanitizeValue(child);
+    });
+    return out;
+  }
+  return value;
 }
 
 async function opsFirebaseSignIn(accessToken, expectedEmail) {
@@ -4937,12 +4952,13 @@ async function opsFirebaseSignIn(accessToken, expectedEmail) {
 }
 
 function opsCloudPayload(snapshot) {
-  const savedAt = snapshot?.savedAt || new Date().toISOString();
+  const cleanSnapshot = opsCloudSanitizeValue(snapshot || createDataSnapshot());
+  const savedAt = cleanSnapshot?.savedAt || new Date().toISOString();
   return {
-    data: snapshot,
+    data: cleanSnapshot,
     meta: {
       companyId: COMPANY_ID,
-      appVersion: snapshot?.appVersion || '',
+      appVersion: cleanSnapshot?.appVersion || '',
       savedAt,
       savedBy: opsAuthenticatedEmail || '',
       savedByName: currentUser?.name || '',
