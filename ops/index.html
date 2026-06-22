@@ -971,7 +971,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">🗑 清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.23 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.24 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1581,10 +1581,17 @@ body.auth-pending .auth-screen{display:flex}
             <button class="btn btn-primary att-punch-btn" id="att-gps-in-btn" onclick="attGpsPunch('in')" disabled>上班打卡</button>
             <button class="btn btn-ghost att-punch-btn" id="att-gps-out-btn" onclick="attGpsPunch('out')" disabled>下班打卡</button>
           </div>
+          <div class="att-gps-actions" id="att-gps-admin-actions" style="display:none;margin-top:8px">
+            <button class="btn btn-ghost btn-sm" onclick="attGpsUseCurrentAsOffice()">用目前定位校正公司座標</button>
+            <button class="btn btn-ghost btn-sm" onclick="attGpsResetOfficeLocation()">還原預設公司座標</button>
+          </div>
           <div class="att-gps-meta">
             <div><strong id="att-gps-now">--:--:--</strong>目前時間</div>
             <div><strong id="att-gps-distance">--</strong>定位距離</div>
             <div><strong id="att-gps-coords">--</strong>目前座標</div>
+            <div><strong id="att-gps-accuracy">--</strong>定位精度</div>
+            <div><strong id="att-gps-target">--</strong>目標座標</div>
+            <div><strong id="att-gps-debug">--</strong>診斷</div>
           </div>
         </div>
         <div class="card" style="padding:16px">
@@ -3602,6 +3609,8 @@ const ATTENDANCE_SETTINGS = {
   hourlyBase: 'monthly30',
   officeLat: 25.0503,
   officeLng: 121.5918,
+  defaultOfficeLat: 25.0503,
+  defaultOfficeLng: 121.5918,
   officeRadiusMeters: 200
 };
 let attGpsWatchId = null;
@@ -4373,7 +4382,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.23', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.24', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4433,7 +4442,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.23', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.24', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6078,39 +6087,93 @@ function attGpsTarget() {
 function attGpsRefresh() {
   const nowEl = document.getElementById('att-gps-now');
   if (nowEl) nowEl.textContent = attGpsNowTime();
+  const adminActions = document.getElementById('att-gps-admin-actions');
+  if (adminActions) adminActions.style.display = attCanManage() ? 'flex' : 'none';
   const caseEl = document.getElementById('att-gps-case');
   const type = document.getElementById('att-gps-location-type')?.value || 'office';
   if (caseEl) caseEl.disabled = type !== 'site';
   const radiusEl = document.getElementById('att-gps-radius');
   if (radiusEl) radiusEl.disabled = type !== 'office';
   const coordEl = document.getElementById('att-gps-coords');
-  if (coordEl) coordEl.textContent = attGpsPosition ? `${attGpsPosition.lat.toFixed(5)}, ${attGpsPosition.lng.toFixed(5)}` : '--';
+  if (coordEl) coordEl.textContent = attGpsPosition ? `${attGpsPosition.lat.toFixed(6)}, ${attGpsPosition.lng.toFixed(6)}` : '--';
+  const accuracyEl = document.getElementById('att-gps-accuracy');
+  if (accuracyEl) accuracyEl.textContent = attGpsPosition?.accuracy ? `±${Math.round(attGpsPosition.accuracy)} m` : '--';
   const distEl = document.getElementById('att-gps-distance');
+  const targetEl = document.getElementById('att-gps-target');
+  const debugEl = document.getElementById('att-gps-debug');
   const inBtn = document.getElementById('att-gps-in-btn');
   const outBtn = document.getElementById('att-gps-out-btn');
   const person = attCanManage() ? document.getElementById('att-gps-person')?.value : currentUser.id;
   const target = attGpsTarget();
+  if (targetEl) targetEl.textContent = Number.isFinite(target.lat) && Number.isFinite(target.lng)
+    ? `${target.lat.toFixed(6)}, ${target.lng.toFixed(6)}`
+    : '--';
   const hasPerson = !!person && attPeople().some(p => p.id === person);
 
   if (!attGpsPosition) {
     attGpsResult = { ok:false, reason:'尚未取得定位' };
     attGpsSetStatus('', '尚未取得定位');
     if (distEl) distEl.textContent = '--';
+    if (debugEl) debugEl.textContent = '等待瀏覽器回報定位';
   } else if (target.type === 'site' && (!target.caseCode || !Number.isFinite(target.lat) || !Number.isFinite(target.lng))) {
     attGpsResult = { ok:false, reason:'工地尚未設定座標' };
     attGpsSetStatus('fail', '請選擇已設定座標的工地');
     if (distEl) distEl.textContent = '--';
+    if (debugEl) debugEl.textContent = '案場缺少座標，請到個案總覽設定';
   } else {
     const dist = attGpsDistance(attGpsPosition.lat, attGpsPosition.lng, target.lat, target.lng);
     const rounded = Math.round(dist);
     const ok = dist <= target.radius;
-    attGpsResult = { ok, reason: ok ? `已在${target.label}範圍內` : `距${target.label} ${rounded} 公尺`, target, distance:rounded };
+    const accuracy = Math.round(attGpsPosition.accuracy || 0);
+    const likelyDrift = accuracy >= 100 || (target.type === 'office' && rounded > target.radius && accuracy >= Math.min(rounded, 300));
+    attGpsResult = { ok, reason: ok ? `已在${target.label}範圍內` : `距${target.label} ${rounded} 公尺`, target, distance:rounded, accuracy, likelyDrift };
     attGpsSetStatus(ok ? 'ok' : 'fail', ok ? `已在${target.label}範圍內（${rounded} 公尺）` : `距${target.label} ${rounded} 公尺，超出範圍`);
     if (distEl) distEl.textContent = `${rounded} m / ${target.radius} m`;
+    if (debugEl) {
+      debugEl.textContent = ok
+        ? `通過，定位精度 ${accuracy || '--'} m`
+        : likelyDrift
+          ? `可能是手機定位精度不足，精度 ${accuracy} m`
+          : `若地圖藍點正確，請校正${target.label}座標或調整半徑`;
+    }
   }
   const canPunch = hasPerson && attGpsResult.ok;
   if (inBtn) inBtn.disabled = !canPunch;
   if (outBtn) outBtn.disabled = !canPunch;
+}
+
+function attGpsUseCurrentAsOffice() {
+  if (!attCanManage()) { showToast('只有出勤管理者可校正公司座標', 'error'); return; }
+  if (!attGpsPosition) { showToast('尚未取得目前定位，請稍後再試', 'error'); return; }
+  const before = auditClone(ATTENDANCE_SETTINGS);
+  ATTENDANCE_SETTINGS.officeLat = Number(attGpsPosition.lat.toFixed(6));
+  ATTENDANCE_SETTINGS.officeLng = Number(attGpsPosition.lng.toFixed(6));
+  const radiusEl = document.getElementById('att-gps-radius');
+  const radius = Number(radiusEl?.value || ATTENDANCE_SETTINGS.officeRadiusMeters) || 200;
+  ATTENDANCE_SETTINGS.officeRadiusMeters = Math.max(50, radius);
+  recordAuditLog('update', 'companySettings', 'attendanceOfficeLocation', before, auditClone(ATTENDANCE_SETTINGS), {
+    riskLevel:'medium',
+    reason:'校正公司 GPS 打卡座標',
+    fields:['officeLat','officeLng','officeRadiusMeters']
+  });
+  saveData();
+  attGpsRefresh();
+  showToast('已用目前定位更新公司打卡座標 ✓', 'success');
+}
+
+function attGpsResetOfficeLocation() {
+  if (!attCanManage()) { showToast('只有出勤管理者可還原公司座標', 'error'); return; }
+  const before = auditClone(ATTENDANCE_SETTINGS);
+  ATTENDANCE_SETTINGS.officeLat = ATTENDANCE_SETTINGS.defaultOfficeLat || 25.0503;
+  ATTENDANCE_SETTINGS.officeLng = ATTENDANCE_SETTINGS.defaultOfficeLng || 121.5918;
+  recordAuditLog('update', 'companySettings', 'attendanceOfficeLocation', before, auditClone(ATTENDANCE_SETTINGS), {
+    riskLevel:'medium',
+    reason:'還原預設公司 GPS 打卡座標',
+    fields:['officeLat','officeLng']
+  });
+  saveData();
+  attGpsRefresh();
+  showToast('已還原預設公司打卡座標', 'success');
 }
 
 function attGpsStart() {
