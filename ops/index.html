@@ -971,7 +971,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">🗑 清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.26 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.27 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1605,7 +1605,8 @@ body.auth-pending .auth-screen{display:flex}
             <div class="form-field"><label class="form-label">案場／地點</label><select class="form-select" id="att-rec-case"></select></div>
             <div class="form-field form-full"><label class="form-label">備註</label><input class="form-input" id="att-rec-note" placeholder="例：工地打卡、忘記打卡補登、GPS 待補"></div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="attAddRecord()" style="margin-top:8px">儲存打卡紀錄</button>
+          <button class="btn btn-primary btn-sm" id="att-rec-save-btn" onclick="attAddRecord()" style="margin-top:8px">儲存打卡紀錄</button>
+          <button class="btn btn-ghost btn-sm" id="att-rec-cancel-btn" onclick="attCancelEditRecord()" style="margin-top:8px;display:none">取消編輯</button>
         </div>
         <div class="card" style="padding:16px">
           <div style="font-size:14px;font-weight:800;margin-bottom:10px">請假登錄</div>
@@ -3308,6 +3309,12 @@ const EMP_ROLE_COLOR = { owner:'#c8a96e', finance:'#7eb8d4', accounting:'#7eb8d4
 function permissionLevel(page) {
   const explicit = USER_PERMISSIONS[currentUser?.id];
   if (explicit) return explicit[page] || 'none';
+  if (currentUser?.roleCode === 'STAFF') {
+    if (page === 'attendance') return 'view_self';
+    if (page === 'feedback') return 'manage';
+    if (page === 'payroll') return 'view_self';
+    return 'none';
+  }
   const emp = EMPLOYEES.find(e => e.id === currentUser?.id);
   const role = employeeAccessRole(emp);
   return EMP_ACCESS_PERMISSION_TEMPLATES[role]?.[page] || 'none';
@@ -3600,6 +3607,7 @@ let ATTENDANCE_RECORDS = [];
 let ATTENDANCE_LEAVES = [];
 let attNextId = 1;
 let attLeaveNextId = 1;
+let attEditRecordId = null;
 let AUDIT_LOGS = [];
 let auditNextId = 1;
 const OFFICE_LOCATION_DEFAULT = { lat: 25.046124, lng: 121.584709 };
@@ -4400,7 +4408,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.26', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.27', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4460,7 +4468,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.26', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.27', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -4791,6 +4799,18 @@ function opsUserFromEmployee(emp) {
     initial: String(emp.name || '員').slice(0,1),
     color: EMP_ROLE_COLOR[role] || '#949494',
     nav: Object.keys(PAGE_TITLES || {}).filter(page => (permissions[page] || 'none') !== 'none')
+  };
+}
+
+function opsTestUserFromAttendanceEmployee(emp) {
+  return {
+    id: emp.id,
+    name: emp.name,
+    role: '打卡人員',
+    roleCode: 'STAFF',
+    initial: String(emp.name || '員').slice(0,1),
+    color: '#6aa88c',
+    nav: ['attendance','feedback']
   };
 }
 
@@ -5267,9 +5287,13 @@ function applyRole(user) {
 
 function initRoleOptions() {
   const container = document.getElementById('role-options');
+  const attendanceUsers = EMPLOYEES
+    .filter(e => e.status !== '已離職' && e.attendanceRequired !== false && !USERS.some(u => u.id === e.id))
+    .map(opsTestUserFromAttendanceEmployee);
+  const testUsers = [...USERS, ...attendanceUsers];
   const visibleUsers = OPS_AUTH_ENFORCED && opsAuthenticatedUserId && opsAuthenticatedUserId !== 'shower'
     ? [currentUser]
-    : USERS;
+    : testUsers;
   container.innerHTML = visibleUsers.map(u => `
     <div class="role-option ${u.id===currentUser.id?'current':''}" onclick="switchRole('${u.id}')">
       <div class="role-option-avatar" style="color:${u.color};background:${u.color}22;border:1.5px solid ${u.color}">${u.initial}</div>
@@ -5287,7 +5311,9 @@ function switchRole(id) {
     showToast('雲端內測版不可切換成其他使用者', 'error');
     return;
   }
-  const user = USERS.find(u => u.id === id) || (currentUser?.id === id ? currentUser : null);
+  const user = USERS.find(u => u.id === id)
+    || (EMPLOYEES.find(e => e.id === id && e.status !== '已離職' && e.attendanceRequired !== false) ? opsTestUserFromAttendanceEmployee(EMPLOYEES.find(e => e.id === id)) : null)
+    || (currentUser?.id === id ? currentUser : null);
   if (!user) return;
   applyRole(user);
   initRoleOptions();
@@ -6273,6 +6299,40 @@ function attGpsPunch(type) {
   showToast(`${type === 'in' ? '上班' : '下班'}打卡已寫入 OPS ✓`, 'success');
 }
 
+function attSetRecordEditMode(row) {
+  attEditRecordId = row?.id || null;
+  const saveBtn = document.getElementById('att-rec-save-btn');
+  const cancelBtn = document.getElementById('att-rec-cancel-btn');
+  if (saveBtn) saveBtn.textContent = attEditRecordId ? '更新打卡紀錄' : '儲存打卡紀錄';
+  if (cancelBtn) cancelBtn.style.display = attEditRecordId ? '' : 'none';
+}
+
+function attCancelEditRecord() {
+  attEditRecordId = null;
+  attSetRecordEditMode(null);
+  attDefaultFormValues();
+  const noteEl = document.getElementById('att-rec-note');
+  if (noteEl) noteEl.value = '';
+  showToast('已取消編輯', 'success');
+}
+
+function attEditRecord(id) {
+  if (!attCanManage()) { showToast('只有出勤管理者可編輯', 'error'); return; }
+  const row = ATTENDANCE_RECORDS.find(r => Number(r.id) === Number(id));
+  if (!row) { showToast('找不到這筆出勤紀錄', 'error'); return; }
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value || ''; };
+  set('att-rec-person', row.person);
+  set('att-rec-date', row.date);
+  set('att-rec-in', row.inTime);
+  set('att-rec-out', row.outTime);
+  set('att-rec-location-type', row.locationType || 'office');
+  set('att-rec-case', row.caseCode);
+  set('att-rec-note', row.note);
+  attSetRecordEditMode(row);
+  document.getElementById('att-rec-person')?.scrollIntoView({ behavior:'smooth', block:'center' });
+  showToast('已載入紀錄，可修改後更新', 'success');
+}
+
 function attAddRecord() {
   if (!canAccess('attendance')) { showToast('您沒有出勤功能權限', 'error'); return; }
   const person = attCanManage() ? document.getElementById('att-rec-person')?.value : currentUser.id;
@@ -6285,21 +6345,42 @@ function attAddRecord() {
   if (!person || !date) { showToast('請選擇人員與日期', 'error'); return; }
   if (!inTime && !outTime) { showToast('請至少填寫上班或下班時間', 'error'); return; }
   const c = CASES.find(x => x.code === caseCode);
-  ATTENDANCE_RECORDS.unshift({
-    id: attNextId++,
-    person, date, inTime, outTime, locationType, caseCode, caseName: c?.name || '',
-    source:'manual',
-    approvedBy: attCanManage() ? currentUser.name : '',
-    approvedAt: attCanManage() ? new Date().toISOString() : '',
-    note,
-    createdAt:new Date().toISOString(),
-    createdBy:currentUser.name,
-    companyId:COMPANY_ID
-  });
+  if (attEditRecordId) {
+    const idx = ATTENDANCE_RECORDS.findIndex(r => Number(r.id) === Number(attEditRecordId));
+    if (idx < 0) { attSetRecordEditMode(null); showToast('找不到要更新的紀錄', 'error'); return; }
+    const before = auditClone(ATTENDANCE_RECORDS[idx]);
+    Object.assign(ATTENDANCE_RECORDS[idx], {
+      person, date, inTime, outTime, locationType, caseCode, caseName: c?.name || '',
+      note,
+      approvedBy: attCanManage() ? currentUser.name : ATTENDANCE_RECORDS[idx].approvedBy || '',
+      approvedAt: attCanManage() ? new Date().toISOString() : ATTENDANCE_RECORDS[idx].approvedAt || '',
+      updatedAt:new Date().toISOString(),
+      updatedBy:currentUser.name,
+      companyId:COMPANY_ID
+    });
+    recordAuditLog('update', 'attendanceRecord', attEditRecordId, before, ATTENDANCE_RECORDS[idx], {
+      targetLabel:`${date} ${person}`,
+      reason:'出勤紀錄人工修正'
+    });
+    attSetRecordEditMode(null);
+    showToast('出勤紀錄已更新 ✓', 'success');
+  } else {
+    ATTENDANCE_RECORDS.unshift({
+      id: attNextId++,
+      person, date, inTime, outTime, locationType, caseCode, caseName: c?.name || '',
+      source:'manual',
+      approvedBy: attCanManage() ? currentUser.name : '',
+      approvedAt: attCanManage() ? new Date().toISOString() : '',
+      note,
+      createdAt:new Date().toISOString(),
+      createdBy:currentUser.name,
+      companyId:COMPANY_ID
+    });
+    showToast('出勤紀錄已儲存 ✓', 'success');
+  }
   const noteEl = document.getElementById('att-rec-note'); if (noteEl) noteEl.value = '';
   saveData();
   renderAttendance();
-  showToast('出勤紀錄已儲存 ✓', 'success');
 }
 
 function attAddLeave() {
@@ -6328,9 +6409,16 @@ function attAddLeave() {
 function attDeleteRecord(id) {
   if (!attCanManage()) { showToast('只有出勤管理者可刪除', 'error'); return; }
   if (!confirm('確定刪除此出勤紀錄？')) return;
+  const before = ATTENDANCE_RECORDS.find(r => Number(r.id) === Number(id));
   ATTENDANCE_RECORDS = ATTENDANCE_RECORDS.filter(r => r.id !== id);
+  if (Number(attEditRecordId) === Number(id)) attSetRecordEditMode(null);
+  recordAuditLog('delete', 'attendanceRecord', id, before, null, {
+    targetLabel: before ? `${before.date || ''} ${before.person || ''}` : '',
+    reason:'刪除測試或錯誤出勤紀錄'
+  });
   saveData();
   renderAttendance();
+  showToast('出勤紀錄已刪除', 'success');
 }
 
 function attDeleteLeave(id) {
@@ -6464,7 +6552,7 @@ function renderAttendance() {
       <td>${r.date || '—'}</td><td>${nameOf(r.person)}</td><td>${r.inTime || '—'}</td><td>${r.outTime || '—'}</td>
       <td>${r.locationType === 'site' ? '工地' : '公司'}${r.caseName ? '｜'+tfEsc(r.caseName) : ''}${r.source === 'gps' ? '<br><span style="font-size:10px;color:var(--success)">GPS</span>' : ''}</td>
       <td><span class="tag ${attRecordStatus(r)==='缺卡'?'tag-pending':'tag-done'}">${attRecordStatus(r)}</span></td>
-      <td style="text-align:center">${attCanManage() ? `<button class="btn btn-ghost btn-sm" onclick="attDeleteRecord(${r.id})" style="color:var(--error)">刪除</button>` : '—'}</td>
+      <td style="text-align:center;white-space:nowrap">${attCanManage() ? `<button class="btn btn-ghost btn-sm" onclick="attEditRecord(${r.id})">編輯</button> <button class="btn btn-ghost btn-sm" onclick="attDeleteRecord(${r.id})" style="color:var(--error)">刪除</button>` : '—'}</td>
     </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px">尚無出勤紀錄</td></tr>`;
   }
   const leaveRows = ATTENDANCE_LEAVES.filter(r => r.person === person && String(r.date || '').startsWith(month)).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
