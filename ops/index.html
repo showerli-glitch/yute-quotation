@@ -971,7 +971,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">🗑 清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.25 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.26 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3410,8 +3410,13 @@ let EMPLOYEES = [
   {id:'peng', name:'彭俞豪', role:'專案經理', email:'', profitEligible:true, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'獨立作業；薪資視為分潤預支，免打卡'},
   {id:'lien', name:'連星羽', role:'設計師', email:'', profitEligible:true, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'獨立作業；薪資視為分潤預支，免打卡'},
   {id:'sun',  name:'孫一宣', role:'行銷行政', email:'', profitEligible:false, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'既有制度過渡；預計 2026-07 中旬離職，後續外包採分潤制，不納入打卡規範'},
+  {id:'lu_yanchen', name:'盧彥辰', role:'設計助理', email:'', accessRole:'none', profitEligible:false, attendanceRequired:true, startDate:'2026-06-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-06 新進設計助理；手機 GPS 打卡內測人員，正式 Email 待補'},
+  {id:'chen_hongjun', name:'陳虹君', role:'會計', email:'', accessRole:'none', profitEligible:false, attendanceRequired:true, startDate:'2026-07-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-07 預計新進會計；登入 Email 待補'},
 ];
 const INIT_EMPLOYEES = JSON.parse(JSON.stringify(EMPLOYEES));
+const CODEX_REQUIRED_EMPLOYEES = INIT_EMPLOYEES
+  .filter(e => ['lu_yanchen', 'chen_hongjun'].includes(e.id))
+  .map(e => JSON.parse(JSON.stringify(e)));
 let empNextId = 1;
 let empEditId = null;
 
@@ -4241,6 +4246,7 @@ function ensureCodexSeedData() {
     else if (typeof e.attendanceRequired !== 'boolean') e.attendanceRequired = true;
     if (!e.accessRole) e.accessRole = defaultEmployeeAccessRole(e);
   });
+  addByKey(EMPLOYEES, CODEX_REQUIRED_EMPLOYEES, r => r.id);
   ATTENDANCE_SETTINGS.defaultOfficeLat = OFFICE_LOCATION_DEFAULT.lat;
   ATTENDANCE_SETTINGS.defaultOfficeLng = OFFICE_LOCATION_DEFAULT.lng;
   if (
@@ -4394,7 +4400,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.25', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.26', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4454,7 +4460,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.25', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.26', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
