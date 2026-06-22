@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Yutesign OPS - Codex Review Build</title>
-<link rel="icon" type="image/jpeg" href="https://showerli-glitch.github.io/yute-quotation/logo.jpg?v=20260622">
-<link rel="apple-touch-icon" href="https://showerli-glitch.github.io/yute-quotation/logo.jpg?v=20260622">
+<link rel="icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.ico?v=202606221917" sizes="any">
+<link rel="icon" type="image/png" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221917">
+<link rel="apple-touch-icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221917">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -976,7 +977,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.28 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.29 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4414,7 +4415,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.28', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.29', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4474,7 +4475,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.28', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.29', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -4898,6 +4899,31 @@ function opsCloudRef() {
   return opsFbDb.ref(OPS_CLOUD_PATH);
 }
 
+async function opsCloudRequireFirebaseUser() {
+  opsInitFirebase();
+  const user = firebase.auth().currentUser;
+  const email = String(user?.email || '').toLowerCase();
+  if (!user || email !== String(opsAuthenticatedEmail || '').toLowerCase()) {
+    opsCloudReady = false;
+    opsCloudLastSummary = 'Firebase Auth 未連線';
+    updateDataStatus();
+    throw new Error('請先按「登出」後重新用 Google 帳號登入，再檢查或上傳雲端快照。');
+  }
+  return user;
+}
+
+function opsCloudErrorMessage(error, action = '雲端操作') {
+  const code = String(error?.code || '');
+  const message = String(error?.message || error || '');
+  if (message.includes('請先按')) return message;
+  if (code === 'PERMISSION_DENIED' || message.includes('PERMISSION_DENIED') || message.includes('permission_denied')) {
+    return `${action}被 Firebase 規則拒絕；請確認 Realtime Database rules 已發布，並登出後重新登入。`;
+  }
+  if (message.includes('contains undefined')) return `${action}失敗：資料內有空值格式需要清理。`;
+  if (message.includes('Firebase SDK not loaded')) return 'Firebase 模組尚未載入，請重新整理頁面。';
+  return `${action}失敗：${message.slice(0, 80) || '未知錯誤'}`;
+}
+
 async function opsFirebaseSignIn(accessToken, expectedEmail) {
   opsInitFirebase();
   const credential = firebase.auth.GoogleAuthProvider.credential(null, accessToken);
@@ -4927,7 +4953,7 @@ function opsCloudPayload(snapshot) {
 
 async function opsCloudSaveNow(snapshot) {
   if (!OPS_AUTH_ENFORCED || !opsAuthenticatedEmail || opsApplyingRemote) return false;
-  opsInitFirebase();
+  await opsCloudRequireFirebaseUser();
   const payload = opsCloudPayload(snapshot || createDataSnapshot());
   await opsCloudRef().set(payload);
   opsCloudReady = true;
@@ -4945,7 +4971,7 @@ function opsCloudQueueSave(snapshot) {
   opsCloudSaveTimer = setTimeout(() => {
     opsCloudSaveNow(frozen).catch(e => {
       console.warn('OPS cloud save failed:', e);
-      showToast('雲端同步失敗，已保留本機快取', 'error');
+      showToast(opsCloudErrorMessage(e, '雲端同步'), 'error');
       updateDataStatus(frozen);
     });
   }, 900);
@@ -4985,7 +5011,7 @@ async function opsCloudCheckNow() {
   if (!opsAuthenticatedEmail) { showToast('請先用 Google 帳號登入', 'error'); return false; }
   if (!requireManage('dashboard', '只有完整管理者可以檢查雲端快照')) return false;
   try {
-    opsInitFirebase();
+    await opsCloudRequireFirebaseUser();
     const snap = await opsCloudRef().get();
     if (!snap.exists()) {
       opsCloudReady = false;
@@ -5018,7 +5044,7 @@ async function opsCloudCheckNow() {
     opsCloudReady = false;
     opsCloudLastSummary = 'Firebase 檢查失敗';
     updateDataStatus();
-    showToast('雲端快照檢查失敗，請確認 Firebase 權限', 'error');
+    showToast(opsCloudErrorMessage(e, '雲端快照檢查'), 'error');
     return false;
   }
 }
@@ -5036,7 +5062,7 @@ async function opsCloudPushLocalNow() {
     return true;
   } catch(e) {
     console.warn('OPS cloud push failed:', e);
-    showToast('上傳雲端快照失敗，請確認 Firebase 權限', 'error');
+    showToast(opsCloudErrorMessage(e, '上傳雲端快照'), 'error');
     return false;
   }
 }
@@ -5044,7 +5070,7 @@ async function opsCloudPushLocalNow() {
 async function opsCloudStart() {
   if (!OPS_AUTH_ENFORCED || !opsAuthenticatedEmail) return;
   try {
-    opsInitFirebase();
+    await opsCloudRequireFirebaseUser();
     const ref = opsCloudRef();
     const initial = await ref.get();
     if (initial.exists()) {
@@ -5069,7 +5095,7 @@ async function opsCloudStart() {
     console.warn('OPS cloud start failed:', e);
     opsCloudReady = false;
     updateDataStatus();
-    showToast('雲端同步尚未連上，請確認 Firebase 設定與登入帳號', 'error');
+    showToast(opsCloudErrorMessage(e, '雲端同步'), 'error');
   }
 }
 
