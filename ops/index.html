@@ -978,7 +978,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.33 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.34 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3236,6 +3236,8 @@ const OPS_GOOGLE_CLIENT_ID = '239869421522-cqs68t3pnahjbmv9ld1k08b4p79s34k4.apps
 const OPS_ALLOWED_USERS = {
   'shower.li@yutesign.com': 'shower',
   'nc@yutesign.com': 'nc',
+  'lu@yutesign.com': 'lu_yanchen',
+  'wendy@yutesign.com': 'chen_hongjun',
 };
 const OPS_AUTH_SESSION_KEY = 'yutesign_ops_auth_session';
 const OPS_AUTH_SESSION_HOURS = 4;
@@ -3291,21 +3293,27 @@ const USERS = [
   {id:'nc',     name:'鄭詩褣', role:'財務', roleCode:'FINANCE', initial:'鄭', color:'#7eb8d4',
    nav:['dashboard','payreq','payable','receivable','expense','overhead','payroll','attendance','profit','profitshare','contract','quotation','feedback','systemnotes','employees','clients','vendors']},
   {id:'peng',   name:'彭俞豪', role:'專案經理', roleCode:'PM', initial:'彭', color:'#6eb894',
-   nav:['dashboard','payreq','payable','expense','payroll','profit','profitshare','contract','quotation','feedback','clients','vendors']},
+   nav:['dashboard','payreq','payable','receivable','expense','payroll','profit','profitshare','contract','quotation','feedback','clients','vendors']},
   {id:'lien',   name:'連星羽', role:'設計師', roleCode:'DESIGN', initial:'連', color:'#b894e0',
-   nav:['dashboard','payreq','payable','expense','payroll','profit','profitshare','contract','quotation','feedback','clients','vendors']},
+   nav:['dashboard','payreq','payable','receivable','expense','payroll','profit','profitshare','contract','quotation','feedback','clients','vendors']},
   {id:'sun',    name:'孫一宣', role:'行銷行政', roleCode:'ADMIN', initial:'孫', color:'#e07070',
-   nav:['dashboard','payreq','payable','expense','payroll','profit','profitshare','contract','quotation','feedback','clients','vendors']},
+   nav:['dashboard','payreq','payable','receivable','expense','payroll','profit','profitshare','contract','quotation','feedback','clients','vendors']},
+  {id:'lu_yanchen', name:'盧彥辰', role:'設計助理', roleCode:'STAFF', initial:'盧', color:'#6aa88c',
+   nav:['payreq','receivable','expense','payroll','attendance','profit','contract','quotation','feedback','clients','vendors']},
+  {id:'chen_hongjun', name:'陳虹君', role:'會計', roleCode:'ACCOUNTING', initial:'陳', color:'#6aa88c',
+   nav:['dashboard','payreq','payable','receivable','expense','payroll','attendance','profit','contract','quotation','feedback','clients','vendors']},
 ];
 tagCompany(USERS);
 
-// 來源：Yutesign_OPS_權限調整回饋表.xlsx（2026-06-11 完成版）
+// 來源：Yutesign_OPS_權限調整回饋表.xlsx（2026-06-23 更新版）
 const USER_PERMISSIONS = {
   shower: {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage'},
   nc:     {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage'},
-  peng:   {dashboard:'view_all',payreq:'view_all_apply_self',payable:'view_all',receivable:'none',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_all',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
-  lien:   {dashboard:'view_all',payreq:'view_all_apply_self',payable:'view_all',receivable:'none',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_all',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
-  sun:    {dashboard:'view_all',payreq:'view_all_apply_self',payable:'view_all',receivable:'none',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_all',profitshare:'view_self',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
+  peng:   {dashboard:'view_all',payreq:'view_all_apply_self',payable:'view_all',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_all',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
+  lien:   {dashboard:'view_all',payreq:'view_all_apply_self',payable:'view_all',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_all',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
+  sun:    {dashboard:'view_all',payreq:'view_all_apply_self',payable:'view_all',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_all',profitshare:'view_self',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
+  lu_yanchen: {dashboard:'none',payreq:'view_all_apply_self',payable:'none',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_profit_cases',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
+  chen_hongjun: {dashboard:'view_all',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_all',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
 };
 const EMP_ACCESS_PERMISSION_TEMPLATES = {
   owner: USER_PERMISSIONS.shower,
@@ -3335,7 +3343,15 @@ function permissionLevel(page) {
 function canManage(page) { return permissionLevel(page) === 'manage'; }
 function canAccess(page) { return permissionLevel(page) !== 'none'; }
 function canApplySelf(page) { return ['manage','view_all_apply_self','view_self_apply_self'].includes(permissionLevel(page)); }
-function canViewPaymentType() { return ['OWNER','FINANCE'].includes(currentUser?.roleCode); }
+function canViewPaymentType() { return ['OWNER','FINANCE','ACCOUNTING'].includes(currentUser?.roleCode); }
+function userCanViewCaseFinancials(caseCode, page) {
+  const level = permissionLevel(page);
+  if (['manage','view_all'].includes(level)) return true;
+  if (!['view_self','view_profit_cases'].includes(level)) return false;
+  const c = CASES.find(row => row.code === caseCode);
+  if (!c || !currentUser?.id) return false;
+  return !!(psGetSplitRatio(c)[currentUser.id] || 0);
+}
 const EMP_ACCESS_ROLES = {
   none: '不開通系統',
   admin: '行政',
@@ -3430,8 +3446,8 @@ let EMPLOYEES = [
   {id:'peng', name:'彭俞豪', role:'專案經理', email:'', profitEligible:true, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'獨立作業；薪資視為分潤預支，免打卡'},
   {id:'lien', name:'連星羽', role:'設計師', email:'', profitEligible:true, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'獨立作業；薪資視為分潤預支，免打卡'},
   {id:'sun',  name:'孫一宣', role:'行銷行政', email:'', profitEligible:false, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'既有制度過渡；預計 2026-07 中旬離職，後續外包採分潤制，不納入打卡規範'},
-  {id:'lu_yanchen', name:'盧彥辰', role:'設計助理', email:'', accessRole:'none', profitEligible:false, attendanceRequired:true, startDate:'2026-06-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-06 新進設計助理；手機 GPS 打卡內測人員，正式 Email 待補'},
-  {id:'chen_hongjun', name:'陳虹君', role:'會計', email:'', accessRole:'none', profitEligible:false, attendanceRequired:true, startDate:'2026-07-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-07 預計新進會計；登入 Email 待補'},
+  {id:'lu_yanchen', name:'盧彥辰', role:'設計助理', email:'lu@yutesign.com', accessRole:'none', profitEligible:false, attendanceRequired:true, startDate:'2026-06-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-06-01 到職；設計助理；手機 GPS 打卡內測人員'},
+  {id:'chen_hongjun', name:'陳虹君', role:'會計', email:'wendy@yutesign.com', accessRole:'accounting', profitEligible:false, attendanceRequired:true, startDate:'2026-07-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-07-01 到職；會計；登入帳號 wendy@yutesign.com'},
 ];
 const INIT_EMPLOYEES = JSON.parse(JSON.stringify(EMPLOYEES));
 const CODEX_REQUIRED_EMPLOYEES = INIT_EMPLOYEES
@@ -4269,6 +4285,19 @@ function ensureCodexSeedData() {
     if (!e.accessRole) e.accessRole = defaultEmployeeAccessRole(e);
   });
   addByKey(EMPLOYEES, CODEX_REQUIRED_EMPLOYEES, r => r.id);
+  CODEX_REQUIRED_EMPLOYEES.forEach(seed => {
+    const row = EMPLOYEES.find(e => e.id === seed.id);
+    if (row) Object.assign(row, {
+      name: seed.name,
+      role: seed.role,
+      email: seed.email,
+      accessRole: seed.accessRole,
+      attendanceRequired: seed.attendanceRequired,
+      startDate: seed.startDate,
+      status: seed.status,
+      note: seed.note
+    });
+  });
   ATTENDANCE_SETTINGS.defaultOfficeLat = OFFICE_LOCATION_DEFAULT.lat;
   ATTENDANCE_SETTINGS.defaultOfficeLng = OFFICE_LOCATION_DEFAULT.lng;
   if (
@@ -4422,7 +4451,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.32', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.34', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5524,11 +5553,12 @@ function isClosedCase(code) {
   return CASES.find(c => c.code === code)?.status === '結案';
 }
 
-function buildCaseOptions(placeholder='── 選擇個案名稱 ──', includeOverhead=false, activeOnly=false, currentCode='') {
+function buildCaseOptions(placeholder='── 選擇個案名稱 ──', includeOverhead=false, activeOnly=false, currentCode='', filterFn=null) {
   let html = `<option value="">${placeholder}</option>`;
   if (includeOverhead) html += `<option value="固定開銷">固定開銷</option>`;
-  const available = CASES.filter(c => !activeOnly || c.status !== '結案' || c.code === currentCode);
-  const closed = activeOnly ? CASES.filter(c => c.status === '結案' && c.code !== currentCode) : [];
+  const allowed = CASES.filter(c => !filterFn || filterFn(c));
+  const available = allowed.filter(c => !activeOnly || c.status !== '結案' || c.code === currentCode);
+  const closed = activeOnly ? allowed.filter(c => c.status === '結案' && c.code !== currentCode) : [];
   if (available.length) {
     html += available.map(c => `<option value="${c.code}">${c.code} ${c.name}</option>`).join('');
   } else if (activeOnly) {
@@ -5556,7 +5586,11 @@ function refreshAllCaseDropdowns() {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value;
-    el.innerHTML = buildCaseOptions(ph, oh, activeOnly, cur);
+    const filterFn =
+      id === 'rv-filter-case' ? (c => userCanViewCaseFinancials(c.code, 'receivable')) :
+      id === 'py-filter-case' ? (c => ['manage','view_all'].includes(permissionLevel('payable')) || c.person === currentUser?.name) :
+      null;
+    el.innerHTML = buildCaseOptions(ph, oh, activeOnly, cur, filterFn);
     if (cur) el.value = cur;
   });
 }
@@ -5894,7 +5928,7 @@ const SYSTEM_NOTES = [
     status:'已寫入系統',
     title:'應付帳款款項性質為財務敏感欄位',
     source:'Codex/系統規則與計算.md',
-    body:'款項性質只給 OWNER／FINANCE 角色顯示；專案、設計、行政角色即使可查看應付帳款，也不顯示分潤預領、私人借支、親友成本轉付、稅務負債等標籤。',
+    body:'款項性質只給 OWNER／FINANCE／ACCOUNTING 角色顯示；專案、設計、行政角色即使可查看應付帳款，也不顯示分潤預領、私人借支、親友成本轉付、稅務負債等標籤。',
     items:['員工管理已新增系統權限角色欄位。','正式 Google 登入後，以員工 Email 對應角色與功能權限。']
   },
   {
@@ -7492,11 +7526,14 @@ function rvTab(el, tab) {
 }
 
 function renderReceivable() {
+  if (!canAccess('receivable')) return;
+  const manage = canManage('receivable');
   const filterCase = document.getElementById('rv-filter-case')?.value || '';
   const kw = (document.getElementById('rv-search')?.value || '').toLowerCase();
   const rows = RECEIVABLES.filter(r => {
     if (rvTab_current !== 'all' && r.status !== rvTab_current) return false;
     if (filterCase && r.case !== filterCase) return false;
+    if (!userCanViewCaseFinancials(r.case, 'receivable')) return false;
     if (kw && !`${r.buyer} ${r.item} ${r.caseName} ${r.case} ${r.invoiceNo}`.toLowerCase().includes(kw)) return false;
     return true;
   });
@@ -7532,7 +7569,7 @@ function renderReceivable() {
         <td style="padding:6px 10px;font-size:12px;color:var(--text2)">${r.progress||'—'}</td>
         <td style="padding:10px 14px;text-align:center;white-space:nowrap">
           ${r.invoiceLink ? `<a href="${r.invoiceLink}" target="_blank" style="color:var(--accent);font-size:13px;text-decoration:none" title="開啟電子發票">📄</a>` : '<span style="color:var(--text3);font-size:11px">無</span>'}
-          <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 5px;margin-left:4px" onclick="openRvLink(${r.id})" title="設定連結">⋯</button>
+          ${manage ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 5px;margin-left:4px" onclick="openRvLink(${r.id})" title="設定連結">⋯</button>` : ''}
         </td>
         <td style="padding:6px 10px;min-width:110px">
           <input type="text" value="${r.note||''}" placeholder="備註…"
@@ -7544,9 +7581,9 @@ function renderReceivable() {
         <td style="padding:10px 14px;text-align:center"><span class="tag ${statusClass[r.status]||'tag-pending'}">${statusLabel[r.status]||r.status}</span></td>
         <td style="padding:10px 14px;text-align:center;white-space:nowrap">
           <div style="display:flex;align-items:center;justify-content:center;gap:4px">
-            <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openInvoice(${r.id})" title="開立發票／標記收款">📄</button>
+            ${manage ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openInvoice(${r.id})" title="開立發票／標記收款">📄</button>
             <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openEditReceivableModal(${r.id})" title="編輯所有欄位">✎</button>
-            <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px;color:var(--error)" onclick="event.stopPropagation();deleteReceivableConfirm(${r.id})" title="刪除">✕</button>
+            <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px;color:var(--error)" onclick="event.stopPropagation();deleteReceivableConfirm(${r.id})" title="刪除">✕</button>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>'}
           </div>
         </td>
       </tr>`).join('');
@@ -7557,10 +7594,11 @@ function renderReceivable() {
 function updateReceivableStats() {
   const thisMonth = new Date().toISOString().slice(0,7);
   const thisYear  = new Date().toISOString().slice(0,4);
-  const monthRows = RECEIVABLES.filter(r => r.collectDate?.startsWith(thisMonth) && r.status==='collected');
-  const yearRows  = RECEIVABLES.filter(r => r.collectDate?.startsWith(thisYear)  && r.status==='collected');
-  const pending   = RECEIVABLES.filter(r => r.status==='pending');
-  const noInv     = RECEIVABLES.filter(r => !r.invoiceNo);
+  const visibleRows = RECEIVABLES.filter(r => userCanViewCaseFinancials(r.case, 'receivable'));
+  const monthRows = visibleRows.filter(r => r.collectDate?.startsWith(thisMonth) && r.status==='collected');
+  const yearRows  = visibleRows.filter(r => r.collectDate?.startsWith(thisYear)  && r.status==='collected');
+  const pending   = visibleRows.filter(r => r.status==='pending');
+  const noInv     = visibleRows.filter(r => !r.invoiceNo);
   const sum = (arr, field) => arr.reduce((s,r) => s+(r[field]||0), 0);
   const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
   set('rv-stat-month-amt',    '$'+sum(monthRows,'collectAmt').toLocaleString('zh-TW'));
@@ -7930,7 +7968,7 @@ function renderProfit() {
   // 年份篩選器：空 = 全部
   const yearOk = d => pfSelYears.size === 0 || pfSelYears.has((d || '').slice(0,4));
   // 案件篩選器：空 = 全部
-  const caseOk = code => pfSelCases.size === 0 || pfSelCases.has(code);
+  const caseOk = code => (pfSelCases.size === 0 || pfSelCases.has(code)) && userCanViewCaseFinancials(code, 'profit');
 
   // ── 1. 應收：已入帳，依年份篩選 ──
   const rvPaid = RECEIVABLES.filter(r => r.status === 'collected' && yearOk(r.collectDate));
@@ -7961,7 +7999,9 @@ function renderProfit() {
 
   // ── 4b. 未指定案件的付款（沒有對應 CASES 的付款，不能漏算） ──
   const validCaseCodes = new Set(CASES.map(c => c.code));
-  const uncatPay  = pyPaid.filter(p => !p.case || !validCaseCodes.has(p.case));
+  const uncatPay  = ['manage','view_all'].includes(permissionLevel('profit'))
+    ? pyPaid.filter(p => !p.case || !validCaseCodes.has(p.case))
+    : [];
   const uncatCost = uncatPay.reduce((s, p) => s + (p.amount || 0), 0);
 
   // ── 5. 彙整（含未指定案件的成本） ──
