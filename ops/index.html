@@ -978,7 +978,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.32 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.33 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1739,7 +1739,12 @@ body.auth-pending .auth-screen{display:flex}
     <div class="empty"><div class="empty-icon">📝</div>合約管理模組<br><span style="font-size:12px;margin-top:6px;display:block">開發中，即將上線</span></div>
   </div>
   <div class="page" id="page-quotation">
-    <div class="empty"><div class="empty-icon">🔗</div>報價系統<br><span style="font-size:12px;margin-top:6px;display:block">連結至獨立報價系統</span></div>
+    <div class="empty">
+      <div class="empty-icon">🔗</div>
+      報價系統
+      <span style="font-size:12px;margin-top:6px;display:block">目前先連結至獨立報價系統，完整併入 OPS 前可從這裡開啟。</span>
+      <button class="btn btn-primary" style="margin-top:14px" onclick="window.open('https://showerli-glitch.github.io/yute-quotation/','_blank','noopener')">開啟報價系統</button>
+    </div>
   </div>
 
   <!-- ════ PAGE: TEST FEEDBACK ════ -->
@@ -3233,7 +3238,7 @@ const OPS_ALLOWED_USERS = {
   'nc@yutesign.com': 'nc',
 };
 const OPS_AUTH_SESSION_KEY = 'yutesign_ops_auth_session';
-const OPS_AUTH_SESSION_HOURS = 8;
+const OPS_AUTH_SESSION_HOURS = 4;
 const OPS_AUTH_ENFORCED = location.protocol === 'http:' || location.protocol === 'https:';
 const OPS_CLOUD_PATH = 'ops/yutesign/snapshot';
 const OPS_FIREBASE_CONFIG = {
