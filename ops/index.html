@@ -978,7 +978,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.34 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.35 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1205,6 +1205,16 @@ body.auth-pending .auth-screen{display:flex}
       </div>
       <input class="search-input" id="py-search" placeholder="搜尋廠商、摘要、日期、銀行…" oninput="renderPayable()" style="height:32px">
       <select class="filter-select" id="py-filter-case" onchange="renderPayable()" style="min-width:220px;max-width:280px"><option value="">── 全部個案 ──</option></select>
+      <input class="filter-select" id="py-date-from" type="date" onchange="renderPayable()" title="起始日期" style="height:32px;min-width:136px">
+      <input class="filter-select" id="py-date-to" type="date" onchange="renderPayable()" title="結束日期" style="height:32px;min-width:136px">
+      <select class="filter-select" id="py-sort" onchange="renderPayable()" style="height:32px;min-width:148px">
+        <option value="date-desc">日期新到舊</option>
+        <option value="date-asc">日期舊到新</option>
+        <option value="vendor-asc">廠商 A→Z</option>
+        <option value="amount-desc">金額高到低</option>
+        <option value="created-desc">加入時間新到舊</option>
+        <option value="updated-desc">修改時間新到舊</option>
+      </select>
       <button class="btn btn-ghost btn-sm" id="py-toggle-dates" onclick="pyToggleCols('dates',this)">收折日期欄 ▾</button>
       <button class="btn btn-ghost btn-sm" id="py-toggle-bank" onclick="pyToggleCols('bank',this)">收折銀行/備註 ▾</button>
       <div style="margin-left:auto">
@@ -1276,6 +1286,16 @@ body.auth-pending .auth-screen{display:flex}
       </div>
       <input class="search-input" id="rv-search" placeholder="搜尋買受人、項目、個案編號…" oninput="renderReceivable()" style="height:32px">
       <select class="filter-select" id="rv-filter-case" onchange="renderReceivable()" style="min-width:220px;max-width:280px"><option value="">── 全部個案 ──</option></select>
+      <input class="filter-select" id="rv-date-from" type="date" onchange="renderReceivable()" title="起始日期" style="height:32px;min-width:136px">
+      <input class="filter-select" id="rv-date-to" type="date" onchange="renderReceivable()" title="結束日期" style="height:32px;min-width:136px">
+      <select class="filter-select" id="rv-sort" onchange="renderReceivable()" style="height:32px;min-width:148px">
+        <option value="date-desc">日期新到舊</option>
+        <option value="date-asc">日期舊到新</option>
+        <option value="buyer-asc">客戶 A→Z</option>
+        <option value="amount-desc">金額高到低</option>
+        <option value="created-desc">加入時間新到舊</option>
+        <option value="updated-desc">修改時間新到舊</option>
+      </select>
       <div style="margin-left:auto">
         <button class="btn btn-primary btn-sm" onclick="openAddReceivableModal()">＋ 新增收款紀錄</button>
       </div>
@@ -4451,7 +4471,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.34', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.35', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -7058,21 +7078,70 @@ function pyBankShort(bank) {
   return parts.slice(0,2).join(' ');
 }
 
+function rowAuditUser() {
+  return currentUser?.email || currentUser?.name || 'system';
+}
+
+function touchRowMeta(row, isNew = false) {
+  if (!row) return row;
+  const now = new Date().toISOString();
+  if (isNew && !row.createdAt) {
+    row.createdAt = now;
+    row.createdBy = rowAuditUser();
+  }
+  row.updatedAt = now;
+  row.updatedBy = rowAuditUser();
+  return row;
+}
+
+function inDateRange(dateValue, fromValue, toValue) {
+  if (!fromValue && !toValue) return true;
+  if (!dateValue) return false;
+  const d = String(dateValue).slice(0,10);
+  if (fromValue && d < fromValue) return false;
+  if (toValue && d > toValue) return false;
+  return true;
+}
+
+function sortOpsRows(rows, sortMode, dateGetter, textGetter, amountGetter) {
+  const dir = sortMode.endsWith('-asc') ? 1 : -1;
+  const getTime = v => {
+    const s = v ? String(v).slice(0,10) : '';
+    return s ? Date.parse(s) || 0 : 0;
+  };
+  const getMetaTime = (row, field) => Date.parse(row?.[field] || '') || 0;
+  return rows.slice().sort((a,b) => {
+    if (sortMode.startsWith('created')) return (getMetaTime(a,'createdAt') - getMetaTime(b,'createdAt') || ((a.id||0)-(b.id||0))) * dir;
+    if (sortMode.startsWith('updated')) return (getMetaTime(a,'updatedAt') - getMetaTime(b,'updatedAt') || ((a.id||0)-(b.id||0))) * dir;
+    if (sortMode.startsWith('amount')) return (((amountGetter(a)||0) - (amountGetter(b)||0)) || ((a.id||0)-(b.id||0))) * dir;
+    if (sortMode.includes('vendor') || sortMode.includes('buyer')) {
+      const cmp = String(textGetter(a)||'').localeCompare(String(textGetter(b)||''), 'zh-Hant');
+      return cmp || ((a.id||0)-(b.id||0));
+    }
+    return (getTime(dateGetter(a)) - getTime(dateGetter(b)) || ((a.id||0)-(b.id||0))) * dir;
+  });
+}
+
 function renderPayable() {
   const manage = canManage('payable');
   const showPaymentType = canViewPaymentType();
   const filterCase = document.getElementById('py-filter-case')?.value || '';
   const kw = (document.getElementById('py-search')?.value || '').toLowerCase();
-  const rows = PAYABLES.filter(p => {
+  const fromDate = document.getElementById('py-date-from')?.value || '';
+  const toDate = document.getElementById('py-date-to')?.value || '';
+  const sortMode = document.getElementById('py-sort')?.value || 'date-desc';
+  const payableDate = p => p.doneDate || p.transferDate || p.wantDate || p.ticket || '';
+  const rows = sortOpsRows(PAYABLES.filter(p => {
     if (pyTab_current !== 'all' && p.status !== pyTab_current) return false;
     if (filterCase && p.case !== filterCase) return false;
+    if (!inDateRange(payableDate(p), fromDate, toDate)) return false;
     const searchable = [
       p.vendor, p.summary, p.caseName, p.case, p.person,
       p.wantDate, p.transferDate, p.doneDate, p.ticket, p.bank,
     ].filter(Boolean).join(' ').toLowerCase();
     if (kw && !searchable.includes(kw)) return false;
     return true;
-  });
+  }), sortMode, payableDate, p => p.vendor, p => p.amount);
   const statusLabel = {pending:'待審核', approved:'待付款', paid:'已付款'};
   const statusClass = {pending:'tag-pending', approved:'tag-active', paid:'tag-done'};
   const tbody = document.getElementById('py-tbody');
@@ -7196,6 +7265,7 @@ function confirmApprove() {
     ticket:   document.getElementById('ap-ticket').value,
     note:     document.getElementById('ap-note').value
   });
+  touchRowMeta(pyApproveTarget);
   closeModal('modal-approve-payable');
   renderPayable();
   saveData();
@@ -7205,7 +7275,7 @@ function confirmApprove() {
 function pyUpdateNote(id, val) {
   if (!canManage('payable')) return;
   const p = PAYABLES.find(x => x.id===id);
-  if (p) { p.note = val; saveData(); }
+  if (p) { p.note = val; touchRowMeta(p); saveData(); }
 }
 
 let pyLinkTarget = null;
@@ -7222,8 +7292,10 @@ function saveLinks() {
   if (!pyLinkTarget) return;
   pyLinkTarget.invoiceLink = document.getElementById('link-invoice').value.trim();
   pyLinkTarget.receiptLink = document.getElementById('link-receipt').value.trim();
+  touchRowMeta(pyLinkTarget);
   closeModal('modal-links');
   renderPayable();
+  saveData();
   showToast('附件連結已儲存 ✓', 'success');
 }
 
@@ -7236,6 +7308,7 @@ function markPaid(id) {
   p.status = 'paid';
   p.transferDate = p.transferDate || today;
   p.doneDate = today;
+  touchRowMeta(p);
   pySyncRentToOverhead(p);
   recordAuditLog('markPaid', 'payable', p.id, before, p, {
     riskLevel:'high',
@@ -7491,6 +7564,7 @@ function submitAddPayable() {
           invoice, receipt, person, status });
         syncDerivedReceivableForPayable(p);
       }
+      touchRowMeta(p);
     }
     closeModal('modal-add-payable');
     renderPayable(); renderPayreq(); renderCases(); renderProfit(); renderProfitShare();
@@ -7505,6 +7579,7 @@ function submitAddPayable() {
       amount:isNaN(amtNum)?0:amtNum, wantDate:date, bank,
       transferDate:transferDate || (status==='paid'?date:''), doneDate:doneDate || (status==='paid'?date:''), ticket, invoice, receipt, person,
       paymentType, profitPerson, profitCaseCodes, status, note:'' };
+    touchRowMeta(row, true);
     PAYABLES.push(row);
     syncDerivedReceivableForPayable(row);
     closeModal('modal-add-payable');
@@ -7530,13 +7605,18 @@ function renderReceivable() {
   const manage = canManage('receivable');
   const filterCase = document.getElementById('rv-filter-case')?.value || '';
   const kw = (document.getElementById('rv-search')?.value || '').toLowerCase();
-  const rows = RECEIVABLES.filter(r => {
+  const fromDate = document.getElementById('rv-date-from')?.value || '';
+  const toDate = document.getElementById('rv-date-to')?.value || '';
+  const sortMode = document.getElementById('rv-sort')?.value || 'date-desc';
+  const receivableDate = r => r.collectDate || r.invoiceDate || r.retentionDue || '';
+  const rows = sortOpsRows(RECEIVABLES.filter(r => {
     if (rvTab_current !== 'all' && r.status !== rvTab_current) return false;
     if (filterCase && r.case !== filterCase) return false;
     if (!userCanViewCaseFinancials(r.case, 'receivable')) return false;
+    if (!inDateRange(receivableDate(r), fromDate, toDate)) return false;
     if (kw && !`${r.buyer} ${r.item} ${r.caseName} ${r.case} ${r.invoiceNo}`.toLowerCase().includes(kw)) return false;
     return true;
-  });
+  }), sortMode, receivableDate, r => r.buyer, r => r.collectAmt || r.invoiceAmt || 0);
   const statusLabel = {pending:'待收款', collected:'已入帳'};
   const statusClass = {pending:'tag-pending', collected:'tag-done'};
   const bankShort = b => {
@@ -7635,6 +7715,7 @@ function confirmInvoiceOnly() {
     invoiceDate: document.getElementById('rv-inv-date').value,
     note:        document.getElementById('rv-inv-note').value
   });
+  touchRowMeta(rvInvoiceTarget);
   closeModal('modal-invoice');
   renderReceivable();
   renderCases();
@@ -7657,6 +7738,7 @@ function confirmCollected() {
     invoiceDate: document.getElementById('rv-inv-date').value || rvInvoiceTarget.invoiceDate,
     note:        document.getElementById('rv-inv-note').value
   });
+  touchRowMeta(rvInvoiceTarget);
   closeModal('modal-invoice');
   renderReceivable();
   renderCases();
@@ -7669,7 +7751,7 @@ function confirmCollected() {
 function rvUpdateNote(id, val) {
   if (!canManage('receivable')) return;
   const r = RECEIVABLES.find(x => x.id===id);
-  if (r) { r.note = val; saveData(); }
+  if (r) { r.note = val; touchRowMeta(r); saveData(); }
 }
 
 function rvToggleReceivableType() {
@@ -7809,6 +7891,7 @@ function submitAddReceivable() {
         status:      document.getElementById('rv-add-status').value,
         note:        document.getElementById('rv-add-note').value.trim(),
       });
+      touchRowMeta(r);
       if (receivableType === 'retention') {
         const c = CASES.find(x => x.code === (caseVal || r.case));
         if (c) { c.retentionAmt = invoiceAmt; c.retentionDue = retentionDue; }
@@ -7842,6 +7925,7 @@ function submitAddReceivable() {
       status:      document.getElementById('rv-add-status').value,
       note:        document.getElementById('rv-add-note').value.trim(),
     };
+    touchRowMeta(row, true);
     RECEIVABLES.push(row);
     if (receivableType === 'retention') {
       const c = CASES.find(x => x.code === caseVal);
