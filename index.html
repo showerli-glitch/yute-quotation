@@ -904,7 +904,9 @@ function renderQuote(){saveQuoteState();refreshCatDropdowns();
   if(qsClear) qsClear.style.display=qKeyword?'':'none';
   if(!quoteItems.length){
     area.innerHTML='<div class="empty-state">從左側工項資料庫選取項目，或手動新增工項</div>';
-    updateStats(0,subtotal,mgmtPct);return;
+    updateStats(0,subtotal,mgmtPct);
+    updateGrandTotals(beforeTax,tax,total);
+    return;
   }
   const grouped=getSections();
   if(qKeyword){
@@ -915,6 +917,8 @@ function renderQuote(){saveQuoteState();refreshCatDropdowns();
   }
   if(qKeyword && !Object.keys(grouped).length){
     area.innerHTML=`<div class="empty-state">找不到含「${escHtml(qKeyword)}」的工項</div>`;
+    updateStats(quoteItems.length,subtotal,mgmtPct);
+    updateGrandTotals(beforeTax,tax,total);
     return;
   }
   let num=1;
@@ -954,12 +958,20 @@ function renderQuote(){saveQuoteState();refreshCatDropdowns();
   html+=`</div>`;
   area.innerHTML=html;
   updateStats(quoteItems.length,subtotal,mgmtPct);
+  updateGrandTotals(beforeTax,tax,total);
+}
+
+function updateGrandTotals(beforeTax,tax,total){
   const _tAmt='$'+Math.round(total).toLocaleString();
   const _tBreak=`小計 $${Math.round(beforeTax).toLocaleString()} + 營業稅 $${Math.round(tax).toLocaleString()}`;
-  document.getElementById('grandTotal').textContent=_tAmt;
-  document.getElementById('taxBreak').textContent=_tBreak;
-  document.getElementById('grandTotal2').textContent=_tAmt;
-  document.getElementById('taxBreak2').textContent=_tBreak;
+  const totalA=document.getElementById('grandTotal');
+  const breakA=document.getElementById('taxBreak');
+  const totalB=document.getElementById('grandTotal2');
+  const breakB=document.getElementById('taxBreak2');
+  if(totalA)totalA.textContent=_tAmt;
+  if(breakA)breakA.textContent=_tBreak;
+  if(totalB)totalB.textContent=_tAmt;
+  if(breakB)breakB.textContent=_tBreak;
 }
 
 function updateStats(count,subtotal,mgmtPct){
