@@ -481,6 +481,37 @@ body.auth-pending .auth-screen{display:flex}
 #py-table-wrap.hide-dates .col-date{display:none}
 #py-table-wrap.hide-bank .col-bank{display:none}
 .person-col{white-space:nowrap;min-width:64px}
+#page-receivable .rv-table{
+  min-width:1580px;
+  table-layout:fixed;
+}
+#page-receivable .rv-table .rv-col-no{width:48px}
+#page-receivable .rv-table .rv-col-case{width:142px}
+#page-receivable .rv-table .rv-col-date{width:104px}
+#page-receivable .rv-table .rv-col-buyer{width:170px;min-width:170px}
+#page-receivable .rv-table .rv-col-item{width:170px;min-width:170px}
+#page-receivable .rv-table .rv-col-amount{width:118px}
+#page-receivable .rv-table .rv-col-bank{width:80px}
+#page-receivable .rv-table .rv-col-invoice-amount{width:118px}
+#page-receivable .rv-table .rv-col-invoice-date{width:104px}
+#page-receivable .rv-table .rv-col-invoice-no{width:92px}
+#page-receivable .rv-table .rv-col-contract{width:118px}
+#page-receivable .rv-table .rv-col-progress{width:86px}
+#page-receivable .rv-table .rv-col-link{width:76px}
+#page-receivable .rv-table .rv-col-note{width:98px}
+#page-receivable .rv-table .rv-col-status{width:86px}
+#page-receivable .rv-table .rv-col-actions{width:98px}
+#page-receivable .rv-table th,
+#page-receivable .rv-table td{
+  box-sizing:border-box;
+}
+#page-receivable .rv-table .rv-col-invoice-no,
+#page-receivable .rv-table .rv-col-progress,
+#page-receivable .rv-table .rv-col-link,
+#page-receivable .rv-table .rv-col-note{
+  padding-left:8px!important;
+  padding-right:8px!important;
+}
 
 /* Tags */
 .tag{
@@ -978,7 +1009,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.39 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.40 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1303,25 +1334,25 @@ body.auth-pending .auth-screen{display:flex}
 
     <div class="card" style="padding:0;overflow:hidden">
       <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <table class="rv-table" style="width:100%;border-collapse:collapse;font-size:13px">
           <thead>
             <tr style="background:var(--surface2);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px">
-              <th style="padding:10px 14px;text-align:left;white-space:nowrap">#</th>
-              <th style="padding:10px 14px;text-align:left;white-space:nowrap">個案名稱</th>
-              <th style="padding:10px 14px;text-align:center;white-space:nowrap">入帳日期</th>
-              <th style="padding:10px 14px;text-align:left;white-space:nowrap">買受人名稱</th>
-              <th style="padding:10px 14px;text-align:left;white-space:nowrap">項目</th>
-              <th style="padding:10px 14px;text-align:right;white-space:nowrap">入帳金額</th>
-              <th style="padding:10px 14px;text-align:center;white-space:nowrap">入帳銀行</th>
-              <th style="padding:10px 14px;text-align:right;white-space:nowrap">發票金額</th>
-              <th style="padding:10px 14px;text-align:center;white-space:nowrap">發票日期</th>
-              <th style="padding:10px 14px;text-align:center;white-space:nowrap">發票號碼</th>
-              <th style="padding:10px 14px;text-align:right;white-space:nowrap">合約金額</th>
-              <th style="padding:10px 14px;text-align:left;white-space:nowrap;min-width:100px">請款進度</th>
-              <th style="padding:10px 14px;text-align:center;white-space:nowrap">電子發票</th>
-              <th style="padding:10px 14px;text-align:left;white-space:nowrap;min-width:110px">備註</th>
-              <th style="padding:10px 14px;text-align:center;white-space:nowrap">狀態</th>
-              <th style="padding:10px 14px;text-align:center;white-space:nowrap">操作</th>
+              <th class="rv-col-no" style="padding:10px 14px;text-align:left;white-space:nowrap">#</th>
+              <th class="rv-col-case" style="padding:10px 14px;text-align:left;white-space:nowrap">個案名稱</th>
+              <th class="rv-col-date" style="padding:10px 14px;text-align:center;white-space:nowrap">入帳日期</th>
+              <th class="rv-col-buyer" style="padding:10px 14px;text-align:left;white-space:nowrap">買受人名稱</th>
+              <th class="rv-col-item" style="padding:10px 14px;text-align:left;white-space:nowrap">項目</th>
+              <th class="rv-col-amount" style="padding:10px 14px;text-align:right;white-space:nowrap">入帳金額</th>
+              <th class="rv-col-bank" style="padding:10px 14px;text-align:center;white-space:nowrap">入帳銀行</th>
+              <th class="rv-col-invoice-amount" style="padding:10px 14px;text-align:right;white-space:nowrap">發票金額</th>
+              <th class="rv-col-invoice-date" style="padding:10px 14px;text-align:center;white-space:nowrap">發票日期</th>
+              <th class="rv-col-invoice-no" style="padding:10px 14px;text-align:center;white-space:nowrap">發票號碼</th>
+              <th class="rv-col-contract" style="padding:10px 14px;text-align:right;white-space:nowrap">合約金額</th>
+              <th class="rv-col-progress" style="padding:10px 14px;text-align:left;white-space:nowrap">請款進度</th>
+              <th class="rv-col-link" style="padding:10px 14px;text-align:center;white-space:nowrap">電子發票</th>
+              <th class="rv-col-note" style="padding:10px 14px;text-align:left;white-space:nowrap">備註</th>
+              <th class="rv-col-status" style="padding:10px 14px;text-align:center;white-space:nowrap">狀態</th>
+              <th class="rv-col-actions" style="padding:10px 14px;text-align:center;white-space:nowrap">操作</th>
             </tr>
           </thead>
           <tbody id="rv-tbody"></tbody>
@@ -4473,7 +4504,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.39', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.40', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4533,7 +4564,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.39', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.40', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7645,34 +7676,34 @@ function renderReceivable() {
   } else {
     tbody.innerHTML = rows.map((r,i) => `
       <tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-        <td style="padding:10px 14px;color:var(--text3);font-size:11px">${String(i+1).padStart(3,'0')}</td>
-        <td style="padding:10px 14px;white-space:nowrap">
+        <td class="rv-col-no" style="padding:10px 14px;color:var(--text3);font-size:11px">${String(i+1).padStart(3,'0')}</td>
+        <td class="rv-col-case" style="padding:10px 14px;white-space:nowrap">
           <div style="font-size:12px;font-weight:500">${r.caseName}</div>
           <div style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace">${caseCodeBreak(r.case)}</div>
         </td>
-        <td style="padding:10px 14px;text-align:center;font-size:12px;white-space:nowrap">${r.collectDate||'<span style="color:var(--text3)">待入帳</span>'}</td>
-        <td style="padding:10px 14px;font-size:12px;max-width:160px">${r.buyer||'—'}</td>
-        <td style="padding:10px 14px;font-size:12px;color:var(--text2)">${r.item||'—'}</td>
-        <td style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">${r.collectAmt ? '$'+r.collectAmt.toLocaleString('zh-TW') : '<span style="color:var(--text3)">—</span>'}</td>
-        <td style="padding:10px 14px;text-align:center;font-size:12px">${bankShort(r.bank)}</td>
-        <td style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${r.invoiceAmt ? '$'+r.invoiceAmt.toLocaleString('zh-TW') : '—'}</td>
-        <td style="padding:10px 14px;text-align:center;font-size:12px;white-space:nowrap">${r.invoiceDate||'<span style="color:var(--text3)">—</span>'}</td>
-        <td style="padding:10px 14px;text-align:center;font-size:12px;font-family:'DM Mono',monospace">${r.invoiceNo||'<span style="color:var(--warning);font-family:inherit">待開立</span>'}</td>
-        <td style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${r.contractAmt ? '$'+r.contractAmt.toLocaleString('zh-TW') : '—'}</td>
-        <td style="padding:6px 10px;font-size:12px;color:var(--text2)">${r.progress||'—'}</td>
-        <td style="padding:10px 14px;text-align:center;white-space:nowrap">
+        <td class="rv-col-date" style="padding:10px 14px;text-align:center;font-size:12px;white-space:nowrap">${r.collectDate||'<span style="color:var(--text3)">待入帳</span>'}</td>
+        <td class="rv-col-buyer" style="padding:10px 14px;font-size:12px">${r.buyer||'—'}</td>
+        <td class="rv-col-item" style="padding:10px 14px;font-size:12px;color:var(--text2)">${r.item||'—'}</td>
+        <td class="rv-col-amount" style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">${r.collectAmt ? '$'+r.collectAmt.toLocaleString('zh-TW') : '<span style="color:var(--text3)">—</span>'}</td>
+        <td class="rv-col-bank" style="padding:10px 14px;text-align:center;font-size:12px">${bankShort(r.bank)}</td>
+        <td class="rv-col-invoice-amount" style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${r.invoiceAmt ? '$'+r.invoiceAmt.toLocaleString('zh-TW') : '—'}</td>
+        <td class="rv-col-invoice-date" style="padding:10px 14px;text-align:center;font-size:12px;white-space:nowrap">${r.invoiceDate||'<span style="color:var(--text3)">—</span>'}</td>
+        <td class="rv-col-invoice-no" style="padding:10px 14px;text-align:center;font-size:12px;font-family:'DM Mono',monospace">${r.invoiceNo||'<span style="color:var(--warning);font-family:inherit">待開立</span>'}</td>
+        <td class="rv-col-contract" style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${r.contractAmt ? '$'+r.contractAmt.toLocaleString('zh-TW') : '—'}</td>
+        <td class="rv-col-progress" style="padding:6px 10px;font-size:12px;color:var(--text2)">${r.progress||'—'}</td>
+        <td class="rv-col-link" style="padding:10px 14px;text-align:center;white-space:nowrap">
           ${r.invoiceLink ? `<a href="${r.invoiceLink}" target="_blank" style="color:var(--accent);font-size:13px;text-decoration:none" title="開啟電子發票">📄</a>` : '<span style="color:var(--text3);font-size:11px">無</span>'}
           ${manage ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 5px;margin-left:4px" onclick="openRvLink(${r.id})" title="設定連結">⋯</button>` : ''}
         </td>
-        <td style="padding:6px 10px;min-width:110px">
+        <td class="rv-col-note" style="padding:6px 10px">
           <input type="text" value="${r.note||''}" placeholder="備註…"
             style="background:transparent;border:none;outline:none;width:100%;font-size:12px;color:var(--text2);padding:4px 6px;border-radius:4px"
             onfocus="this.style.background='var(--surface2)';this.style.border='1px solid var(--border)'"
             onblur="this.style.background='transparent';this.style.border='none';rvUpdateNote(${r.id},this.value)"
             onkeydown="if(event.key==='Enter')this.blur()">
         </td>
-        <td style="padding:10px 14px;text-align:center"><span class="tag ${statusClass[r.status]||'tag-pending'}">${statusLabel[r.status]||r.status}</span></td>
-        <td style="padding:10px 14px;text-align:center;white-space:nowrap">
+        <td class="rv-col-status" style="padding:10px 14px;text-align:center"><span class="tag ${statusClass[r.status]||'tag-pending'}">${statusLabel[r.status]||r.status}</span></td>
+        <td class="rv-col-actions" style="padding:10px 14px;text-align:center;white-space:nowrap">
           <div style="display:flex;align-items:center;justify-content:center;gap:4px">
             ${manage ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openInvoice(${r.id})" title="開立發票／標記收款">📄</button>
             <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openEditReceivableModal(${r.id})" title="編輯所有欄位">✎</button>
