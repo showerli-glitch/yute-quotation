@@ -1009,7 +1009,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.42 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.43 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -2626,6 +2626,13 @@ body.auth-pending .auth-screen{display:flex}
           </select>
         </div>
         <div class="form-field">
+          <label class="form-label">分潤設定</label>
+          <select class="form-select" id="new-case-profit-mode">
+            <option value="profit">正常分潤（列入分潤儀表）</option>
+            <option value="no_profit">不分潤（只列成本控制表）</option>
+          </select>
+        </div>
+        <div class="form-field">
           <label class="form-label">開工日</label>
           <input class="form-input" type="date">
         </div>
@@ -3399,11 +3406,14 @@ function canManage(page) { return permissionLevel(page) === 'manage'; }
 function canAccess(page) { return permissionLevel(page) !== 'none'; }
 function canApplySelf(page) { return ['manage','view_all_apply_self','view_self_apply_self'].includes(permissionLevel(page)); }
 function canViewPaymentType() { return ['OWNER','FINANCE','ACCOUNTING'].includes(currentUser?.roleCode); }
+function canSeeFinancialTotals() { return ['OWNER','FINANCE'].includes(currentUser?.roleCode); }
+function canSeeRestrictedCase(c) { return !c?.excludeFromProfitReports || canSeeFinancialTotals(); }
 function userCanViewCaseFinancials(caseCode, page) {
   const level = permissionLevel(page);
+  const c = CASES.find(row => row.code === caseCode);
+  if (c && !canSeeRestrictedCase(c)) return false;
   if (['manage','view_all'].includes(level)) return true;
   if (!['view_self','view_profit_cases'].includes(level)) return false;
-  const c = CASES.find(row => row.code === caseCode);
   if (!c || !currentUser?.id) return false;
   return !!(psGetSplitRatio(c)[currentUser.id] || 0);
 }
@@ -4506,7 +4516,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.42', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.43', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4566,7 +4576,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.42', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.43', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5440,6 +5450,25 @@ function navTo(page, el) {
   closeMobileSidebar();
 }
 
+function renderCurrentPage() {
+  if (currentPage === 'profit')     renderProfit();
+  if (currentPage === 'profitshare') renderProfitShare();
+  if (currentPage === 'attendance') renderAttendance();
+  if (currentPage === 'payreq')     renderPayreq();
+  if (currentPage === 'dashboard')  renderDashboard();
+  if (currentPage === 'employees')  renderEmployees();
+  if (currentPage === 'clients')    renderClients();
+  if (currentPage === 'vendors')    renderVendors();
+  if (currentPage === 'feedback')   renderFeedback();
+  if (currentPage === 'systemnotes') renderSystemNotes();
+  if (currentPage === 'cases')      renderCases();
+  if (currentPage === 'receivable') { refreshAllCaseDropdowns(); renderReceivable(); }
+  if (currentPage === 'payable')    { refreshAllCaseDropdowns(); renderPayable(); }
+  if (currentPage === 'expense')    { refreshAllCaseDropdowns(); renderExpense(); }
+  if (currentPage === 'overhead')   { ohRenderMonthOptions(); renderOverhead(); }
+  if (currentPage === 'payroll')    { prRenderMonthOptions(); renderPayroll(); }
+}
+
 // ══════════════════════════════════
 // ROLE
 // ══════════════════════════════════
@@ -5508,6 +5537,7 @@ function applyRole(user) {
 
   if (permissionLevel('payroll') === 'view_self') prCurrentEmp = user.id;
   renderPayreq(); renderPayable(); renderExpense(); renderOverhead(); renderPayroll(); renderProfitShare(); renderClients(); renderVendors(); renderFeedback();
+  renderCurrentPage();
 }
 
 function initRoleOptions() {
@@ -5565,7 +5595,8 @@ function dcToggleCaseDropdown() {
   if (!isOpen) {
     const container = document.getElementById('case-filter-checkboxes');
     if (container) {
-      container.innerHTML = CASES.map(c => {
+      const visibleCases = CASES.filter(c => userCanViewCaseFinancials(c.code, 'dashboard') || userCanViewCaseFinancials(c.code, 'profit'));
+      container.innerHTML = visibleCases.map(c => {
         const chk = dcSelCases === null || dcSelCases.has(c.code);
         return `<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;cursor:pointer;font-size:12px;border-radius:4px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
           <input type="checkbox" value="${c.code}" ${chk ? 'checked' : ''} onchange="dcCaseCheckChange()">
@@ -5591,7 +5622,8 @@ function dcCaseAllToggle(cb) {
 function dcCaseCheckChange() {
   const boxes = [...document.querySelectorAll('#case-filter-checkboxes input[type=checkbox]')];
   const checked = boxes.filter(b => b.checked).map(b => b.value);
-  dcSelCases = checked.length === CASES.length ? null : new Set(checked);
+  const visibleCount = CASES.filter(c => userCanViewCaseFinancials(c.code, 'dashboard') || userCanViewCaseFinancials(c.code, 'profit')).length;
+  dcSelCases = checked.length === visibleCount ? null : new Set(checked);
   const allCb = document.getElementById('case-filter-all');
   if (allCb) allCb.checked = dcSelCases === null;
   dcUpdateCaseBtn();
@@ -5652,7 +5684,7 @@ function refreshAllCaseDropdowns() {
     const cur = el.value;
     const filterFn =
       id === 'rv-filter-case' ? (c => userCanViewCaseFinancials(c.code, 'receivable')) :
-      id === 'py-filter-case' ? (c => ['manage','view_all'].includes(permissionLevel('payable')) || c.person === currentUser?.name) :
+      id === 'py-filter-case' ? (c => userCanViewCaseFinancials(c.code, 'payable')) :
       null;
     el.innerHTML = buildCaseOptions(ph, oh, activeOnly, cur, filterFn);
     if (cur) el.value = cur;
@@ -5762,7 +5794,8 @@ function openCaseDetail(caseCode) {
 function renderCases() {
   dcUpdateCaseBtn();
   const tbody = document.getElementById('case-tbody');
-  const data = dcSelCases === null ? CASES : CASES.filter(c => dcSelCases.has(c.code));
+  const visibleCases = CASES.filter(c => userCanViewCaseFinancials(c.code, 'dashboard') || userCanViewCaseFinancials(c.code, 'profit'));
+  const data = dcSelCases === null ? visibleCases : visibleCases.filter(c => dcSelCases.has(c.code));
   const statusTag = {
     '進行中': 'tag-active',
     '待開工': 'tag-pending',
@@ -7034,6 +7067,8 @@ function openNewCaseModal() {
   document.getElementById('new-case-name').value = '';
   if (document.getElementById('new-case-amount')) document.getElementById('new-case-amount').value = '';
   ['new-case-address','new-case-site-lat','new-case-site-lng'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const profitModeEl = document.getElementById('new-case-profit-mode');
+  if (profitModeEl) profitModeEl.value = 'profit';
   const radiusEl = document.getElementById('new-case-site-radius');
   if (radiusEl) radiusEl.value = 200;
   openModal('modal-new-case');
@@ -7055,9 +7090,10 @@ function submitNewCase() {
   const amtRaw  = document.getElementById('new-case-amount')?.value.trim()||'';
   const amount  = parseInt(amtRaw.replace(/[^0-9]/g,''))||0;
   const person  = document.getElementById('new-case-person')?.value||currentUser.name;
+  const profitMode = document.getElementById('new-case-profit-mode')?.value || 'profit';
   const loc = readCaseLocation('new-case');
   if (!loc) return;
-  CASES.push({
+  const caseRow = {
     code: caseCodeFinal,
     name: caseName,
     client: clientCode,
@@ -7072,7 +7108,19 @@ function submitNewCase() {
     siteLat: loc.siteLat,
     siteLng: loc.siteLng,
     siteRadiusMeters: loc.siteRadiusMeters
-  });
+  };
+  if (profitMode === 'no_profit') {
+    Object.assign(caseRow, {
+      profitSplit: '不分潤',
+      excludeFromProfitReports: true,
+      caseType: '不分潤／成本追蹤',
+      reconciliationNote: '新增個案時設定為不分潤；仍列入成本控制表供 OWNER／FINANCE 檢視，不列入分潤儀表。'
+    });
+  } else {
+    caseRow.profitSplit = '三人';
+    caseRow.excludeFromProfitReports = false;
+  }
+  CASES.push(caseRow);
   refreshAllCaseDropdowns();
   renderCases();
   closeModal('modal-new-case');
@@ -7181,6 +7229,8 @@ function renderPayable() {
   const payableDate = p => p.doneDate || p.transferDate || p.wantDate || p.ticket || '';
   const rows = sortOpsRows(PAYABLES.filter(p => {
     if (pyTab_current !== 'all' && p.status !== pyTab_current) return false;
+    if (p.case && !userCanViewCaseFinancials(p.case, 'payable')) return false;
+    if (!p.case && !['manage','view_all'].includes(permissionLevel('payable'))) return false;
     if (filterCase && p.case !== filterCase) return false;
     if (!inDateRange(payableDate(p), fromDate, toDate)) return false;
     const searchable = [
@@ -7246,14 +7296,29 @@ function renderPayable() {
 }
 
 function updatePayableStats() {
-  const pending  = PAYABLES.filter(p => p.status==='pending');
-  const approved = PAYABLES.filter(p => p.status==='approved');
-  const paid     = PAYABLES.filter(p => p.status==='paid');
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+  if (!canSeeFinancialTotals()) {
+    set('py-stat-pending-count', '—');
+    set('py-stat-pending-amt', '僅管理者');
+    set('py-stat-approved-amt', '—');
+    set('py-stat-approved-count', '僅管理者');
+    set('py-stat-paid-amt', '—');
+    set('py-stat-paid-count', '僅管理者');
+    set('py-stat-total-amt', '—');
+    set('py-stat-total-sub', '僅管理者');
+    const badge = document.getElementById('py-badge-pending');
+    if (badge) badge.style.display = 'none';
+    return;
+  }
+  const visiblePayables = PAYABLES.filter(p => !p.case || userCanViewCaseFinancials(p.case, 'payable'));
+  const pending  = visiblePayables.filter(p => p.status==='pending');
+  const approved = visiblePayables.filter(p => p.status==='approved');
+  const paid     = visiblePayables.filter(p => p.status==='paid');
   const sum = arr => arr.reduce((s,p)=>s+p.amount,0);
-  document.getElementById('py-stat-pending-count').textContent  = pending.length + ' 筆';
-  document.getElementById('py-stat-pending-amt').textContent    = '$' + sum(pending).toLocaleString('zh-TW');
-  document.getElementById('py-stat-approved-amt').textContent   = '$' + sum(approved).toLocaleString('zh-TW');
-  document.getElementById('py-stat-approved-count').textContent = approved.length + ' 筆';
+  set('py-stat-pending-count', pending.length + ' 筆');
+  set('py-stat-pending-amt', '$' + sum(pending).toLocaleString('zh-TW'));
+  set('py-stat-approved-amt', '$' + sum(approved).toLocaleString('zh-TW'));
+  set('py-stat-approved-count', approved.length + ' 筆');
 
   const now = new Date();
   const curYear = String(now.getFullYear());
@@ -7262,18 +7327,16 @@ function updatePayableStats() {
   const paidThisMonth = paid.filter(p => paidDate(p).slice(0,7) === curMonth);
   const paidThisYear  = paid.filter(p => paidDate(p).slice(0,4) === curYear);
 
-  document.getElementById('py-stat-paid-amt').textContent       = '$' + sum(paidThisMonth).toLocaleString('zh-TW');
-  document.getElementById('py-stat-paid-count').textContent     = paidThisMonth.length + ' 筆';
-  const totalEl = document.getElementById('py-stat-total-amt');
-  if (totalEl) totalEl.textContent = '$' + sum(paidThisYear).toLocaleString('zh-TW');
-  const totalSubEl = document.getElementById('py-stat-total-sub');
-  if (totalSubEl) totalSubEl.textContent = curYear + ' 年度';
+  set('py-stat-paid-amt', '$' + sum(paidThisMonth).toLocaleString('zh-TW'));
+  set('py-stat-paid-count', paidThisMonth.length + ' 筆');
+  set('py-stat-total-amt', '$' + sum(paidThisYear).toLocaleString('zh-TW'));
+  set('py-stat-total-sub', curYear + ' 年度');
   // 動態更新案件篩選下拉
   const caseFilter = document.getElementById('py-filter-case');
   if (caseFilter) {
     const curVal = caseFilter.value;
     caseFilter.innerHTML = '<option value="">── 全部個案 ──</option>' +
-      CASES.map(c => `<option value="${c.code}">${c.code} ${c.name||''}</option>`).join('');
+      CASES.filter(c => userCanViewCaseFinancials(c.code, 'payable')).map(c => `<option value="${c.code}">${c.code} ${c.name||''}</option>`).join('');
     caseFilter.value = curVal;
   }
   const badge = document.getElementById('py-badge-pending');
@@ -7721,6 +7784,17 @@ function renderReceivable() {
 }
 
 function updateReceivableStats() {
+  const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  if (!canSeeFinancialTotals()) {
+    set('rv-stat-month-amt', '—');
+    set('rv-stat-month-count', '僅管理者');
+    set('rv-stat-year-amt', '—');
+    set('rv-stat-year-count', '僅管理者');
+    set('rv-stat-pending-amt', '—');
+    set('rv-stat-pending-count', '僅管理者');
+    set('rv-stat-noinv-count', '—');
+    return;
+  }
   const thisMonth = new Date().toISOString().slice(0,7);
   const thisYear  = new Date().toISOString().slice(0,4);
   const visibleRows = RECEIVABLES.filter(r => userCanViewCaseFinancials(r.case, 'receivable'));
@@ -7729,7 +7803,6 @@ function updateReceivableStats() {
   const pending   = visibleRows.filter(r => r.status==='pending');
   const noInv     = visibleRows.filter(r => !r.invoiceNo);
   const sum = (arr, field) => arr.reduce((s,r) => s+(r[field]||0), 0);
-  const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
   set('rv-stat-month-amt',    '$'+sum(monthRows,'collectAmt').toLocaleString('zh-TW'));
   set('rv-stat-month-count',  monthRows.length+' 筆');
   set('rv-stat-year-amt',     '$'+sum(yearRows,'collectAmt').toLocaleString('zh-TW'));
@@ -8114,7 +8187,7 @@ function renderProfit() {
   const expApproved = EXPENSES.filter(e => e.status === 'approved' && yearOk(e.month) && e.caseKey !== '固定開銷' && e.postCloseTreatment !== 'company_absorb');
 
   // ── 4. 每個案件毛利計算（依案件篩選） ──
-  const caseRows = CASES.filter(c => caseOk(c.code) && !c.excludeFromProfitReports).map(c => {
+  const caseRows = CASES.filter(c => caseOk(c.code)).map(c => {
     const recordedRevenue = rvPaid.filter(r => r.case === c.code).reduce((s, r) => s + (r.collectAmt || 0), 0);
     const recordedCost = pyPaid.filter(p => p.case === c.code).reduce((s, p) => s + (p.amount || 0), 0);
     const revenue  = Number.isFinite(c.revenueOverride) ? c.revenueOverride : recordedRevenue;
@@ -8145,10 +8218,17 @@ function renderProfit() {
   const totalGross    = caseRows.reduce((s, c) => s + c.gross, 0) - uncatCost;
 
   // ── KPI ──
-  set('pf-kpi-revenue',  $(totalRevenue));
-  set('pf-kpi-payable',  $(totalCost));
-  set('pf-kpi-expense',  $(totalExpCost));
-  set('pf-kpi-gross',    (totalGross >= 0 ? '$' : '-$') + Math.abs(Math.round(totalGross)).toLocaleString('zh-TW'));
+  if (canSeeFinancialTotals()) {
+    set('pf-kpi-revenue',  $(totalRevenue));
+    set('pf-kpi-payable',  $(totalCost));
+    set('pf-kpi-expense',  $(totalExpCost));
+    set('pf-kpi-gross',    (totalGross >= 0 ? '$' : '-$') + Math.abs(Math.round(totalGross)).toLocaleString('zh-TW'));
+  } else {
+    set('pf-kpi-revenue',  '—');
+    set('pf-kpi-payable',  '—');
+    set('pf-kpi-expense',  '—');
+    set('pf-kpi-gross',    '—');
+  }
 
   // ── 成本控制表 ──
   const tbody = document.getElementById('pf-case-tbody');
@@ -10295,34 +10375,38 @@ let toastTimer;
 // ══════════════════════════════════
 function renderDashboard() {
   const canReviewPayreq = canManage('payreq');
+  const canSeeTotals = canSeeFinancialTotals();
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
   // KPI 1: 個案總數；未結案/待結算狀態在列表標籤呈現。
-  const activeCases = CASES.filter(c => !c.psSettled && c.status !== '結案');
+  const visibleCases = CASES.filter(c => userCanViewCaseFinancials(c.code, 'dashboard') || userCanViewCaseFinancials(c.code, 'profit'));
+  const activeCases = visibleCases.filter(c => !c.psSettled && c.status !== '結案');
   const kpiCases = document.getElementById('dash-kpi-cases');
-  if (kpiCases) kpiCases.innerHTML = `${CASES.length}<span>個</span>`;
+  if (kpiCases) kpiCases.innerHTML = canSeeTotals ? `${visibleCases.length}<span>個</span>` : '—';
 
   // KPI 2: 合約總金額
   const totalContract = activeCases.reduce((s,c) => s+(c.amount||0), 0);
   const kpiContract = document.getElementById('dash-kpi-contract');
-  if (kpiContract) kpiContract.innerHTML = `${Math.round(totalContract/10000).toLocaleString('zh-TW')}<span>萬</span>`;
+  if (kpiContract) kpiContract.innerHTML = canSeeTotals ? `${Math.round(totalContract/10000).toLocaleString('zh-TW')}<span>萬</span>` : '—';
 
   // KPI 3: 本月已收款
-  const monthCollected = RECEIVABLES.filter(r => r.status==='collected' && r.collectDate?.startsWith(thisMonth)).reduce((s,r) => s+(r.collectAmt||0), 0);
-  const totalPending   = RECEIVABLES.filter(r => r.status==='pending').reduce((s,r) => s+(r.invoiceAmt||0), 0);
+  const visibleReceivables = RECEIVABLES.filter(r => userCanViewCaseFinancials(r.case, 'dashboard') || userCanViewCaseFinancials(r.case, 'receivable'));
+  const monthCollected = visibleReceivables.filter(r => r.status==='collected' && r.collectDate?.startsWith(thisMonth)).reduce((s,r) => s+(r.collectAmt||0), 0);
+  const totalPending   = visibleReceivables.filter(r => r.status==='pending').reduce((s,r) => s+(r.invoiceAmt||0), 0);
   const kpiCollected = document.getElementById('dash-kpi-collected');
-  if (kpiCollected) kpiCollected.innerHTML = `${Math.round(monthCollected/10000).toLocaleString('zh-TW')}<span>萬</span>`;
+  if (kpiCollected) kpiCollected.innerHTML = canSeeTotals ? `${Math.round(monthCollected/10000).toLocaleString('zh-TW')}<span>萬</span>` : '—';
   const kpiCollectedSub = document.getElementById('dash-kpi-collected-sub');
-  if (kpiCollectedSub) kpiCollectedSub.textContent = `待入帳 ${Math.round(totalPending/10000)} 萬`;
+  if (kpiCollectedSub) kpiCollectedSub.textContent = canSeeTotals ? `待入帳 ${Math.round(totalPending/10000)} 萬` : '僅管理者';
 
   // KPI 4: 待付廠商款（pending）
-  const pendingItems = PAYABLES.filter(p => p.status==='pending');
+  const visiblePayables = PAYABLES.filter(p => !p.case || userCanViewCaseFinancials(p.case, 'dashboard') || userCanViewCaseFinancials(p.case, 'payable'));
+  const pendingItems = visiblePayables.filter(p => p.status==='pending');
   const pendingAmt   = pendingItems.reduce((s,p) => s+(p.amount||0), 0);
   const kpiPayable = document.getElementById('dash-kpi-payable');
-  if (kpiPayable) kpiPayable.innerHTML = `${Math.round(pendingAmt/10000).toLocaleString('zh-TW')}<span>萬</span>`;
+  if (kpiPayable) kpiPayable.innerHTML = canSeeTotals ? `${Math.round(pendingAmt/10000).toLocaleString('zh-TW')}<span>萬</span>` : '—';
   const kpiPayableSub = document.getElementById('dash-kpi-payable-sub');
-  if (kpiPayableSub) kpiPayableSub.textContent = `${pendingItems.length} 筆待審核`;
+  if (kpiPayableSub) kpiPayableSub.textContent = canSeeTotals ? `${pendingItems.length} 筆待審核` : '僅管理者';
 
   // 待審核請款列表
   const dashBadge = document.getElementById('dash-payreq-badge');
@@ -10358,7 +10442,7 @@ function renderDashboard() {
   // 近期應收帳款
   const rvTbody = document.getElementById('dash-rv-tbody');
   if (rvTbody) {
-    const recent = RECEIVABLES.slice().sort((a,b) => (b.collectDate||b.invoiceDate||'').localeCompare(a.collectDate||a.invoiceDate||'')).slice(0, 6);
+    const recent = visibleReceivables.slice().sort((a,b) => (b.collectDate||b.invoiceDate||'').localeCompare(a.collectDate||a.invoiceDate||'')).slice(0, 6);
     rvTbody.innerHTML = recent.map(r => `
       <tr>
         <td style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)">${r.collectDate||r.invoiceDate||'—'}</td>
