@@ -978,7 +978,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.37 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.38 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1015,9 +1015,9 @@ body.auth-pending .auth-screen{display:flex}
     <!-- KPI -->
     <div class="kpi-grid">
       <div class="kpi-card" style="--kpi-color:var(--blue);padding:10px 16px">
-        <div class="kpi-label">未結案個案</div>
+        <div class="kpi-label">個案總數</div>
         <div class="kpi-val" id="dash-kpi-cases" style="font-size:20px">—</div>
-        <div class="kpi-sub" id="dash-kpi-cases-sub">含進行中與完工待結算</div>
+        <div class="kpi-sub" id="dash-kpi-cases-sub">含進行中、完工待結算與結案</div>
       </div>
       <div class="kpi-card" style="--kpi-color:var(--accent);padding:10px 16px">
         <div class="kpi-label">合約總金額</div>
@@ -4471,7 +4471,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.37', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.38', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4531,7 +4531,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.37', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.38', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -10197,10 +10197,10 @@ function renderDashboard() {
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
-  // KPI 1: 尚未完成分潤結算的案件（包含進行中與完工待結算）
+  // KPI 1: 個案總數；未結案/待結算狀態在列表標籤呈現。
   const activeCases = CASES.filter(c => !c.psSettled && c.status !== '結案');
   const kpiCases = document.getElementById('dash-kpi-cases');
-  if (kpiCases) kpiCases.innerHTML = `${activeCases.length}<span>個</span>`;
+  if (kpiCases) kpiCases.innerHTML = `${CASES.length}<span>個</span>`;
 
   // KPI 2: 合約總金額
   const totalContract = activeCases.reduce((s,c) => s+(c.amount||0), 0);
