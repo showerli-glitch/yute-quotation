@@ -311,7 +311,7 @@ body.auth-pending .auth-screen{display:flex}
 .topbar-title{font-size:16px;font-weight:600;letter-spacing:-0.01em}
 .topbar-sub{font-size:12px;color:var(--text3);font-family:'DM Mono',monospace}
 .topbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
-.mobile-menu-btn{display:none}
+.mobile-menu-btn{display:none!important}
 .sidebar-backdrop{
   display:none;
   position:fixed;
@@ -811,7 +811,7 @@ body.auth-pending .auth-screen{display:flex}
   .sidebar{position:fixed;left:-260px;transition:left 0.3s;z-index:100;box-shadow:18px 0 50px rgba(0,0,0,.18)}
   .sidebar.open{left:0}
   .sidebar-backdrop.show{display:block}
-  .mobile-menu-btn{display:inline-flex}
+  .mobile-menu-btn{display:inline-flex!important}
   .topbar{height:auto;min-height:58px;padding:10px 12px;gap:10px;align-items:flex-start}
   .topbar-title{font-size:15px}
   .topbar-sub{font-size:10px}
@@ -978,7 +978,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.35 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.36 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5362,6 +5362,10 @@ function toggleMobileSidebar(force) {
 function closeMobileSidebar() {
   toggleMobileSidebar(false);
 }
+
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 768) closeMobileSidebar();
+});
 
 function navTo(page, el) {
   // Permission check
