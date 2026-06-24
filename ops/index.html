@@ -1009,7 +1009,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.40 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.41 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1545,6 +1545,8 @@ body.auth-pending .auth-screen{display:flex}
         <button class="btn btn-ghost btn-sm pr-emp-tab" onclick="prSelectEmp(this,'peng')">彭俞豪</button>
         <button class="btn btn-ghost btn-sm pr-emp-tab" onclick="prSelectEmp(this,'lien')">連星羽</button>
         <button class="btn btn-ghost btn-sm pr-emp-tab" onclick="prSelectEmp(this,'sun')">孫一宣</button>
+        <button class="btn btn-ghost btn-sm pr-emp-tab" onclick="prSelectEmp(this,'lu_yanchen')">盧彥辰</button>
+        <button class="btn btn-ghost btn-sm pr-emp-tab" onclick="prSelectEmp(this,'chen_hongjun')">陳虹君</button>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <select class="filter-select" id="pr-filter-month" onchange="renderPayroll()" style="min-width:140px">
@@ -4504,7 +4506,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.40', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.41', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4564,7 +4566,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.40', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.41', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -9874,6 +9876,12 @@ const PR_CONFIG = {
   sun:  {name:'孫一宣', role:'行銷行政', bank:'國泰世華 013', account:'043506014060',
          baseSalary:38000, phoneAllowance:0, fullAttendanceBonus:0, dutyAllowance:0, performanceBonus:0, mealAllowance:0,
          laborInsurance:955, healthInsurance:592},
+  lu_yanchen: {name:'盧彥辰', role:'設計助理', bank:'銀行未設定', account:'',
+         baseSalary:0, phoneAllowance:0, fullAttendanceBonus:0, dutyAllowance:0, performanceBonus:0, mealAllowance:0,
+         laborInsurance:0, healthInsurance:0},
+  chen_hongjun: {name:'陳虹君', role:'會計', bank:'銀行未設定', account:'',
+         baseSalary:0, phoneAllowance:0, fullAttendanceBonus:0, dutyAllowance:0, performanceBonus:0, mealAllowance:0,
+         laborInsurance:0, healthInsurance:0},
 };
 
 // 2025/10 ~ 2026/5 實領薪資匯入（其餘項目暫以0填入；2026/5 行政薪資待正式薪資明細複核）
@@ -9974,14 +9982,31 @@ function prSelectEmp(el, person) {
   renderPayroll();
 }
 
+function prGetConfig(person) {
+  const emp = EMPLOYEES.find(e => e.id === person) || USERS.find(u => u.id === person);
+  return PR_CONFIG[person] || {
+    name: emp?.name || '未設定員工',
+    role: emp?.role || emp?.roleCode || '員工',
+    bank: '',
+    account: '',
+    baseSalary: 0,
+    phoneAllowance: 0,
+    fullAttendanceBonus: 0,
+    dutyAllowance: 0,
+    performanceBonus: 0,
+    mealAllowance: 0,
+    laborInsurance: 0,
+    healthInsurance: 0,
+  };
+}
+
 function renderPayroll() {
   const selfOnly = permissionLevel('payroll') === 'view_self';
   if (selfOnly) prCurrentEmp = currentUser.id;
   const tabs = document.getElementById('payroll-emp-tabs');
   if (tabs) tabs.style.display = selfOnly ? 'none' : '';
   const month = document.getElementById('pr-filter-month')?.value || '2026-03';
-  const cfg   = PR_CONFIG[prCurrentEmp];
-  if (!cfg) return;
+  const cfg   = prGetConfig(prCurrentEmp);
   const rec = PAYROLL.find(r => r.person===prCurrentEmp && r.month===month);
 
   // Emp info bar
