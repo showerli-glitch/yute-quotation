@@ -978,7 +978,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.38 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.39 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1462,6 +1462,8 @@ body.auth-pending .auth-screen{display:flex}
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span style="font-size:13px;font-weight:500;color:var(--text2)">月份：</span>
         <select class="filter-select" id="oh-filter-month" onchange="renderOverhead()" style="min-width:140px">
+          <option value="2026-06">2026年6月</option>
+          <option value="2026-05">2026年5月</option>
           <option value="2026-04">2026年4月</option>
           <option value="2026-03">2026年3月</option>
           <option value="2026-02">2026年2月</option>
@@ -4471,7 +4473,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.38', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.39', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4531,7 +4533,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.38', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.39', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5397,6 +5399,8 @@ function navTo(page, el) {
   if (page === 'receivable') { refreshAllCaseDropdowns(); renderReceivable(); }
   if (page === 'payable')    { refreshAllCaseDropdowns(); renderPayable(); }
   if (page === 'expense')    { refreshAllCaseDropdowns(); renderExpense(); }
+  if (page === 'overhead')   { ohRenderMonthOptions(); renderOverhead(); }
+  if (page === 'payroll')    { prRenderMonthOptions(); renderPayroll(); }
   closeMobileSidebar();
 }
 
@@ -6927,6 +6931,7 @@ function approveReq(id) {
   renderPayable();
   renderDashboard();
   renderProfit();
+  renderProfitShare();
   saveData();
   showToast('已核准，已轉入應付帳款 ✓', 'success');
 }
@@ -6934,6 +6939,9 @@ function rejectPayreq(id) {
   if (!requireManage('payreq', '您沒有退回請款的權限')) return;
   const idx = PAYABLES.findIndex(x => x.id === id);
   if (idx === -1) return;
+  const p = PAYABLES[idx];
+  const amt = (p.amount || 0).toLocaleString('zh-TW');
+  if (!confirm(`確定退回「${p.vendor || '未填廠商'}／${p.summary || '未填摘要'}」$${amt} 這筆請款申請？\n退回後會從待審核清單移除，需重新新增才能恢復。`)) return;
   PAYABLES.splice(idx, 1);
   renderPayreq();
   renderPayable();
@@ -8894,9 +8902,43 @@ let ohVarNextId = 1;
 // ══════════════════════════════════
 // OVERHEAD MODULE
 // ══════════════════════════════════
+function ohMonthLabel(month) {
+  const [year, num] = String(month || '').split('-');
+  return `${year}年${Number(num)}月`;
+}
+
+function ohAddMonthsAround(months, anchor, monthsBack = 8) {
+  const m = String(anchor || '').match(/^(\d{4})-(\d{2})$/);
+  if (!m) return;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, 1);
+  for (let i = 0; i <= monthsBack; i++) {
+    const y = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    months.add(`${y}-${mm}`);
+    d.setMonth(d.getMonth() - 1);
+  }
+}
+
+function ohRenderMonthOptions(preferredMonth) {
+  const sel = document.getElementById('oh-filter-month');
+  if (!sel) return;
+  const current = preferredMonth || sel.value || new Date().toISOString().slice(0,7);
+  const months = new Set();
+  Object.keys(OVERHEAD || {}).forEach(month => { if (prIsValidMonth(month)) months.add(month); });
+  EXPENSES.forEach(row => { if (prIsValidMonth(row.month)) months.add(row.month); });
+  PAYROLL_MONTHS.forEach(month => { if (prIsValidMonth(month)) months.add(month); });
+  ohAddMonthsAround(months, new Date().toISOString().slice(0,7), 8);
+  ohAddMonthsAround(months, current, 3);
+  const sorted = [...months].sort((a,b) => b.localeCompare(a));
+  sel.innerHTML = sorted.map(month => `<option value="${month}">${ohMonthLabel(month)}</option>`).join('');
+  if (sorted.includes(current)) sel.value = current;
+  else if (sorted.length) sel.value = sorted[0];
+}
+
 function renderOverhead() {
   const manage = canManage('overhead');
-  const month = document.getElementById('oh-filter-month')?.value || '2026-04';
+  ohRenderMonthOptions();
+  const month = document.getElementById('oh-filter-month')?.value || new Date().toISOString().slice(0,7);
   if (!OVERHEAD[month]) OVERHEAD[month] = { fixed: OH_FIXED_ITEMS.map(()=>0), fixedNotes: OH_FIXED_ITEMS.map(()=>''), variable:[] };
   const data = OVERHEAD[month];
   // Fixed
@@ -8970,7 +9012,7 @@ function ohDeleteVar(month, id) {
 }
 function submitAddOverhead() {
   if (!requireManage('overhead')) return;
-  const month = document.getElementById('oh-filter-month')?.value || '2026-04';
+  const month = document.getElementById('oh-filter-month')?.value || new Date().toISOString().slice(0,7);
   const name  = document.getElementById('oh-add-name').value.trim();
   const amtRaw= document.getElementById('oh-add-amount').value.trim();
   if (!name)   { showToast('請填寫名稱','error'); return; }
