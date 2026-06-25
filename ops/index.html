@@ -1069,7 +1069,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.52 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.54 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4345,6 +4345,7 @@ const CODEX_SEED_PROJECT_ADJUSTMENTS = [
   id, person:'shower', personName:'李鎮宇', month, caseKey, caseName,
   date:month+'-01', item, amount, category, receipt:'無', status:'approved', note
 }));
+
 const CODEX_SEED_COMPANY_ALLOCATIONS = [
   { id:1, caseKey:'YT-VOL-2025-001', caseName:'林口三井', amount:56642, settlementDate:'2026-05-19', source:'2025-2026年分潤表' },
   { id:2, caseKey:'YT-UPY-2025-002', caseName:'上洋鶯歌', amount:1293809, settlementDate:'2026-05-19', source:'2025-2026年分潤表' },
@@ -4619,7 +4620,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.52', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.54', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4679,7 +4680,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.52', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.54', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -4837,6 +4838,77 @@ function validateBackupSnapshot(data) {
   return '';
 }
 
+const OPS_EXPENSE_PATCH_FORMAT = 'yutesign-ops-expense-patch';
+
+function validateExpensePatch(data) {
+  if (!data || typeof data !== 'object') return '檔案內容不是有效資料';
+  if (data.format !== OPS_EXPENSE_PATCH_FORMAT) return '不是 OPS 費用明細補丁檔';
+  if (!Array.isArray(data.rows)) return '補丁檔缺少費用明細 rows';
+  const bad = data.rows.find(r => !r || !r.sourceKey || !r.month || !r.person || !r.caseKey || !r.date || !r.item || !Number.isFinite(Number(r.amount)));
+  if (bad) return `補丁檔有費用明細格式不完整：${bad.sourceKey || bad.item || '未命名資料'}`;
+  return '';
+}
+
+function expensePatchShouldReplace(row, patch) {
+  if (!row) return false;
+  const replace = patch.replace || {};
+  const sourceKey = String(row.sourceKey || '');
+  if ((replace.sourceKeyPrefixes || []).some(prefix => sourceKey.startsWith(prefix))) return true;
+  if (replace.months && !replace.months.includes(row.month)) return false;
+  const item = String(row.item || '');
+  const note = String(row.note || '');
+  if ((replace.noteIncludes || []).some(text => note.includes(text))) return true;
+  if ((replace.itemIncludes || []).some(text => item.includes(text))) return true;
+  return false;
+}
+
+function applyExpensePatch(data, fileName = 'expense patch') {
+  const error = validateExpensePatch(data);
+  if (error) { showToast(error, 'error'); return false; }
+  const rows = data.rows.map(row => ({
+    ...row,
+    id: Number(row.id) || 0,
+    amount: Math.round(Number(row.amount) || 0),
+    status: row.status || 'approved',
+    receipt: row.receipt || '無',
+    companyId: COMPANY_ID,
+    sourceType: row.sourceType || 'expense_patch',
+    importedAt: row.importedAt || new Date().toISOString().slice(0,10)
+  }));
+  const summary = data.summary || {};
+  const label = data.title || '費用明細補丁';
+  const rowTotal = rows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const rowCount = rows.length;
+  const beforeSummary = auditSummary();
+  const beforeCount = EXPENSES.length;
+  for (let i = EXPENSES.length - 1; i >= 0; i--) {
+    if (expensePatchShouldReplace(EXPENSES[i], data)) EXPENSES.splice(i, 1);
+  }
+  const existingKeys = new Set(EXPENSES.map(row => String(row.sourceKey || '')).filter(Boolean));
+  const nextBaseId = Math.max(Number(expNextId) || 1, Math.max(0, ...EXPENSES.map(row => Number(row.id) || 0)) + 1);
+  let nextId = nextBaseId;
+  let added = 0;
+  rows.forEach(row => {
+    if (existingKeys.has(row.sourceKey)) return;
+    if (!row.id || EXPENSES.some(existing => Number(existing.id) === Number(row.id))) row.id = nextId++;
+    EXPENSES.push(row);
+    existingKeys.add(row.sourceKey);
+    added += 1;
+  });
+  expNextId = Math.max(nextId, Math.max(0, ...EXPENSES.map(row => Number(row.id) || 0)) + 1);
+  recordAuditLog('import', 'expensePatch', fileName, beforeSummary, auditSummary(), {
+    riskLevel:'high',
+    targetLabel:label,
+    reason:`匯入費用明細補丁：移除 ${beforeCount - (EXPENSES.length - added)} 筆舊資料，新增 ${added}/${rowCount} 筆，補丁合計 ${rowTotal.toLocaleString('zh-TW')}`,
+    diff:[{ field:'expenses', beforeValue:beforeSummary.expenses, afterValue:EXPENSES.length }]
+  });
+  saveData();
+  renderAll();
+  showToast(`${label} 已匯入：新增 ${added} 筆，合計 $${rowTotal.toLocaleString('zh-TW')} ✓`, 'success');
+  if (summary.note) console.info(summary.note);
+  return true;
+}
+
 function importBackupFile(input) {
   const file = input?.files?.[0];
   if (!file) return;
@@ -4844,6 +4916,16 @@ function importBackupFile(input) {
   reader.onload = () => {
     try {
       const data = JSON.parse(String(reader.result || ''));
+      if (data.format === OPS_EXPENSE_PATCH_FORMAT) {
+        const patchError = validateExpensePatch(data);
+        if (patchError) { showToast(patchError, 'error'); return; }
+        const label = data.title || '費用明細補丁';
+        const rowCount = data.rows.length;
+        const rowTotal = data.rows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+        if (!confirm(`確定匯入「${label}」？\n\n此動作只會替換費用明細，不會覆蓋個案、應收、應付或測試回報。\n明細：${rowCount} 筆\n合計：$${rowTotal.toLocaleString('zh-TW')}`)) return;
+        applyExpensePatch(data, file.name || 'expense patch');
+        return;
+      }
       const error = validateBackupSnapshot(data);
       if (error) { showToast(error, 'error'); return; }
       const savedAt = data.savedAt ? new Date(data.savedAt).toLocaleString('zh-TW') : '未知時間';
