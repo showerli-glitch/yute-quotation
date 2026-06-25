@@ -712,6 +712,64 @@ body.auth-pending .auth-screen{display:flex}
   border-top:1px solid var(--border);
   display:flex;justify-content:flex-end;gap:8px;
 }
+.tf-shot-drop{
+  border:1.5px dashed var(--border2);
+  border-radius:10px;
+  background:var(--surface2);
+  padding:12px;
+  min-height:92px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  color:var(--text3);
+  font-size:12px;
+  line-height:1.6;
+  cursor:pointer;
+  transition:all .15s;
+}
+.tf-shot-drop:hover,.tf-shot-drop.dragover{
+  border-color:var(--accent);
+  background:var(--accent2);
+  color:var(--text);
+}
+.tf-shot-preview{
+  display:none;
+  gap:10px;
+  align-items:center;
+  margin-top:8px;
+  padding:8px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--surface);
+}
+.tf-shot-preview.show{display:flex}
+.tf-shot-preview img{
+  width:76px;
+  height:52px;
+  object-fit:cover;
+  border-radius:6px;
+  border:1px solid var(--border);
+  background:var(--surface2);
+}
+.tf-shot-thumb{
+  width:64px;
+  height:42px;
+  object-fit:cover;
+  border-radius:6px;
+  border:1px solid var(--border);
+  background:var(--surface2);
+  cursor:pointer;
+}
+.tf-shot-thumb:hover{border-color:var(--accent)}
+.tf-shot-modal-img{
+  display:block;
+  max-width:100%;
+  max-height:70vh;
+  margin:0 auto;
+  border-radius:10px;
+  border:1px solid var(--border);
+}
 
 /* Divider */
 .divider{height:1px;background:var(--border);margin:20px 0}
@@ -868,6 +926,8 @@ body.auth-pending .auth-screen{display:flex}
   .att-gps-pill{margin-top:10px}
   .att-gps-meta{grid-template-columns:1fr}
   #page-attendance .form-input,#page-attendance .form-select{min-width:0;font-size:16px}
+  #page-feedback > div{grid-template-columns:1fr!important;height:auto!important}
+  #page-feedback .card:first-child{max-height:none}
   .profit-toolbar{align-items:flex-start;overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;margin-bottom:14px}
   .profit-kpi-grid{display:flex;overflow-x:auto;gap:12px;margin-bottom:18px;padding-bottom:4px}
   .profit-kpi-grid .kpi-card{min-width:150px;flex:0 0 150px}
@@ -1009,7 +1069,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.43 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.44 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1856,8 +1916,23 @@ body.auth-pending .auth-screen{display:flex}
           <textarea class="form-textarea" id="tf-actual" rows="3" placeholder="實際看到的問題或錯誤"></textarea>
         </div>
         <div class="form-field">
+          <label class="form-label">問題截圖</label>
+          <div class="tf-shot-drop" id="tf-shot-drop" tabindex="0" onclick="document.getElementById('tf-shot-file').click()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('tf-shot-file').click()}">
+            貼上截圖、拖曳圖片，或點這裡選擇圖片
+          </div>
+          <input type="file" id="tf-shot-file" accept="image/*" style="display:none" onchange="handleFeedbackScreenshotFile(this.files && this.files[0])">
+          <div class="tf-shot-preview" id="tf-shot-preview">
+            <img id="tf-shot-img" alt="問題截圖預覽">
+            <div style="flex:1;min-width:0;text-align:left">
+              <div id="tf-shot-name" style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+              <div id="tf-shot-meta" style="font-size:10px;color:var(--text3);margin-top:3px"></div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="clearFeedbackScreenshot()" style="font-size:11px">清除</button>
+          </div>
+        </div>
+        <div class="form-field">
           <label class="form-label">備註</label>
-          <input class="form-input" id="tf-note" placeholder="截圖檔名、補充說明等">
+          <input class="form-input" id="tf-note" placeholder="補充說明等">
         </div>
         <button class="btn btn-primary" style="width:100%" onclick="submitFeedback()">送出回饋</button>
       </div>
@@ -3274,6 +3349,18 @@ body.auth-pending .auth-screen{display:flex}
     </div>
   </div>
 </div>
+<div class="modal-overlay" id="modal-feedback-shot" onclick="if(event.target===this)closeModal('modal-feedback-shot')">
+  <div class="modal" style="max-width:920px;width:92vw">
+    <div class="modal-hd">
+      <div class="modal-title" id="tf-shot-modal-title">問題截圖</div>
+      <button class="modal-close" onclick="closeModal('modal-feedback-shot')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px">
+      <img class="tf-shot-modal-img" id="tf-shot-modal-img" alt="問題截圖">
+      <div id="tf-shot-modal-meta" style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center"></div>
+    </div>
+  </div>
+</div>
 
 <div class="role-panel" id="role-panel" onclick="if(event.target===this)closeRolePanel()">
   <div class="role-box">
@@ -3697,6 +3784,7 @@ let dcSelCases = null; // null = 全部案件；空 Set = 零個案件
 let caseCounters = {};
 let TEST_FEEDBACK = [];
 let tfNextId = 1;
+let tfScreenshotDraft = null;
 let ATTENDANCE_RECORDS = [];
 let ATTENDANCE_LEAVES = [];
 let attNextId = 1;
@@ -4516,7 +4604,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.43', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.44', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4576,7 +4664,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.43', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.44', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -4981,6 +5069,7 @@ function renderAll() {
   renderPayreq();
   renderDashboard();
   renderFeedback();
+  initFeedbackScreenshotInput();
   attFillMonthOptions();
   renderAttendance();
   renderEmployees();
@@ -6157,6 +6246,158 @@ function renderSystemNotes() {
   `).join('');
 }
 
+const TF_SCREENSHOT_MAX_EDGE = 1600;
+const TF_SCREENSHOT_MAX_BYTES = 1500 * 1024;
+
+function tfFormatBytes(bytes) {
+  const n = Number(bytes) || 0;
+  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
+}
+
+function tfDataUrlBytes(dataUrl) {
+  const base64 = String(dataUrl || '').split(',')[1] || '';
+  return Math.round(base64.length * 3 / 4);
+}
+
+function initFeedbackScreenshotInput() {
+  const drop = document.getElementById('tf-shot-drop');
+  if (!drop || drop.dataset.ready === '1') return;
+  drop.dataset.ready = '1';
+  ['dragenter','dragover'].forEach(type => {
+    drop.addEventListener(type, event => {
+      event.preventDefault();
+      drop.classList.add('dragover');
+    });
+  });
+  ['dragleave','drop'].forEach(type => {
+    drop.addEventListener(type, event => {
+      event.preventDefault();
+      drop.classList.remove('dragover');
+    });
+  });
+  drop.addEventListener('drop', event => {
+    const file = [...(event.dataTransfer?.files || [])].find(f => f.type.startsWith('image/'));
+    if (file) handleFeedbackScreenshotFile(file);
+  });
+  document.addEventListener('paste', event => {
+    if (currentPage !== 'feedback') return;
+    const items = [...(event.clipboardData?.items || [])];
+    const item = items.find(i => i.type.startsWith('image/'));
+    if (!item) return;
+    const file = item.getAsFile();
+    if (file) {
+      event.preventDefault();
+      handleFeedbackScreenshotFile(file);
+    }
+  });
+}
+
+function compressFeedbackScreenshot(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type?.startsWith('image/')) {
+      reject(new Error('not_image'));
+      return;
+    }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const ratio = Math.min(1, TF_SCREENSHOT_MAX_EDGE / Math.max(img.width || 1, img.height || 1));
+      const width = Math.max(1, Math.round((img.width || 1) * ratio));
+      const height = Math.max(1, Math.round((img.height || 1) * ratio));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      let quality = 0.82;
+      let dataUrl = canvas.toDataURL('image/jpeg', quality);
+      while (tfDataUrlBytes(dataUrl) > TF_SCREENSHOT_MAX_BYTES && quality > 0.45) {
+        quality -= 0.08;
+        dataUrl = canvas.toDataURL('image/jpeg', quality);
+      }
+      resolve({
+        dataUrl,
+        name: file.name || `screenshot-${new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')}.jpg`,
+        type: 'image/jpeg',
+        size: tfDataUrlBytes(dataUrl),
+        width,
+        height,
+        capturedAt: new Date().toISOString()
+      });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('image_load_failed'));
+    };
+    img.src = url;
+  });
+}
+
+async function handleFeedbackScreenshotFile(file) {
+  if (!file) return;
+  try {
+    showToast('正在壓縮截圖…', 'warning');
+    const shot = await compressFeedbackScreenshot(file);
+    if (shot.size > TF_SCREENSHOT_MAX_BYTES) {
+      showToast('截圖仍太大，請裁切後再貼一次', 'error');
+      return;
+    }
+    tfScreenshotDraft = shot;
+    renderFeedbackScreenshotDraft();
+    showToast('截圖已加入回饋', 'success');
+  } catch(e) {
+    console.warn('handleFeedbackScreenshotFile failed:', e);
+    showToast('截圖讀取失敗，請改用 PNG/JPG 圖片', 'error');
+  }
+}
+
+function renderFeedbackScreenshotDraft() {
+  const preview = document.getElementById('tf-shot-preview');
+  const img = document.getElementById('tf-shot-img');
+  const name = document.getElementById('tf-shot-name');
+  const meta = document.getElementById('tf-shot-meta');
+  if (!preview || !img || !name || !meta) return;
+  if (!tfScreenshotDraft) {
+    preview.classList.remove('show');
+    img.removeAttribute('src');
+    name.textContent = '';
+    meta.textContent = '';
+    return;
+  }
+  preview.classList.add('show');
+  img.src = tfScreenshotDraft.dataUrl;
+  name.textContent = tfScreenshotDraft.name || '問題截圖';
+  meta.textContent = `${tfScreenshotDraft.width}×${tfScreenshotDraft.height}｜${tfFormatBytes(tfScreenshotDraft.size)}`;
+}
+
+function clearFeedbackScreenshot() {
+  tfScreenshotDraft = null;
+  const input = document.getElementById('tf-shot-file');
+  if (input) input.value = '';
+  renderFeedbackScreenshotDraft();
+}
+
+function openFeedbackScreenshot(id) {
+  const row = TEST_FEEDBACK.find(r => r.id === id);
+  if (!row?.screenshotDataUrl) return;
+  const img = document.getElementById('tf-shot-modal-img');
+  const title = document.getElementById('tf-shot-modal-title');
+  const meta = document.getElementById('tf-shot-modal-meta');
+  if (img) img.src = row.screenshotDataUrl;
+  if (title) title.textContent = `${row.page || '問題'} · 截圖`;
+  if (meta) {
+    const size = row.screenshotSize ? tfFormatBytes(row.screenshotSize) : '';
+    const dims = row.screenshotWidth && row.screenshotHeight ? `${row.screenshotWidth}×${row.screenshotHeight}` : '';
+    meta.textContent = [row.screenshotName || '', dims, size].filter(Boolean).join('｜');
+  }
+  openModal('modal-feedback-shot');
+}
+
 function submitFeedback() {
   if (!canAccess('feedback')) { showToast('您沒有新增測試回饋的權限', 'error'); return; }
   const page = document.getElementById('tf-page')?.value || '其他';
@@ -6174,6 +6415,13 @@ function submitFeedback() {
     reporterId: currentUser.id,
     reporterName: currentUser.name,
     page, type, severity, steps, expected, actual, note,
+    screenshotDataUrl: tfScreenshotDraft?.dataUrl || '',
+    screenshotName: tfScreenshotDraft?.name || '',
+    screenshotType: tfScreenshotDraft?.type || '',
+    screenshotSize: tfScreenshotDraft?.size || 0,
+    screenshotWidth: tfScreenshotDraft?.width || 0,
+    screenshotHeight: tfScreenshotDraft?.height || 0,
+    screenshotCapturedAt: tfScreenshotDraft?.capturedAt || '',
     status:'待處理',
     updatedAt: new Date().toISOString(),
     updatedBy: currentUser.name
@@ -6182,6 +6430,7 @@ function submitFeedback() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  clearFeedbackScreenshot();
   renderFeedback();
   saveData();
   showToast('測試回饋已記錄 ✓', 'success');
@@ -6229,6 +6478,11 @@ function renderFeedback() {
   const canAdmin = ['OWNER','FINANCE'].includes(currentUser.roleCode);
   tbody.innerHTML = rows.map(r => {
     const created = formatDateTimeTW(r.createdAt);
+    const screenshot = r.screenshotDataUrl
+      ? `<button type="button" onclick="openFeedbackScreenshot(${r.id})" style="margin-top:8px;border:0;background:transparent;padding:0;display:block" title="查看問題截圖">
+          <img class="tf-shot-thumb" src="${r.screenshotDataUrl}" alt="問題截圖">
+        </button>`
+      : '';
     const statusSelect = canAdmin
       ? `<select class="filter-select" onchange="setFeedbackStatus(${r.id}, this.value)" style="min-width:96px;height:28px;font-size:11px">
           ${['待處理','處理中','已修正','先擱置'].map(s => `<option value="${s}" ${r.status===s?'selected':''}>${s}</option>`).join('')}
@@ -6246,6 +6500,7 @@ function renderFeedback() {
           <div style="margin-top:5px;color:var(--text3);line-height:1.5">步驟：${tfEsc(r.steps)}</div>
           ${r.expected ? `<div style="margin-top:3px;color:var(--text3);line-height:1.5">預期：${tfEsc(r.expected)}</div>` : ''}
           ${r.note ? `<div style="margin-top:3px;color:var(--text3);line-height:1.5">備註：${tfEsc(r.note)}</div>` : ''}
+          ${screenshot}
         </td>
         <td style="padding:10px 12px;white-space:nowrap">${statusSelect}</td>
         <td style="padding:10px 12px;text-align:center;white-space:nowrap">${canAdmin ? `<button class="btn btn-ghost btn-sm" onclick="deleteFeedback(${r.id})" style="font-size:11px;color:var(--error)">刪除</button>` : '—'}</td>
