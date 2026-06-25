@@ -1070,7 +1070,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.57 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.58 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4648,7 +4648,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.57', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.58', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4708,7 +4708,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.57', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.58', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5501,7 +5501,7 @@ async function opsCloudStart() {
   }
 }
 
-function opsUnlockForUser(user, email = '') {
+function opsUnlockForUser(user, email = '', options = {}) {
   if (!user) return false;
   opsAuthenticatedEmail = String(email || '').toLowerCase();
   opsAuthenticatedUserId = user.id;
@@ -5521,7 +5521,7 @@ function opsUnlockForUser(user, email = '') {
   }
   applyRole(user);
   initRoleOptions();
-  renderAfterDataSettles('auth-unlock');
+  if (options.render !== false) renderAfterDataSettles('auth-unlock');
   return true;
 }
 
@@ -5535,12 +5535,13 @@ function opsInitGoogleAuth() {
   if (sessionUser) {
     try {
       opsInitFirebase();
-      firebase.auth().onAuthStateChanged(user => {
+      firebase.auth().onAuthStateChanged(async user => {
         const email = String(user?.email || '').toLowerCase();
         if (email === String(session.email || '').toLowerCase()) {
           opsAuthSetError('');
-          opsUnlockForUser(sessionUser, session.email);
-          opsCloudStart();
+          opsUnlockForUser(sessionUser, session.email, { render:false });
+          await opsCloudStart();
+          renderAfterDataSettles('session-cloud-ready');
         } else {
           localStorage.removeItem(OPS_AUTH_SESSION_KEY);
           opsAuthSetError('請重新登入以啟用雲端同步。');
@@ -5587,8 +5588,9 @@ function opsInitGoogleAuth() {
         await opsFirebaseSignIn(resp.access_token, email);
         localStorage.setItem(OPS_AUTH_SESSION_KEY, JSON.stringify({ email, loginTime: Date.now() }));
         opsAuthSetError('');
-        opsUnlockForUser(user, email);
+        opsUnlockForUser(user, email, { render:false });
         await opsCloudStart();
+        renderAfterDataSettles('login-cloud-ready');
         showToast(`已登入：${user.name}`, 'success');
       } catch(e) {
         console.warn('OPS auth failed:', e);
@@ -5621,24 +5623,13 @@ function opsLogout() {
 document.addEventListener('DOMContentLoaded', () => {
   loadData(); // 從 localStorage 還原資料
   ensureCodexSeedData();
-  saveData();
   updateDataStatus();
   applyTheme(localStorage.getItem(THEME_KEY) || 'light');
   applyRole(USERS[0]);
-  renderCases();
-  renderPayable();
-  renderReceivable();
-  refreshAllCaseDropdowns();
-  renderExpense();
-  renderOverhead();
-  prRenderMonthOptions();
-  renderPayroll();
-  renderProfit();
-  renderPayreq();
-  renderDashboard();
-  renderFeedback();
-  attFillMonthOptions();
-  renderAttendance();
+  if (!OPS_AUTH_ENFORCED) {
+    saveData();
+    renderAll();
+  }
   initRoleOptions();
   setTodayMin();
   opsInitGoogleAuth();
