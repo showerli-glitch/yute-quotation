@@ -1069,7 +1069,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.46 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.47 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4604,7 +4604,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.46', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.47', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4664,7 +4664,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.46', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.47', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5667,7 +5667,10 @@ function initRoleOptions() {
   const attendanceUsers = EMPLOYEES
     .filter(e => e.status !== '已離職' && e.attendanceRequired !== false && !USERS.some(u => u.id === e.id))
     .map(opsTestUserFromAttendanceEmployee);
-  const testUsers = [...USERS, ...attendanceUsers];
+  const testUsers = [...USERS, ...attendanceUsers].filter(u => {
+    const emp = EMPLOYEES.find(e => e.id === u.id);
+    return !emp || employeeAccessRole(emp) !== 'none' || u.id === currentUser?.id;
+  });
   const visibleUsers = OPS_AUTH_ENFORCED && opsAuthenticatedUserId && opsAuthenticatedUserId !== 'shower'
     ? [currentUser]
     : testUsers;
@@ -5692,9 +5695,15 @@ function switchRole(id) {
     || (EMPLOYEES.find(e => e.id === id && e.status !== '已離職' && e.attendanceRequired !== false) ? opsTestUserFromAttendanceEmployee(EMPLOYEES.find(e => e.id === id)) : null)
     || (currentUser?.id === id ? currentUser : null);
   if (!user) return;
+  const employee = EMPLOYEES.find(e => e.id === id);
+  if (employee && employeeAccessRole(employee) === 'none' && id !== currentUser?.id) {
+    initRoleOptions();
+    showToast(`${employee.name} 尚未開通 OPS 權限`, 'warning');
+    return;
+  }
+  closeRolePanel();
   applyRole(user);
   initRoleOptions();
-  closeRolePanel();
   // If current page not permitted, go to first allowed
   if (!canAccess(currentPage)) {
     const firstPage = user.nav[0] || 'dashboard';
