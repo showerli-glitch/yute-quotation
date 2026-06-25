@@ -1067,10 +1067,10 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-paste-expense-patch" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="openExpensePatchPaste()">Codex 費用匯入</button>
       <button class="btn btn-ghost btn-sm" id="btn-cloud-check" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="opsCloudCheckNow()">檢查雲端快照</button>
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="opsCloudPushLocalNow()">上傳本機快照</button>
-      <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
+      <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.56 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.57 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4648,7 +4648,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.56', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.57', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4708,7 +4708,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.56', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.57', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -4861,6 +4861,7 @@ function openExpensePatchPaste() {
   const input = document.getElementById('expense-patch-json');
   if (input) input.value = '';
   openModal('modal-expense-patch');
+  setTimeout(() => document.getElementById('expense-patch-json')?.focus(), 80);
 }
 
 function submitExpensePatchPaste() {
