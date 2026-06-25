@@ -1069,7 +1069,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.50 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.51 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3189,6 +3189,7 @@ body.auth-pending .auth-screen{display:flex}
         <span style="font-size:11px;color:var(--text3);margin-left:auto">可從試算表整段複製貼到任一格，自動分列填入 ／ Tab 跳格 ／ 付款項目＋金額為必填 ／ 空白列自動略過</span>
       </div>
       <div class="expense-mobile-hint">提示：表格可左右滑動，先填歸屬個案、日期、付款項目與金額。</div>
+      <datalist id="dl-exp-batch-cases"></datalist>
       <div class="expense-batch-scroll">
         <table class="expense-batch-table">
           <colgroup>
@@ -4618,7 +4619,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.50', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.51', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4678,7 +4679,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.50', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.51', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5094,6 +5095,14 @@ function renderAll() {
   renderVendors();
 }
 
+function renderAfterDataSettles(reason = '') {
+  requestAnimationFrame(() => {
+    renderAll();
+    setTimeout(renderCurrentPage, 80);
+    setTimeout(renderCurrentPage, 300);
+  });
+}
+
 function opsInitFirebase() {
   if (!OPS_AUTH_ENFORCED) return false;
   if (!window.firebase) throw new Error('Firebase SDK not loaded');
@@ -5248,7 +5257,7 @@ function opsApplyCloudPayload(payload, options = {}) {
     opsCloudLastSavedAt = meta.savedAt || data.savedAt || '';
     opsCloudLastSavedBy = meta.savedBy || '';
     opsCloudLastSummary = `${formatDateTimeTW(opsCloudLastSavedAt)}｜${opsSnapshotSummary(data)}`;
-    renderAll();
+    renderAfterDataSettles('cloud-apply');
     updateDataStatus(data);
     if (!options.silent) {
       const by = opsCloudLastSavedBy ? `（${opsCloudLastSavedBy}）` : '';
@@ -5374,7 +5383,7 @@ function opsUnlockForUser(user, email = '') {
   }
   applyRole(user);
   initRoleOptions();
-  renderAll();
+  renderAfterDataSettles('auth-unlock');
   return true;
 }
 
@@ -9214,6 +9223,36 @@ const EXP_CASES = [
 const EXP_CATS     = ['交通費','加油','停車','餐費','交際費','工程','辦公用品','電話網路/訂閱費','住宿','郵資','水電瓦斯','雜支','其他'];
 const EXP_RECEIPTS = ['發票','收據','車票','無'];
 const _CS = 'background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:4px 6px;font-size:12px;color:var(--text);width:100%';
+function parseMoneyInput(value) {
+  const cleaned = String(value || '').replace(/,/g, '').replace(/[^\d.\-]/g, '');
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? Math.round(n) : 0;
+}
+
+function expBatchCaseOptions() {
+  return [
+    {key:'固定開銷', name:'固定開銷'},
+    ...CASES.map(c => ({key:c.code, name:c.name + (c.status === '結案' ? '（已結案）' : '')})),
+  ];
+}
+
+function expBatchCaseLabel(c) {
+  return c.key === c.name ? c.key : `${c.name}｜${c.key}`;
+}
+
+function expResolveBatchCase(input) {
+  const raw = String(input?.value || '').trim();
+  const options = expBatchCaseOptions();
+  return options.find(c => c.key === raw || c.name === raw || expBatchCaseLabel(c) === raw)
+    || options.find(c => raw && (expBatchCaseLabel(c).includes(raw) || raw.includes(c.key) || raw.includes(c.name.replace('（已結案）',''))))
+    || null;
+}
+
+function expRefreshBatchCaseDatalist() {
+  const dl = document.getElementById('dl-exp-batch-cases');
+  if (!dl) return;
+  dl.innerHTML = expBatchCaseOptions().map(c => `<option value="${expBatchCaseLabel(c)}"></option>`).join('');
+}
 
 function expPostCloseShares(caseCode, amount) {
   const c = CASES.find(x => x.code === caseCode);
@@ -9244,7 +9283,10 @@ function expBatchCaseChanged(select) {
   const tr = select.closest('tr');
   const treatment = tr?.querySelector('.exp-post-close-treatment');
   if (!treatment) return;
-  const closed = isClosedCase(select.value);
+  const resolved = expResolveBatchCase(select);
+  if (resolved) select.dataset.caseKey = resolved.key;
+  else select.dataset.caseKey = '';
+  const closed = resolved ? isClosedCase(resolved.key) : false;
   treatment.disabled = !closed;
   treatment.value = closed ? (treatment.value || 'post_close_cost') : '';
   treatment.style.opacity = closed ? '1' : '.55';
@@ -9257,10 +9299,7 @@ function expBatchAddRow(focusNew) {
   const idx   = tbody.querySelectorAll('tr').length + 1;
   const month = document.getElementById('exp-batch-month')?.value || '';
   const dateDef = month ? month+'-01' : '';
-  const caseOpts = [
-    {key:'固定開銷', name:'固定開銷'},
-    ...CASES.map(c => ({key:c.code, name:c.name + (c.status === '結案' ? '（已結案）' : '')})),
-  ].map(c=>`<option value="${c.key}">${c.name}</option>`).join('');
+  expRefreshBatchCaseDatalist();
   const treatmentOpts = `<option value="">一般費用</option><option value="post_close_cost">結案後補成本</option><option value="company_absorb">公司吸收</option>`;
   const catOpts  = EXP_CATS.map(c=>`<option>${c}</option>`).join('');
   const recOpts  = EXP_RECEIPTS.map(c=>`<option>${c}</option>`).join('');
@@ -9269,7 +9308,7 @@ function expBatchAddRow(focusNew) {
   tr.style.borderBottom = '1px solid var(--border)';
   tr.innerHTML = `
     <td style="padding:4px 5px;text-align:center;font-size:11px;color:var(--text3)">${idx}</td>
-    <td style="padding:4px 4px"><select style="${_CS}" onchange="expBatchCaseChanged(this)">${caseOpts}</select></td>
+    <td style="padding:4px 4px"><input type="text" list="dl-exp-batch-cases" data-case-key="固定開銷" value="固定開銷" style="${_CS}" placeholder="輸入案名或代碼" oninput="expBatchCaseChanged(this)" onchange="expBatchCaseChanged(this)"></td>
     <td style="padding:4px 4px"><select class="exp-post-close-treatment" style="${_CS};opacity:.55" disabled>${treatmentOpts}</select></td>
     <td style="padding:4px 4px"><input type="date" style="${_CS}" value="${dateDef}"></td>
     <td style="padding:4px 4px"><input type="text" style="${_CS}" placeholder="付款項目（必填）"></td>
@@ -9323,6 +9362,15 @@ function expBatchCopyLastMonth() {
 // ── 從試算表貼上整段資料，依欄位自動分列填入 ──
 function expBatchSetSelect(sel, val) {
   if (!val) return;
+  if (sel.matches?.('input[list="dl-exp-batch-cases"]')) {
+    const opt = expBatchCaseOptions().find(o =>
+      o.key === val || o.name === val || expBatchCaseLabel(o) === val ||
+      expBatchCaseLabel(o).includes(val) || val.includes(o.key) || val.includes(o.name.replace('（已結案）',''))
+    );
+    sel.value = opt ? expBatchCaseLabel(opt) : val;
+    expBatchCaseChanged(sel);
+    return;
+  }
   const opts = [...sel.options];
   let opt = opts.find(o => o.text.trim() === val || o.value === val);
   if (!opt) opt = opts.find(o => o.text.includes(val) || val.includes(o.text));
@@ -9381,6 +9429,7 @@ function expBatchInit() {
   _batchN = 0;
   const tbody = document.getElementById('exp-batch-tbody');
   if (tbody) tbody.innerHTML = '';
+  expRefreshBatchCaseDatalist();
   const mEl = document.getElementById('exp-batch-month');
   if (mEl) mEl.value = new Date().toISOString().slice(0,7);
   const personEl = document.getElementById('exp-batch-person');
@@ -9403,12 +9452,14 @@ function submitBatchExpense() {
   document.querySelectorAll('#exp-batch-tbody tr').forEach((tr,i)=>{
     const ins = tr.querySelectorAll('input,select');
     const caseEl=ins[0], treatmentEl=ins[1], dateEl=ins[2], itemEl=ins[3], amtEl=ins[4], catEl=ins[5], recEl=ins[6], noteEl=ins[7];
+    const caseInfo = expResolveBatchCase(caseEl);
     const item = itemEl.value.trim();
     const amtV = amtEl.value.trim();
     if (!item && !amtV) return;
+    if (!caseInfo) { if(!errMsg) errMsg=`第 ${i+1} 列：請選擇有效的歸屬個案`; return; }
     if (!item)  { if(!errMsg) errMsg=`第 ${i+1} 列：請填付款項目`; return; }
     if (!amtV)  { if(!errMsg) errMsg=`第 ${i+1} 列：請填金額`; return; }
-    const isClosed = caseEl.value !== '固定開銷' && isClosedCase(caseEl.value);
+    const isClosed = caseInfo.key !== '固定開銷' && isClosedCase(caseInfo.key);
     const postCloseTreatment = isClosed ? (treatmentEl.value || 'post_close_cost') : '';
     if (isClosed && !['post_close_cost','company_absorb'].includes(postCloseTreatment)) {
       if (!errMsg) errMsg=`第 ${i+1} 列：請選擇結案後處理方式`;
@@ -9416,9 +9467,9 @@ function submitBatchExpense() {
     }
     pendingRows.push({
       person, personName: user.name, month,
-      caseKey: caseEl.value, caseName: caseEl.selectedOptions[0].text,
+      caseKey: caseInfo.key, caseName: caseInfo.name,
       date: dateEl.value || month+'-01',
-      item, amount: parseInt(amtV.replace(/[^0-9]/g,''))||0,
+      item, amount: parseMoneyInput(amtV),
       category: catEl.value, receipt: recEl.value, status,
       postCloseTreatment,
       note: noteEl.value.trim(),
@@ -10077,26 +10128,27 @@ function renderProfitShare() {
     const noteShort = compactPayoutNote(r);
     return `
     <tr style="border-bottom:1px solid var(--border)">
-      <td style="padding:7px 12px;font-size:12px;width:68px;white-space:normal">${r.doneDate||r.transferDate||r.wantDate||'—'}</td>
-      ${canSeeAll ? `<td style="padding:7px 12px;font-size:12px;width:52px">${psPersonName(r.profitPerson)||r.vendor||'—'}</td>` : ''}
-      <td style="padding:7px 12px;font-size:12px;width:58px;white-space:normal">${PROFIT_PAYMENT_TYPES[r.paymentType]||'分潤款'}</td>
+      <td style="padding:8px 12px;font-size:12px;white-space:normal;line-height:1.35">${r.doneDate||r.transferDate||r.wantDate||'—'}</td>
+      ${canSeeAll ? `<td style="padding:8px 12px;font-size:12px;white-space:normal;line-height:1.35">${psPersonName(r.profitPerson)||r.vendor||'—'}</td>` : ''}
+      <td style="padding:8px 12px;font-size:12px;white-space:normal;line-height:1.35">${PROFIT_PAYMENT_TYPES[r.paymentType]||'分潤款'}</td>
       <td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${fmt(r.amount||0)}</td>
-      <td style="padding:7px 12px;font-size:11px;color:var(--text2);max-width:190px;white-space:normal;line-height:1.55">${(r.profitCaseCodes||[]).map(code => CASES.find(c=>c.code===code)?.name || code).join('、') || '未指定'}</td>
-      <td style="padding:7px 12px;font-size:11px;color:var(--text3);width:34%;max-width:360px;white-space:normal;line-height:1.55;overflow-wrap:anywhere" title="${esc(noteFull)}">
-        <div style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(noteShort)}</div>
+      <td style="padding:8px 12px;font-size:11px;color:var(--text2);white-space:normal;line-height:1.55">${(r.profitCaseCodes||[]).map(code => CASES.find(c=>c.code===code)?.name || code).join('、') || '未指定'}</td>
+      <td style="padding:8px 12px;font-size:11px;color:var(--text3);white-space:normal;line-height:1.6;overflow-wrap:anywhere" title="${esc(noteFull)}">
+        <div style="display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden">${esc(noteShort)}</div>
       </td>
     </tr>`;
   }).join('');
   const payoutTable = `
     <div style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
       <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:600">分潤領款紀錄（來自已付款應付帳款）</div>
-      <table style="width:100%;table-layout:fixed;border-collapse:collapse">
+      <div style="overflow-x:auto">
+      <table style="width:100%;min-width:${canSeeAll ? 1020 : 930}px;table-layout:fixed;border-collapse:collapse">
         <colgroup>
-          <col style="width:68px">
-          ${canSeeAll ? '<col style="width:52px">' : ''}
-          <col style="width:58px">
-          <col style="width:92px">
-          <col style="width:220px">
+          <col style="width:78px">
+          ${canSeeAll ? '<col style="width:78px">' : ''}
+          <col style="width:82px">
+          <col style="width:112px">
+          <col style="width:210px">
           <col>
         </colgroup>
         <thead><tr style="border-bottom:1px solid var(--border2)">
@@ -10109,6 +10161,7 @@ function renderProfitShare() {
         </tr></thead>
         <tbody>${payoutRows || `<tr><td colspan="${canSeeAll?6:5}" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">尚無分潤領款紀錄</td></tr>`}</tbody>
       </table>
+      </div>
     </div>`;
 
   if (!canSeeAll) {
