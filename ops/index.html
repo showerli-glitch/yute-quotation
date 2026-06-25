@@ -1069,7 +1069,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.47 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.48 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3428,6 +3428,12 @@ function normalizeCompanyData() {
     if (!month.companyId) month.companyId = COMPANY_ID;
     tagCompany(month.variable);
   });
+  const may2025 = OVERHEAD?.['2025-05'];
+  const may2025IsEmpty = may2025 &&
+    (may2025.fixed || []).every(v => !Number(v)) &&
+    (may2025.fixedNotes || []).every(v => !String(v || '').trim()) &&
+    !(may2025.variable || []).length;
+  if (may2025IsEmpty) delete OVERHEAD['2025-05'];
 }
 
 const USERS = [
@@ -4573,6 +4579,9 @@ function ensureCodexSeedData() {
     extraVariable.forEach(v => data.variable.push({ id: ohVarNextId++, ...v }));
     data.ohDetailImported = true;
   });
+  if (!OVERHEAD['2026-05']) {
+    OVERHEAD['2026-05'] = { fixed: OH_FIXED_ITEMS.map(()=>0), fixedNotes: OH_FIXED_ITEMS.map(()=>''), variable:[], note:'Codex 2026-05 薪資歸屬月份' };
+  }
   PAYABLES.filter(p => p.status === 'paid').forEach(pySyncRentToOverhead);
   pyNextId = Math.max(pyNextId || 1, maxId(PAYABLES) + 1);
   rvNextId = Math.max(rvNextId || 1, maxId(RECEIVABLES) + 1);
@@ -4604,7 +4613,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.47', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.48', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4664,7 +4673,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.47', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.48', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
