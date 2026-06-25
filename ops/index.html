@@ -1069,7 +1069,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.44 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.45 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1998,11 +1998,6 @@ body.auth-pending .auth-screen{display:flex}
           </select>
           <select class="filter-select" id="sn-filter-status" onchange="renderSystemNotes()" style="min-width:150px">
             <option value="">全部狀態</option>
-            <option value="已寫入系統">已寫入系統</option>
-            <option value="規則已確認">規則已確認</option>
-            <option value="待補資料">待補資料</option>
-            <option value="待開發">待開發</option>
-            <option value="正式上線前">正式上線前</option>
           </select>
           <button class="btn btn-ghost btn-sm" onclick="snResetFilters()">清除篩選</button>
         </div>
@@ -4604,7 +4599,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.44', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.45', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4664,7 +4659,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.44', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.45', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6048,11 +6043,11 @@ const SYSTEM_NOTES = [
   {
     id:'family-project-rules',
     category:'特殊案件',
-    status:'規則已確認',
+    status:'已寫入系統',
     title:'親友工程／成本轉付要有正式欄位',
     source:'Codex/OPS工作筆記_2026-06-15.md',
-    body:'親友工程不可只寫備註，個案主檔需保存案件類型、計價模式、開票方式與是否納入分潤。成本轉付案不列一般營業收入、個案毛利或員工分潤。',
-    items:['虎林街住家：向哥哥收 1,450,000，工程成本以應付帳款 1,414,754.75 為準。','玉成街親友工程：已建立親友成本轉付案與同額應收。','哥哥直付 15,800 不進公司帳；洗衣機鐵架 2,100 由公司善意負擔。']
+    body:'親友工程不可只寫備註，個案主檔會保存案件類型、計價模式、開票方式與是否納入分潤。成本轉付案不列一般營業收入、個案毛利或員工分潤。',
+    items:['虎林街住家已於 2026-06-25 匯入：向哥哥收 1,450,000，工程成本以應付帳款 1,414,754.75 為準。','玉成街親友工程：已建立親友成本轉付案與同額應收。','哥哥直付 15,800 不進公司帳；洗衣機鐵架 2,100 由公司善意負擔。']
   },
   {
     id:'maintenance-parent-case',
@@ -6066,11 +6061,11 @@ const SYSTEM_NOTES = [
   {
     id:'subcontractor-invoice-agent',
     category:'代開發票',
-    status:'規則已確認',
+    status:'資料已匯入',
     title:'小張代開發票與宇德工程成本要分開',
     source:'Codex/應收應付待匯入清單_2026-06-15.md',
-    body:'小張直接向宇德客戶報價施工時，宇德向客戶開發票收款，再以發票金額約除以 1.1 支付小張。這類交易需標示為代開發票／協力商承作，不能只靠案場名稱判斷。',
-    items:['同案場可能同時有宇德承攬成本與小張直接對客戶報價。','去年度未請款或未向客戶請款，未滿 5,000 通常不追認；5,000 以上人工確認。','中和通馬桶 1,800 保留為未收回成本／放棄對客請款，不建立客戶應收。']
+    body:'小張直接向宇德客戶報價施工時，宇德向客戶開發票收款，再以發票金額約除以 1.1 支付小張。2026-06-25 已先以不分潤特殊個案匯入，後續仍需正式交易類型。',
+    items:['同案場可能同時有宇德承攬成本與小張直接對客戶報價。','代開發票已匯入：應付小張 5 筆合計 42,030；應收 2 筆合計實收 48,805。','中和通馬桶 1,800 保留為未收回成本／放棄對客請款，不建立客戶應收。']
   },
   {
     id:'yude-company-staging',
@@ -6093,11 +6088,11 @@ const SYSTEM_NOTES = [
   {
     id:'rent-link',
     category:'公司開銷',
-    status:'待開發',
+    status:'部分已寫入',
     title:'房租付款要連動公司固定開銷',
     source:'Codex/宇德公司暫存分類清單_2026-06-16.md',
-    body:'房租付款應建立付款紀錄並連結公司開銷固定支出，不可再新增一筆變動開銷，避免重複計入公司開銷。',
-    items:['2026-05 公司開銷固定支出已含房租 30,000。','後續應付付款可連到固定支出項目。']
+    body:'房租付款應建立付款紀錄並連結公司開銷固定支出，不可再新增一筆變動開銷，避免重複計入公司開銷。系統目前只在款項性質為固定開銷付款連結時才連動，避免案場房租誤寫入公司固定開銷。',
+    items:['2026-06 李秋惠 5 月房租 30,000 已以固定開銷付款連結匯入。','後續仍需完整固定開銷管理介面。']
   },
   {
     id:'profit-negative-gross',
@@ -6120,10 +6115,10 @@ const SYSTEM_NOTES = [
   {
     id:'attendance-payroll',
     category:'出勤薪資',
-    status:'待開發',
+    status:'部分已寫入',
     title:'打卡系統併入 OPS 並產生薪資草稿',
     source:'Codex/系統規則與計算.md',
-    body:'打卡資料不直接覆蓋正式薪資；先產生薪資草稿、請假扣款、加班費與異常清單，經財務／主管覆核後才寫入薪資單。此制度主要給之後新進正職員工使用，現有四位不納入打卡規範。',
+    body:'打卡資料不直接覆蓋正式薪資；先產生薪資草稿、請假扣款、加班費與異常清單，經財務／主管覆核後才寫入薪資單。OPS 已有打卡、GPS、請假與紀錄編輯；完整薪資草稿自動生成仍待補。',
     items:['鄭詩褣為老闆娘／財務管理者，免打卡。','彭俞豪與連星羽獨立作業，月領金額視為預支自己分潤，免打卡。','孫一宣因制度建立前過渡，且預計 2026-07 中旬離職，後續轉外包分潤制行銷，不納入打卡規範。','每日在公司 9 小時，含午休 1 小時，正常工時認列 8 小時。','原則打卡區間 7:40-18:00，最晚上班時間先設定 9:00。','下班彈性 10 分鐘；每月累計超過 30 分鐘扣全勤 1,000。','忘記打卡由鄭詩褣核准；允許工地打卡並保存 GPS、案場與審核狀態。','薪資扣款基礎建議先採月薪 / 30 / 8。']
   },
   {
@@ -6159,8 +6154,8 @@ const SYSTEM_NOTES = [
     status:'正式上線前',
     title:'正式上線前必須完成登入、同步與資料切換',
     source:'Codex/進度清單.md',
-    body:'目前仍是本機 localStorage 內部測試。正式上線前需完成帳號登入、跨電腦同步、安全規則、進行中個案期初匯入與完整回歸測試。',
-    items:['Firebase 規則不可只用 auth != null。','正式切換日前資料作為期初匯入，切換日後新資料只輸入 OPS。','完成進行中個案核對，確認已收、已付、待收、待付、成本與毛利差額為 0。','測試前後都要下載 JSON 備份。']
+    body:'OPS 目前已是 Google 登入加 Firebase snapshot 的雲端內測模式；正式上線前仍需確認多人同步、權限、安全規則、進行中個案期初匯入與完整回歸測試。',
+    items:['Firebase 規則已改為白名單與公司路徑控管，不可退回只用 auth != null。','正式切換日前資料作為期初匯入，切換日後新資料只輸入 OPS。','完成進行中個案核對，確認已收、已付、待收、待付、成本與毛利差額為 0。','測試前後都要下載 JSON 備份。']
   },
   {
     id:'pending-data',
@@ -6176,6 +6171,8 @@ const SYSTEM_NOTES = [
 function snStatusColor(status) {
   return {
     '已寫入系統':'var(--success)',
+    '資料已匯入':'var(--success)',
+    '部分已寫入':'var(--blue)',
     '規則已確認':'var(--accent)',
     '待補資料':'var(--warning)',
     '待開發':'var(--blue)',
@@ -6203,16 +6200,25 @@ function renderSystemNotes() {
       catEl.appendChild(opt);
     });
   }
+  const statusEl = document.getElementById('sn-filter-status');
+  if (statusEl && statusEl.options.length <= 1) {
+    [...new Set(SYSTEM_NOTES.map(n => n.status))].forEach(status => {
+      const opt = document.createElement('option');
+      opt.value = status;
+      opt.textContent = status;
+      statusEl.appendChild(opt);
+    });
+  }
   const kw = (document.getElementById('sn-search')?.value || '').trim().toLowerCase();
   const category = catEl?.value || '';
-  const status = document.getElementById('sn-filter-status')?.value || '';
+  const status = statusEl?.value || '';
   const rows = SYSTEM_NOTES.filter(n => {
     const haystack = `${n.category} ${n.status} ${n.title} ${n.body} ${n.source} ${(n.items||[]).join(' ')}`.toLowerCase();
     return (!category || n.category === category) && (!status || n.status === status) && (!kw || haystack.includes(kw));
   });
   const summary = document.getElementById('sn-summary');
   if (summary) {
-    const written = SYSTEM_NOTES.filter(n => n.status === '已寫入系統').length;
+    const written = SYSTEM_NOTES.filter(n => ['已寫入系統','資料已匯入','部分已寫入'].includes(n.status)).length;
     const pending = SYSTEM_NOTES.filter(n => ['待補資料','待開發','正式上線前'].includes(n.status)).length;
     summary.innerHTML = [
       ['全部筆記', SYSTEM_NOTES.length, 'var(--accent)'],
