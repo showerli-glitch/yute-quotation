@@ -1064,13 +1064,13 @@ body.auth-pending .auth-screen{display:flex}
     <div style="padding:0 12px 8px">
       <button class="btn btn-ghost btn-sm" id="btn-export-backup" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="exportBackup()">↓ 下載資料備份</button>
       <button class="btn btn-ghost btn-sm" id="btn-import-backup" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="openBackupImport()">↑ 匯入資料備份</button>
-      <button class="btn btn-ghost btn-sm" id="btn-paste-expense-patch" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="openExpensePatchPaste()">貼上費用補丁</button>
+      <button class="btn btn-ghost btn-sm" id="btn-paste-expense-patch" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="openExpensePatchPaste()">Codex 費用匯入</button>
       <button class="btn btn-ghost btn-sm" id="btn-cloud-check" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="opsCloudCheckNow()">檢查雲端快照</button>
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="opsCloudPushLocalNow()">上傳本機快照</button>
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.55 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.56 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3325,6 +3325,33 @@ body.auth-pending .auth-screen{display:flex}
   </div>
 </div>
 
+<!-- ════════ MODAL: EXPENSE PATCH IMPORT ════════ -->
+<div class="modal-overlay" id="modal-expense-patch" onclick="if(event.target===this)closeModal('modal-expense-patch')">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-hd">
+      <div class="modal-title">Codex 費用明細匯入</div>
+      <button class="modal-close" onclick="closeModal('modal-expense-patch')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="announce" style="margin-bottom:12px">
+        <span class="announce-icon">📎</span>
+        <span>只限完整管理者使用。此工具只替換費用明細，不會覆蓋個案、應收、應付或測試回報。</span>
+      </div>
+      <div class="form-field form-full">
+        <label class="form-label">費用補丁 JSON</label>
+        <textarea class="form-input" id="expense-patch-json" style="min-height:260px;font-family:'DM Mono',monospace;font-size:11px;line-height:1.5" placeholder="貼上 Codex 產生的 yutesign-ops-expense-patch JSON"></textarea>
+      </div>
+      <div id="expense-patch-hint" style="font-size:11px;color:var(--text3);line-height:1.6">
+        匯入前會檢查格式並顯示筆數與合計金額；確認後才會寫入並同步雲端。
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-expense-patch')">取消</button>
+      <button class="btn btn-primary" onclick="submitExpensePatchPaste()">匯入費用明細</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════════ ROLE SWITCHER ════════ -->
 <div class="modal-overlay" id="modal-test-guide" onclick="if(event.target===this)closeModal('modal-test-guide')">
   <div class="modal" style="max-width:620px">
@@ -4621,7 +4648,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.55', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.56', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4681,7 +4708,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.55', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.56', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -4831,7 +4858,14 @@ function openBackupImport() {
 
 function openExpensePatchPaste() {
   if (!requireManage('dashboard', '只有完整管理者可以匯入費用補丁')) return;
-  const raw = prompt('貼上 Codex 產生的費用補丁 JSON：', '');
+  const input = document.getElementById('expense-patch-json');
+  if (input) input.value = '';
+  openModal('modal-expense-patch');
+}
+
+function submitExpensePatchPaste() {
+  if (!requireManage('dashboard', '只有完整管理者可以匯入費用補丁')) return;
+  const raw = document.getElementById('expense-patch-json')?.value || '';
   if (!raw) return;
   try {
     const data = JSON.parse(raw);
@@ -4842,8 +4876,9 @@ function openExpensePatchPaste() {
     const rowTotal = data.rows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
     if (!confirm(`確定匯入「${label}」？\n\n此動作只會替換費用明細，不會覆蓋個案、應收、應付或測試回報。\n明細：${rowCount} 筆\n合計：$${rowTotal.toLocaleString('zh-TW')}`)) return;
     applyExpensePatch(data, 'pasted expense patch');
+    closeModal('modal-expense-patch');
   } catch(e) {
-    console.warn('openExpensePatchPaste failed:', e);
+    console.warn('submitExpensePatchPaste failed:', e);
     showToast('費用補丁 JSON 無法解析', 'error');
   }
 }
