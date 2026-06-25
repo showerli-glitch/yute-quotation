@@ -1069,7 +1069,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.51 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.52 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4619,7 +4619,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.51', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.52', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4679,7 +4679,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.51', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.52', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -9162,13 +9162,15 @@ function renderExpense() {
         </td>
       </tr>`).join('');
   }
-  updateExpenseStats();
+  updateExpenseStats(rows);
 }
 
-function updateExpenseStats() {
+function updateExpenseStats(rowsForStats) {
   const thisMonth = new Date().toISOString().slice(0,7);
   const month = document.getElementById('exp-filter-month')?.value || thisMonth;
-  const mRows = EXPENSES.filter(r => r.month === month && (expCanManageAll() || r.person === currentUser.id));
+  const mRows = Array.isArray(rowsForStats)
+    ? rowsForStats
+    : EXPENSES.filter(r => r.month === month && (expCanManageAll() || r.person === currentUser.id));
   const sum = (arr,s) => arr.filter(r=>r.status===s).reduce((t,r)=>t+r.amount,0);
   const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
   set('exp-stat-pending-amt',  '$'+sum(mRows,'pending').toLocaleString('zh-TW'));
