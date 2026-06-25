@@ -1069,7 +1069,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.45 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.46 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1156,7 +1156,7 @@ body.auth-pending .auth-screen{display:flex}
             <th>到期日</th>
             <th>待收狀態</th>
             <th>負責人</th>
-            <th>案場定位</th>
+            <th class="case-location-col">案場定位</th>
             <th></th>
           </tr>
         </thead>
@@ -3380,8 +3380,6 @@ const OPS_GOOGLE_CLIENT_ID = '239869421522-cqs68t3pnahjbmv9ld1k08b4p79s34k4.apps
 const OPS_ALLOWED_USERS = {
   'shower.li@yutesign.com': 'shower',
   'nc@yutesign.com': 'nc',
-  'lu@yutesign.com': 'lu_yanchen',
-  'wendy@yutesign.com': 'chen_hongjun',
 };
 const OPS_AUTH_SESSION_KEY = 'yutesign_ops_auth_session';
 const OPS_AUTH_SESSION_HOURS = 4;
@@ -3408,6 +3406,7 @@ let opsCloudSaveTimer = null;
 let opsCloudLastSavedAt = '';
 let opsCloudLastSavedBy = '';
 let opsCloudLastSummary = '';
+let opsCloudConflict = false;
 
 function tagCompany(arr) {
   (arr || []).forEach(x => { if (x && typeof x === 'object' && !x.companyId) x.companyId = COMPANY_ID; });
@@ -3490,6 +3489,12 @@ function canApplySelf(page) { return ['manage','view_all_apply_self','view_self_
 function canViewPaymentType() { return ['OWNER','FINANCE','ACCOUNTING'].includes(currentUser?.roleCode); }
 function canSeeFinancialTotals() { return ['OWNER','FINANCE'].includes(currentUser?.roleCode); }
 function canSeeRestrictedCase(c) { return !c?.excludeFromProfitReports || canSeeFinancialTotals(); }
+function isOperatingPayrollPerson(person) {
+  return !!person && !['shower','peng','lien'].includes(person);
+}
+function payrollNetAmount(r) {
+  return (r.baseSalary||0)+(r.phoneAllowance||0)+(r.fullAttendanceBonus||0)+(r.dutyAllowance||0)+(r.performanceBonus||0)+(r.mealAllowance||0)+(r.overtimePay||0)+(r.expenseReimbursement||0)+(r.yearEndBonus||0)-(r.laborInsurance||0)-(r.healthInsurance||0)-(r.voluntaryPension||0)-(r.leaveDeduction||0);
+}
 function userCanViewCaseFinancials(caseCode, page) {
   const level = permissionLevel(page);
   const c = CASES.find(row => row.code === caseCode);
@@ -3594,7 +3599,7 @@ let EMPLOYEES = [
   {id:'lien', name:'連星羽', role:'設計師', email:'', profitEligible:true, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'獨立作業；薪資視為分潤預支，免打卡'},
   {id:'sun',  name:'孫一宣', role:'行銷行政', email:'', profitEligible:false, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'既有制度過渡；預計 2026-07 中旬離職，後續外包採分潤制，不納入打卡規範'},
   {id:'lu_yanchen', name:'盧彥辰', role:'設計助理', email:'lu@yutesign.com', accessRole:'none', profitEligible:false, attendanceRequired:true, startDate:'2026-06-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-06-01 到職；設計助理；手機 GPS 打卡內測人員'},
-  {id:'chen_hongjun', name:'陳虹君', role:'會計', email:'wendy@yutesign.com', accessRole:'accounting', profitEligible:false, attendanceRequired:true, startDate:'2026-07-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-07-01 到職；會計；登入帳號 wendy@yutesign.com'},
+  {id:'chen_hongjun', name:'陳虹君', role:'會計', email:'wendy@yutesign.com', accessRole:'none', profitEligible:false, attendanceRequired:true, startDate:'2026-07-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-07-01 到職；會計；帳號先預留，正式到職後再開通'},
 ];
 const INIT_EMPLOYEES = JSON.parse(JSON.stringify(EMPLOYEES));
 const CODEX_REQUIRED_EMPLOYEES = INIT_EMPLOYEES
@@ -4599,7 +4604,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.45', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.46', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4659,7 +4664,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.45', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.46', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -4742,6 +4747,9 @@ function updateDataStatus(snapshot) {
   }
   if (syncEl) {
     if (!OPS_AUTH_ENFORCED) syncEl.textContent = '本機模式，未連線雲端';
+    else if (opsCloudConflict) {
+      syncEl.textContent = '偵測到雲端有較新資料，請先檢查雲端快照';
+    }
     else if (opsCloudReady && opsCloudLastSavedAt) {
       const by = opsCloudLastSavedBy ? `｜${opsCloudLastSavedBy}` : '';
       syncEl.textContent = `雲端已同步：${formatDateTimeTW(opsCloudLastSavedAt)}${by}`;
@@ -5103,6 +5111,9 @@ async function opsCloudRequireFirebaseUser() {
 function opsCloudErrorMessage(error, action = '雲端操作') {
   const code = String(error?.code || '');
   const message = String(error?.message || error || '');
+  if (message.includes('OPS_CLOUD_CONFLICT')) {
+    return '雲端已有較新的資料，已停止覆蓋。請先下載目前資料備份，再按「檢查雲端快照」確認最新版本。';
+  }
   if (message.includes('請先按')) return message;
   if (code === 'PERMISSION_DENIED' || message.includes('PERMISSION_DENIED') || message.includes('permission_denied')) {
     return `${action}被 Firebase 規則拒絕；請確認 Realtime Database rules 已發布，並登出後重新登入。`;
@@ -5154,12 +5165,37 @@ function opsCloudPayload(snapshot) {
   };
 }
 
-async function opsCloudSaveNow(snapshot) {
+function opsCloudPayloadSavedAt(payload) {
+  const data = payload?.data || payload;
+  const meta = payload?.meta || {};
+  return meta.savedAt || data?.savedAt || '';
+}
+
+async function opsCloudAssertNoRemoteConflict(options = {}) {
+  if (options.force || !OPS_AUTH_ENFORCED || !opsCloudReady || opsApplyingRemote) return true;
+  const snap = await opsCloudRef().get();
+  if (!snap.exists()) return true;
+  const payload = snap.val();
+  const remoteSavedAt = opsCloudPayloadSavedAt(payload);
+  const remoteBy = payload?.meta?.savedBy || '';
+  if (remoteSavedAt && opsCloudLastSavedAt && remoteSavedAt !== opsCloudLastSavedAt) {
+    opsCloudConflict = true;
+    const by = remoteBy ? `｜${remoteBy}` : '';
+    opsCloudLastSummary = `雲端有較新資料：${formatDateTimeTW(remoteSavedAt)}${by}`;
+    updateDataStatus();
+    throw new Error(`OPS_CLOUD_CONFLICT:${remoteSavedAt}`);
+  }
+  return true;
+}
+
+async function opsCloudSaveNow(snapshot, options = {}) {
   if (!OPS_AUTH_ENFORCED || !opsAuthenticatedEmail || opsApplyingRemote) return false;
   await opsCloudRequireFirebaseUser();
+  await opsCloudAssertNoRemoteConflict(options);
   const payload = opsCloudPayload(snapshot || createDataSnapshot());
   await opsCloudRef().set(payload);
   opsCloudReady = true;
+  opsCloudConflict = false;
   opsCloudLastSavedAt = payload.meta.savedAt;
   opsCloudLastSavedBy = payload.meta.savedBy;
   opsCloudLastSummary = `${formatDateTimeTW(payload.meta.savedAt)}｜${opsSnapshotSummary(payload.data)}`;
@@ -5194,6 +5230,7 @@ function opsApplyCloudPayload(payload, options = {}) {
     applyDataSnapshot(data);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     opsCloudReady = true;
+    opsCloudConflict = false;
     opsCloudLastSavedAt = meta.savedAt || data.savedAt || '';
     opsCloudLastSavedBy = meta.savedBy || '';
     opsCloudLastSummary = `${formatDateTimeTW(opsCloudLastSavedAt)}｜${opsSnapshotSummary(data)}`;
@@ -5236,6 +5273,7 @@ async function opsCloudCheckNow() {
       return false;
     }
     opsCloudReady = true;
+    opsCloudConflict = false;
     opsCloudLastSavedAt = meta.savedAt || data.savedAt || '';
     opsCloudLastSavedBy = meta.savedBy || '';
     opsCloudLastSummary = `${formatDateTimeTW(opsCloudLastSavedAt)}｜${opsSnapshotSummary(data)}`;
@@ -5260,7 +5298,7 @@ async function opsCloudPushLocalNow() {
   const summary = opsSnapshotSummary(snapshot);
   if (!confirm(`確定要用目前這台瀏覽器資料覆蓋 Firebase 快照？\n\n${summary}\n\n測試前建議先下載資料備份。`)) return false;
   try {
-    await opsCloudSaveNow(snapshot);
+    await opsCloudSaveNow(snapshot, { force:true });
     showToast('本機快照已上傳到 Firebase', 'success');
     return true;
   } catch(e) {
@@ -5880,6 +5918,8 @@ function renderCases() {
   const tbody = document.getElementById('case-tbody');
   const visibleCases = CASES.filter(c => userCanViewCaseFinancials(c.code, 'dashboard') || userCanViewCaseFinancials(c.code, 'profit'));
   const data = dcSelCases === null ? visibleCases : visibleCases.filter(c => dcSelCases.has(c.code));
+  const canSetLocation = canManage('dashboard');
+  document.querySelectorAll('#case-table .case-location-col').forEach(el => { el.style.display = canSetLocation ? '' : 'none'; });
   const statusTag = {
     '進行中': 'tag-active',
     '待開工': 'tag-pending',
@@ -5887,7 +5927,7 @@ function renderCases() {
     '結案':   'tag-inactive',
   };
   const renderRow = c => {
-    const caseCollected = RECEIVABLES.filter(r => r.case === c.code && r.status === 'collected').reduce((s,r) => s+(r.collectAmt||0), 0);
+    const caseCollected = RECEIVABLES.filter(r => r.case === c.code && r.status === 'collected' && r.receivableType !== 'retention').reduce((s,r) => s+(r.collectAmt||0), 0);
     const pct = c.amount > 0 ? Math.min(100, Math.round(caseCollected / c.amount * 100)) : (c.pct || 0);
     const retention = RECEIVABLES.find(r => r.case === c.code && (`${r.item||''} ${r.progress||''}`).includes('保固'));
     const retentionAmt = c.retentionAmt || retention?.invoiceAmt || retention?.collectAmt || 0;
@@ -5913,9 +5953,9 @@ function renderCases() {
       <td class="nowrap-col" style="font-size:12px;text-align:center">${retentionDue || '—'}</td>
       <td style="text-align:center">${retentionAmt ? `<span class="tag ${retentionTag}">${retentionLabel}</span>` : '<span style="color:var(--text3)">—</span>'}</td>
       <td style="font-size:12px;color:var(--text2)">${c.person}</td>
-      <td style="text-align:center">${caseHasSiteLocation(c) ? '<span class="tag tag-done">已設定</span>' : '<span class="tag tag-pending">未設定</span>'}</td>
+      ${canSetLocation ? `<td style="text-align:center">${caseHasSiteLocation(c) ? '<span class="tag tag-done">已設定</span>' : '<span class="tag tag-pending">未設定</span>'}</td>` : ''}
       <td style="white-space:nowrap">
-        <button class="btn btn-ghost btn-sm" onclick="openCaseLocation('${c.code}')">座標</button>
+        ${canSetLocation ? `<button class="btn btn-ghost btn-sm" onclick="openCaseLocation('${c.code}')">座標</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="openCaseDetail('${c.code}')">詳情</button>
       </td>
     </tr>`;
@@ -5924,7 +5964,7 @@ function renderCases() {
   const closed = data.filter(c => c.status === '結案');
   let html = open.map(renderRow).join('');
   if (closed.length) {
-    html += `<tr><td colspan="12" style="padding:4px 14px;border-top:2px solid var(--border2);background:var(--surface2);font-size:11px;color:var(--text3)">已結案個案</td></tr>`;
+    html += `<tr><td colspan="${canSetLocation ? 12 : 11}" style="padding:4px 14px;border-top:2px solid var(--border2);background:var(--surface2);font-size:11px;color:var(--text3)">已結案個案</td></tr>`;
     html += closed.map(renderRow).join('');
   }
   tbody.innerHTML = html;
@@ -7497,6 +7537,8 @@ function renderPayable() {
     const searchable = [
       p.vendor, p.summary, p.caseName, p.case, p.person,
       p.wantDate, p.transferDate, p.doneDate, p.ticket, p.bank,
+      showPaymentType ? paymentTypeLabel(p.paymentType) : '',
+      isProfitPaymentType(p.paymentType) ? psPersonName(p.profitPerson) : '',
     ].filter(Boolean).join(' ').toLowerCase();
     if (kw && !searchable.includes(kw)) return false;
     return true;
@@ -7687,7 +7729,7 @@ function markPaid(id) {
     targetLabel:`${p.vendor || '受款人未填'}／${p.summary || '付款項目未填'}`,
     fields:['status','amount','vendor','summary','transferDate','doneDate','bank','paymentType','case','caseName']
   });
-  renderPayable(); renderPayreq(); renderProfit();
+  renderPayable(); renderPayreq(); renderOverhead(); renderDashboard(); renderProfit();
   renderProfitShare();
   saveData();
   showToast('已標記為已付款 ✓', 'success');
@@ -7714,8 +7756,17 @@ function pySyncRentToOverhead(p) {
 
 function rejectPayable(id) {
   if (!requireManage('payable', '您沒有退回應付帳款的權限')) return;
+  const p = PAYABLES.find(row => row.id === id);
+  if (!p) return;
+  if (!confirm(`確定退回並移除這筆應付帳款？\n${p.vendor || '受款人未填'}／${p.summary || '項目未填'}\n$${(p.amount || 0).toLocaleString('zh-TW')}`)) return;
+  const before = auditClone(p);
   PAYABLES = PAYABLES.filter(p => p.id!==id);
+  recordAuditLog('reject', 'payable', id, before, null, {
+    riskLevel:'high',
+    targetLabel:`${before.vendor || '受款人未填'}／${before.summary || '項目未填'}`
+  });
   renderPayable();
+  renderDashboard();
   saveData();
   showToast('已退回並移除', 'warning');
 }
@@ -8019,7 +8070,7 @@ function renderReceivable() {
         <td class="rv-col-invoice-date" style="padding:10px 14px;text-align:center;font-size:12px;white-space:nowrap">${r.invoiceDate||'<span style="color:var(--text3)">—</span>'}</td>
         <td class="rv-col-invoice-no" style="padding:10px 14px;text-align:center;font-size:12px;font-family:'DM Mono',monospace">${r.invoiceNo||'<span style="color:var(--warning);font-family:inherit">待開立</span>'}</td>
         <td class="rv-col-contract" style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${r.contractAmt ? '$'+r.contractAmt.toLocaleString('zh-TW') : '—'}</td>
-        <td class="rv-col-progress" style="padding:6px 10px;font-size:12px;color:var(--text2)">${r.progress||'—'}</td>
+        <td class="rv-col-progress" style="padding:6px 10px;font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.progress||''}">${r.progress||'—'}</td>
         <td class="rv-col-link" style="padding:10px 14px;text-align:center;white-space:nowrap">
           ${r.invoiceLink ? `<a href="${r.invoiceLink}" target="_blank" style="color:var(--accent);font-size:13px;text-decoration:none" title="開啟電子發票">📄</a>` : '<span style="color:var(--text3);font-size:11px">無</span>'}
           ${manage ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 5px;margin-left:4px" onclick="openRvLink(${r.id})" title="設定連結">⋯</button>` : ''}
@@ -9320,8 +9371,8 @@ function renderOverhead() {
   const data = OVERHEAD[month];
   // Fixed
   // 員工薪資：自動從薪資模組(PAYROLL)該月加總，不可手動編輯
-  const payrollSum = PAYROLL.filter(r => r.month === month && ['nc','sun'].includes(r.person))
-    .reduce((s,r) => s + (r.baseSalary||0)+(r.phoneAllowance||0)+(r.fullAttendanceBonus||0)+(r.dutyAllowance||0)+(r.performanceBonus||0)+(r.mealAllowance||0)+(r.overtimePay||0)+(r.expenseReimbursement||0)+(r.yearEndBonus||0)-(r.laborInsurance||0)-(r.healthInsurance||0)-(r.voluntaryPension||0)-(r.leaveDeduction||0), 0);
+  const payrollSum = PAYROLL.filter(r => r.month === month && isOperatingPayrollPerson(r.person))
+    .reduce((s,r) => s + payrollNetAmount(r), 0);
   const salaryIdx = OH_FIXED_ITEMS.indexOf('員工薪資');
   if (salaryIdx >= 0) data.fixed[salaryIdx] = payrollSum;
 
@@ -9707,10 +9758,10 @@ function psPayrollBreakdown(monthKeys) {
   });
 }
 
-// 計算薪資模組中 nc/sun 在某月的實領總額（計入公司開銷的員工薪資）
+// 計算薪資模組中營運員工在某月的實領總額（計入公司開銷的員工薪資）
 function psPayrollSum(month) {
-  return PAYROLL.filter(r => r.month === month && ['nc','sun'].includes(r.person))
-    .reduce((s,r) => s + (r.baseSalary||0)+(r.phoneAllowance||0)+(r.fullAttendanceBonus||0)+(r.dutyAllowance||0)+(r.performanceBonus||0)+(r.mealAllowance||0)+(r.overtimePay||0)+(r.expenseReimbursement||0)+(r.yearEndBonus||0)-(r.laborInsurance||0)-(r.healthInsurance||0)-(r.voluntaryPension||0)-(r.leaveDeduction||0), 0);
+  return PAYROLL.filter(r => r.month === month && isOperatingPayrollPerson(r.person))
+    .reduce((s,r) => s + payrollNetAmount(r), 0);
 }
 
 function psOutstandingPostCloseAdjustments() {
@@ -10660,14 +10711,15 @@ function renderDashboard() {
   const kpiCollectedSub = document.getElementById('dash-kpi-collected-sub');
   if (kpiCollectedSub) kpiCollectedSub.textContent = canSeeTotals ? `待入帳 ${Math.round(totalPending/10000)} 萬` : '僅管理者';
 
-  // KPI 4: 待付廠商款（pending）
+  // KPI 4: 待付廠商款（approved）；待審核另列提醒。
   const visiblePayables = PAYABLES.filter(p => !p.case || userCanViewCaseFinancials(p.case, 'dashboard') || userCanViewCaseFinancials(p.case, 'payable'));
   const pendingItems = visiblePayables.filter(p => p.status==='pending');
-  const pendingAmt   = pendingItems.reduce((s,p) => s+(p.amount||0), 0);
+  const approvedItems = visiblePayables.filter(p => p.status==='approved');
+  const approvedAmt   = approvedItems.reduce((s,p) => s+(p.amount||0), 0);
   const kpiPayable = document.getElementById('dash-kpi-payable');
-  if (kpiPayable) kpiPayable.innerHTML = canSeeTotals ? `${Math.round(pendingAmt/10000).toLocaleString('zh-TW')}<span>萬</span>` : '—';
+  if (kpiPayable) kpiPayable.innerHTML = canSeeTotals ? `${Math.round(approvedAmt/10000).toLocaleString('zh-TW')}<span>萬</span>` : '—';
   const kpiPayableSub = document.getElementById('dash-kpi-payable-sub');
-  if (kpiPayableSub) kpiPayableSub.textContent = canSeeTotals ? `${pendingItems.length} 筆待審核` : '僅管理者';
+  if (kpiPayableSub) kpiPayableSub.textContent = canSeeTotals ? `${approvedItems.length} 筆待付款｜另 ${pendingItems.length} 筆待審核` : '僅管理者';
 
   // 待審核請款列表
   const dashBadge = document.getElementById('dash-payreq-badge');
