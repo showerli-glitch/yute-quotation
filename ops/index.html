@@ -1087,7 +1087,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.71 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.72 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3989,7 +3989,8 @@ const CODEX_SEED_CASES = [
   { code:'YT-ATG-2026-001', name:'板橋安庭E2-15F', client:'ATG', clientName:'安庭傢俱有限公司', status:'進行中', amount:636000, collected:636000, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:15142.85714, reconciliationNote:'案件仍在進行中，目前損益僅供追蹤，不可結算分潤。依2026應收、應付、五份費用表及板橋安庭E2-15F連動成本控制表核對：銷售及已收636,000／17筆已付工程成本588,945／當案費用7,189／稅務成本15,142.86／目前暫估毛利24,723.14（3.89%）。2026-06滑軌、鉸鍊、把手5,429已歸屬本案，預計2026-06-20付款；付款後工程成本將為594,374，暫估毛利將為19,294.14。' },
   { code:'YT-UNI-2026-001', name:'UNI MUSIC 音樂教室', client:'YYS', clientName:'有意思藝文整合有限公司', status:'進行中', amount:753000, collected:753000, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:17928.57143, reconciliationNote:'案件仍在進行中，目前損益僅供追蹤，不可結算分潤。依2026應收、應付、五份費用表及UNI MUSIC安和路音樂教室成本控制表核對：銷售及已收753,000／6筆工程成本214,971.5，均已付款／當案費用2,700／稅務成本17,928.57／目前暫估毛利517,399.93（68.71%）。舊分潤表顯示毛利520,060為舊數字。' },
   { code:'YT-UPY-2026-001', name:'上洋高雄', client:'UPY', clientName:'上洋產業股份有限公司', status:'進行中', amount:2954985, collected:2954985, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:70356.78571, reconciliationNote:'依上洋高雄連動成本控制表、2026應收、應付及五份原始費用表核對：實際銷售及已收2,954,985（發票2,955,000）／工程成本2,470,740，包含2025年兩筆3D圖費用6,750及2026年33筆2,463,990／2025當案費用63,020／2026原始費用截至6月267,501／稅務成本70,356.79／最新毛利83,367.21（2.82%）。成本控制表目前只帶入2026年1至5月費用255,578，顯示毛利95,290；原始費用表另有6月11,907，且4月比統計表多16，後續需回寫成本表。6/20元翔高空10,500尚待付款。' },
-  { code:'YT-FAM-2026-001', name:'玉成街親友工程', client:'FAM', clientName:'親友工程', status:'進行中', amount:158129, collected:0, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, reconciliationNote:'親友成本轉付案；2026 應付 9 筆合計 158,129，系統自動生成同額應收。此案不列一般營業收入、毛利或員工分潤。' },
+  { code:'YT-FAM-2026-001', name:'玉成街親友工程', client:'FAM', clientName:'親友工程', status:'進行中', amount:137399, collected:0, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, reconciliationNote:'親友成本轉付案；2026 應付廠商成本 9 筆合計 158,129，其中本次實際向玉成街收款只列 5 筆：唐承 86,071、東榮 17,229、新財圓 16,500、戚美英 5,000、衡岳 12,599，合計 137,399。其餘為贈送或已結清，只列成本不轉應收。此案不列一般營業收入、毛利或員工分潤。' },
+  { code:'YT-FAM-2026-002', name:'虎林街住家', client:'FAM', clientName:'親友工程', status:'結案', amount:1450000, collected:1450000, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'2026-05-03', reconciliationNote:'親友成本轉付案；2025 應付 13 筆合計 462,806，2026 應付 25 筆合計 951,948.75，工程成本以應付帳款 1,414,754.75 為準。應收／成本收回 1,450,000，2026-05-03 已結清。廠商明細只列成本，不逐筆轉應收。差異說明：哥哥直付鋁工藝 15,800 不進公司應付；洗衣機鐵架 2,100 由宇德善意負擔；北富耀燈具 0.25 小數差。' },
 ];
 const CODEX_SEED_RECEIVABLES = [
   { id:2, case:'YT-UPY-2025-002', caseName:'上洋鶯歌', collectDate:'2026-02-05', buyer:'上洋產業股份有限公司', item:'裝修工程款', collectAmt:6767965, bank:'國泰', invoiceAmt:6768000, invoiceDate:'2026-01-23', invoiceNo:'XH38605852', contractAmt:12961028, progress:'完收', invoiceLink:'', status:'collected', note:'Codex匯入：上洋鶯歌成本控制表' },
@@ -4397,15 +4398,58 @@ const CODEX_SEED_UPY_JIAYI_PAYABLES = [
   { sourceKey:'upy-jiayi-ap-38', case:'YT-UPY-2025-001', caseName:'上洋嘉義', vendor:"艾群營造", summary:"高空車施作6/1-7/15", amount:24501, wantDate:"2025-07-30", transferDate:"2025-07-28", ticket:"2025-07-30", doneDate:"2025-07-30", bank:"國泰票", invoice:"有", receipt:"有", person:"彭俞豪", status:'paid', note:'來源：2025宇德廠商請款記錄表' },
 ];
 const CODEX_SEED_YUCHENG_PAYABLES = [
-  { sourceKey:'yucheng-family-ap-20260210-jiuyi', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'九億', summary:'油漆點工', amount:7350, wantDate:'2026-02-10', transferDate:'2026-02-09', doneDate:'2026-02-10', ticket:'2026-02-10', bank:'瑞興票', invoice:'有', receipt:'有', person:'李鎮宇', paymentType:'family_pass_through', status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付' },
-  { sourceKey:'yucheng-family-ap-20260214-chi', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'戚美英', summary:'玉成街2/13–2工、2/14–2工', amount:10000, wantDate:'2026-02-14', transferDate:'', doneDate:'', ticket:'', bank:'國泰', invoice:'無', receipt:'無', person:'李鎮宇', paymentType:'family_pass_through', status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付' },
-  { sourceKey:'yucheng-family-ap-20260320-shangshun', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'上順五金', summary:'五金', amount:880, wantDate:'2026-03-20', transferDate:'2026-03-26', doneDate:'', ticket:'', bank:'瑞興', invoice:'無', receipt:'無', person:'李鎮宇', paymentType:'family_pass_through', status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付' },
-  { sourceKey:'yucheng-family-ap-20260410-clean', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'戚美英', summary:'清潔', amount:2500, wantDate:'2026-04-10', transferDate:'2026-04-09', doneDate:'2026-04-10', ticket:'', bank:'國泰', invoice:'無', receipt:'有', person:'連星羽', paymentType:'family_pass_through', status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付' },
-  { sourceKey:'yucheng-family-ap-20260510-tangcheng', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'唐承', summary:'玉成街木地板', amount:86071, wantDate:'2026-05-10', transferDate:'2026-05-07', doneDate:'2026-05-08', ticket:'', bank:'國泰', invoice:'有', receipt:'有', person:'李鎮宇', paymentType:'family_pass_through', status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付' },
-  { sourceKey:'yucheng-family-ap-20260530-dongrong', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'東榮（幸全）', summary:'玉成街木作材料', amount:17229, wantDate:'2026-05-30', transferDate:'2026-05-29', doneDate:'2026-05-30', ticket:'2026-05-30', bank:'瑞興票', invoice:'有', receipt:'有', person:'李鎮宇', paymentType:'family_pass_through', status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付' },
-  { sourceKey:'yucheng-family-ap-20260520-xincaiyuan', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'新財圓', summary:'玉成街地板拆除垃圾＋上期未付750', amount:16500, wantDate:'2026-05-20', transferDate:'2026-05-19', doneDate:'2026-05-20', ticket:'', bank:'國泰', invoice:'有', receipt:'有', person:'李鎮宇', paymentType:'family_pass_through', status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付；含上期未付750' },
-  { sourceKey:'yucheng-family-ap-20260520-chi-clean', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'戚美英', summary:'玉成街清潔', amount:5000, wantDate:'2026-05-20', transferDate:'2026-05-19', doneDate:'2026-05-20', ticket:'', bank:'國泰', invoice:'無', receipt:'有', person:'李鎮宇', paymentType:'family_pass_through', status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付' },
-  { sourceKey:'yucheng-family-ap-20260530-hengyue', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'衡岳（阿瑞）', summary:'玉成街拆除工資', amount:12599, wantDate:'2026-05-30', transferDate:'2026-05-29', doneDate:'2026-05-30', ticket:'', bank:'國泰', invoice:'有', receipt:'有', person:'連星羽', paymentType:'family_pass_through', status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付' },
+  { sourceKey:'yucheng-family-ap-20260210-jiuyi', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'九億', summary:'油漆點工', amount:7350, wantDate:'2026-02-10', transferDate:'2026-02-09', doneDate:'2026-02-10', ticket:'2026-02-10', bank:'瑞興票', invoice:'有', receipt:'有', person:'李鎮宇', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付；本次不向玉成街收款，只列廠商成本。' },
+  { sourceKey:'yucheng-family-ap-20260214-chi', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'戚美英', summary:'玉成街2/13–2工、2/14–2工', amount:10000, wantDate:'2026-02-14', transferDate:'', doneDate:'', ticket:'', bank:'國泰', invoice:'無', receipt:'無', person:'李鎮宇', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付；本次不向玉成街收款，只列廠商成本。' },
+  { sourceKey:'yucheng-family-ap-20260320-shangshun', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'上順五金', summary:'五金', amount:880, wantDate:'2026-03-20', transferDate:'2026-03-26', doneDate:'', ticket:'', bank:'瑞興', invoice:'無', receipt:'無', person:'李鎮宇', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付；本次不向玉成街收款，只列廠商成本。' },
+  { sourceKey:'yucheng-family-ap-20260410-clean', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'戚美英', summary:'清潔', amount:2500, wantDate:'2026-04-10', transferDate:'2026-04-09', doneDate:'2026-04-10', ticket:'', bank:'國泰', invoice:'無', receipt:'有', person:'連星羽', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付；本次不向玉成街收款，只列廠商成本。' },
+  { sourceKey:'yucheng-family-ap-20260510-tangcheng', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'唐承', summary:'玉成街木地板', amount:86071, wantDate:'2026-05-10', transferDate:'2026-05-07', doneDate:'2026-05-08', ticket:'', bank:'國泰', invoice:'有', receipt:'有', person:'李鎮宇', paymentType:'family_pass_through', passThroughReceivable:true, status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付；本次向玉成街收款。' },
+  { sourceKey:'yucheng-family-ap-20260530-dongrong', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'東榮（幸全）', summary:'玉成街木作材料', amount:17229, wantDate:'2026-05-30', transferDate:'2026-05-29', doneDate:'2026-05-30', ticket:'2026-05-30', bank:'瑞興票', invoice:'有', receipt:'有', person:'李鎮宇', paymentType:'family_pass_through', passThroughReceivable:true, status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付；本次向玉成街收款。' },
+  { sourceKey:'yucheng-family-ap-20260520-xincaiyuan', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'新財圓', summary:'玉成街地板拆除垃圾＋上期未付750', amount:16500, wantDate:'2026-05-20', transferDate:'2026-05-19', doneDate:'2026-05-20', ticket:'', bank:'國泰', invoice:'有', receipt:'有', person:'李鎮宇', paymentType:'family_pass_through', passThroughReceivable:true, status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付；含上期未付750；本次向玉成街收款。' },
+  { sourceKey:'yucheng-family-ap-20260520-chi-clean', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'戚美英', summary:'玉成街清潔', amount:5000, wantDate:'2026-05-20', transferDate:'2026-05-19', doneDate:'2026-05-20', ticket:'', bank:'國泰', invoice:'無', receipt:'有', person:'李鎮宇', paymentType:'family_pass_through', passThroughReceivable:true, status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付；本次向玉成街收款。' },
+  { sourceKey:'yucheng-family-ap-20260530-hengyue', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', vendor:'衡岳（阿瑞）', summary:'玉成街拆除工資', amount:12599, wantDate:'2026-05-30', transferDate:'2026-05-29', doneDate:'2026-05-30', ticket:'', bank:'國泰', invoice:'有', receipt:'有', person:'連星羽', paymentType:'family_pass_through', passThroughReceivable:true, status:'paid', note:'來源：2026應付帳款；玉成街親友成本轉付；本次向玉成街收款。' },
+];
+const CODEX_SEED_HULIN_PAYABLES = [
+  { sourceKey:'hulin-family-ap-2025-1', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'衡岳（阿瑞）', summary:'10/17、10/19、10/20、10/21 大小點工搬料、保護、拆除', amount:24150, wantDate:'2025-11-20', doneDate:'2025-11-20', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：衡岳20251113請款單。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-2', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'李嘉航', summary:'3D棋德列印代付', amount:4000, wantDate:'2025-10-23', doneDate:'2025-10-23', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：褀德20251023匯款截圖.PNG。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-3', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'新財圓', summary:'垃圾清運', amount:8000, wantDate:'2025-11-10', doneDate:'2025-11-10', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：新財圓202510請款單、發票。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-4', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'新財圓', summary:'垃圾車', amount:9450, wantDate:'2025-12-30', doneDate:'2025-12-30', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：新財圓20251217請款單＋發票。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-5', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'東榮（幸全）', summary:'木作建材', amount:49622, wantDate:'2025-11-30', doneDate:'2025-11-30', bank:'瑞興票', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：東榮20251024請款單＋發票。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-6', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'東榮（幸全）', summary:'木作材料-折扣219010*0.03=6570', amount:46084, wantDate:'2025-12-30', doneDate:'2025-12-30', bank:'瑞興票', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：幸全20251127請款單＋發票。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-7', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'陳志瑋', summary:'木工工資 10/21-10/31 豪哥8工志瑋7天，共15工*3700=55,500', amount:55500, wantDate:'2025-11-04', doneDate:'2025-11-04', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：2025 表完成匯款日 11/4。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-8', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'陳志瑋', summary:'木工工資 11/1-11/15 豪哥10工 志瑋9天，共19工*3700=70,300', amount:70300, wantDate:'2025-11-20', doneDate:'2025-11-20', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：陳志瑋20251120匯款截圖。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-9', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'陳志瑋', summary:'木工工資 11/15-11/30 豪哥10工 志瑋8.5天，12/1-12/15豪哥10 志瑋10，共38.5工*3700=142,450', amount:142450, wantDate:'2025-12-19', doneDate:'2025-12-19', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：2025 表完成匯款日 12/19。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-10', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'陳志瑋', summary:'木工工資 12/15-12/19 豪哥1工 志瑋3.5工，共4.5工*3700=16,650', amount:16650, wantDate:'2025-12-19', doneDate:'2025-12-19', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：2025 表完成匯款日 12/19。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-11', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'胡地', summary:'木工工資3500*2工', amount:7000, wantDate:'2025-12-27', doneDate:'2025-12-27', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：2025 表完成匯款日 12/27。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-12', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'陳文池', summary:'泥作', amount:8000, wantDate:'2025-12-10', doneDate:'2025-12-10', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：2025 表完成匯款日 12/10。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2025-13', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'北富耀', summary:'燈具', amount:21600, wantDate:'2025-11-10', doneDate:'2025-11-10', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2025年宇德廠商請款記錄表／連動總表細項；原表來源備註：北富耀20251031請款單（備註）。虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-1', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'李嘉航', summary:'創意玩家石晶薄板、收邊條、膠', amount:90027, wantDate:'2026-01-30', doneDate:'2026-01-30', bank:'瑞興票', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-2', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'王育鈞（阿義）', summary:'磁磚修補貼磚工資', amount:5000, wantDate:'2026-01-09', doneDate:'2026-01-09', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-3', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'新財圓', summary:'垃圾車', amount:7350, wantDate:'2026-01-10', doneDate:'2026-01-09', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-4', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'唐承', summary:'SPC地板工程', amount:11441, wantDate:'2026-01-30', doneDate:'2026-01-30', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-5', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'林阿照', summary:'淋浴拉門拆裝工資', amount:10000, wantDate:'2026-01-19', doneDate:'2026-01-19', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-6', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'東榮（幸全）', summary:'木作材料', amount:33978, wantDate:'2026-01-30', doneDate:'2026-01-30', bank:'瑞興票', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-7', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'禾興', summary:'廚具', amount:94500, wantDate:'2026-01-30', doneDate:'2026-01-30', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-8', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'戚美英', summary:'1/27 4工加班加1工', amount:12500, wantDate:'2026-01-30', doneDate:'2026-01-30', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-9', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'富卯', summary:'STO 防黴礦物塗料', amount:26775, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'瑞興票', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-10', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'陳巧君', summary:'廚具背牆不鏽鋼、雨遮修復', amount:74000, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'瑞興票', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-11', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'奇碁（碇園）', summary:'人造石水槽龍頭', amount:63000, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'瑞興票', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-12', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'鋁工藝詹勝', summary:'鋁窗、三合一門', amount:40000, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-13', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'廣源', summary:'冷氣工程', amount:20000, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-14', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'廣源', summary:'冷氣工程', amount:40058, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-15', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'游志松（賢威）', summary:'踢腳板', amount:4200, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-16', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'宏冠玻璃', summary:'明鏡、櫥櫃玻璃門', amount:5517, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'瑞興票', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-17', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'九億', summary:'油漆工程', amount:125000, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'瑞興票', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-18', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'陳信宏', summary:'水電工、料費', amount:160000, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-19', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'螢品（建興）', summary:'水電材料', amount:90434, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-20', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'東榮（幸全）', summary:'木作材料', amount:9949, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'瑞興票', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-21', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'新財圓', summary:'垃圾清運', amount:11500, wantDate:'2026-02-10', doneDate:'2026-02-10', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-22', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'北富耀', summary:'燈具', amount:9339.75, wantDate:'2026-03-10', doneDate:'2026-03-10', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-23', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'東榮（幸全）', summary:'木作材料', amount:2760, wantDate:'2026-03-20', doneDate:'2026-03-24', bank:'瑞興票', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-24', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'衡岳（阿瑞）', summary:'拆除、點工', amount:2520, wantDate:'2026-03-20', doneDate:'2026-03-20', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；虎林街廠商成本明細，不逐筆轉應收。' },
+  { sourceKey:'hulin-family-ap-2026-25', case:'YT-FAM-2026-002', caseName:'虎林街住家', vendor:'陳順發', summary:'洗衣機鐵架', amount:2100, wantDate:'2026-05-20', doneDate:'2026-05-20', bank:'國泰', paymentType:'family_pass_through', passThroughReceivable:false, status:'paid', note:'來源：2026年宇德廠商請款記錄表；此筆由宇德善意負擔，不再向親友收回。虎林街廠商成本明細，不逐筆轉應收。' },
+];
+const CODEX_SEED_HULIN_RECEIVABLES = [
+  { sourceKey:'hulin-family-ar-total-1450000', case:'YT-FAM-2026-002', caseName:'虎林街住家', collectDate:'2026-05-03', buyer:'親友工程', item:'虎林街住家親友成本轉付結清款', collectAmt:1450000, bank:'抵付／已結清', invoiceAmt:0, invoiceDate:'', invoiceNo:'', contractAmt:1450000, progress:'2026-05-03 已結清', invoiceLink:'', status:'collected', receivableType:'family_pass_through', note:'來源：2025年宇德廠商請款記錄表／2026年宇德廠商請款記錄表／虎林街親友結清對帳；不開發票；付款與私人往來抵付後多收 261 元。應收用總額一筆，不逐筆拆。' },
 ];
 const CODEX_SEED_PRIVATE_LOAN_PAYABLES = [
   { sourceKey:'yude-private-loan-20260112-li-99200', case:'', caseName:'', vendor:'李秋惠', summary:'借款', amount:99200, wantDate:'2026-01-12', transferDate:'2026-01-12', doneDate:'2026-01-12', ticket:'', bank:'國泰', invoice:'無', receipt:'無', person:'李鎮宇', paymentType:'private_loan', status:'paid', note:'私人借支；自動生成同額應收款' },
@@ -4637,7 +4681,7 @@ function ensureCodexSeedData() {
     const row = CASES.find(c => c.code === seed.code);
     if (row) Object.assign(row, { retentionAmt: seed.retentionAmt, retentionDue: seed.retentionDue });
     if (row && row.profitSplit === undefined && seed.profitSplit) row.profitSplit = seed.profitSplit;
-    if (row && ['YT-SUZ-2025-001','YT-SUZ-2025-002','YT-KYG-2025-001','YT-WWF-2025-001','YT-ZHG-2025-001','YT-LIN-2026-001','YT-ATG-2026-001','YT-UNI-2026-001','YT-UPY-2026-001','YT-FAM-2026-001'].includes(seed.code)) Object.assign(row, {
+    if (row && ['YT-SUZ-2025-001','YT-SUZ-2025-002','YT-KYG-2025-001','YT-WWF-2025-001','YT-ZHG-2025-001','YT-LIN-2026-001','YT-ATG-2026-001','YT-UNI-2026-001','YT-UPY-2026-001','YT-FAM-2026-001','YT-FAM-2026-002'].includes(seed.code)) Object.assign(row, {
       name:seed.name, client:seed.client, clientName:seed.clientName, status:seed.status,
       amount:seed.amount, collected:seed.collected, person:seed.person, closedDate:seed.closedDate,
       profitSplit:seed.profitSplit, taxCostOverride:seed.taxCostOverride, caseType:seed.caseType,
@@ -4664,9 +4708,14 @@ function ensureCodexSeedData() {
   if (jiayiAugPostage) jiayiAugPostage.amount = 44;
   addByKey(RECEIVABLES, CODEX_SEED_RECEIVABLES, r => [r.case,r.collectDate,r.invoiceNo,r.collectAmt].join('|'));
   addByKey(RECEIVABLES, CODEX_SEED_UPY_JIAYI_RECEIVABLES, r => [r.case,r.collectDate,r.invoiceNo,r.collectAmt].join('|'));
+  addByKey(RECEIVABLES, CODEX_SEED_HULIN_RECEIVABLES, r => r.sourceKey || [r.case,r.item,r.collectAmt].join('|'));
   CODEX_SEED_RECEIVABLES.forEach(seed => {
     const row = RECEIVABLES.find(r => r.case === seed.case && r.item === seed.item && r.invoiceAmt === seed.invoiceAmt);
     if (row && row.status !== 'collected') Object.assign(row, clone(seed), { id: row.id });
+  });
+  CODEX_SEED_HULIN_RECEIVABLES.forEach(seed => {
+    const row = RECEIVABLES.find(r => r.sourceKey === seed.sourceKey || (r.case === seed.case && r.item === seed.item));
+    if (row) Object.assign(row, clone(seed), { id: row.id });
   });
   addByKey(PAYABLES, CODEX_SEED_PAYABLES, r => [r.case,r.vendor,r.summary,r.amount,r.wantDate].join('|'));
   addByKey(PAYABLES, CODEX_SEED_ZHANG_PAYABLES, r => r.sourceKey);
@@ -4677,6 +4726,7 @@ function ensureCodexSeedData() {
   addByKey(PAYABLES, CODEX_SEED_UPY_KAOHSIUNG_MISC_PAYABLES, r => r.sourceKey);
   addByKey(PAYABLES, CODEX_SEED_UPY_JIAYI_PAYABLES, r => r.sourceKey);
   addByKey(PAYABLES, CODEX_SEED_YUCHENG_PAYABLES, r => r.sourceKey);
+  addByKey(PAYABLES, CODEX_SEED_HULIN_PAYABLES, r => r.sourceKey);
   addByKey(PAYABLES, CODEX_SEED_PRIVATE_LOAN_PAYABLES, r => r.sourceKey);
   addByKey(PAYABLES, CODEX_SEED_MUZHA_PAYABLES, r => [r.case,r.vendor,r.summary,r.amount,r.wantDate].join('|'));
   addByKey(PAYABLES, CODEX_SEED_MINZU_PAYABLES, r => [r.case,r.vendor,r.summary,r.amount,r.wantDate].join('|'));
@@ -4684,6 +4734,10 @@ function ensureCodexSeedData() {
   addByKey(PAYABLES, CODEX_SEED_WENWEIFENG_PAYABLES, r => [r.case,r.vendor,r.summary,r.amount,r.wantDate].join('|'));
   addByKey(PAYABLES, CODEX_SEED_PROFIT_PAYABLES, r => r.sourceKey || [r.paymentType,r.profitPerson,r.amount,r.doneDate||r.transferDate||r.wantDate].join('|'));
   addByKey(PAYABLES, CODEX_SEED_UPY_JIAYI_PROFIT_PAYABLES, r => r.sourceKey);
+  [...CODEX_SEED_YUCHENG_PAYABLES, ...CODEX_SEED_HULIN_PAYABLES].forEach(seed => {
+    const row = PAYABLES.find(r => r.sourceKey === seed.sourceKey);
+    if (row) Object.assign(row, clone(seed), { id: row.id });
+  });
   CODEX_SEED_PROFIT_PAYABLES.forEach(seed => {
     const row = PAYABLES.find(r => r.sourceKey === seed.sourceKey);
     if (row) Object.assign(row, clone(seed), { id: row.id });
@@ -4760,7 +4814,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.71', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.72', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4820,7 +4874,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.71', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.72', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -8243,6 +8297,10 @@ function syncDerivedReceivableForPayable(payable) {
   const sourceKey = `payable:${payable.id}`;
   const existingIdx = RECEIVABLES.findIndex(r => r.sourcePayableId === payable.id || r.sourceKey === sourceKey);
   if (!derivedTypes.includes(payable.paymentType)) {
+    if (existingIdx >= 0) RECEIVABLES.splice(existingIdx, 1);
+    return;
+  }
+  if (payable.paymentType === 'family_pass_through' && payable.passThroughReceivable === false) {
     if (existingIdx >= 0) RECEIVABLES.splice(existingIdx, 1);
     return;
   }
