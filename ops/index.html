@@ -1087,7 +1087,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.74 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.75 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4830,7 +4830,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.74', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.75', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4890,7 +4890,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.74', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.75', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -9655,15 +9655,27 @@ function renderExpense() {
             onkeydown="if(event.key==='Enter')this.blur()">
         </td>
         <td style="padding:8px 14px"><span class="tag ${stCls[r.status]||'tag-pending'}">${stLbl[r.status]||r.status}</span></td>
-        <td style="padding:8px 10px;white-space:nowrap">
-          ${canApprove && r.status==='pending' ? `
-            <button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--success)" onclick="approveExpense(${r.id})">核准</button>
-            <button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--error)"   onclick="rejectExpense(${r.id})">退回</button>
-          ` : '<span style="font-size:11px;color:var(--text3)">—</span>'}
-        </td>
+        <td style="padding:8px 10px;white-space:nowrap">${expenseRowActions(r)}</td>
       </tr>`).join('');
   }
   updateExpenseStats(rows);
+}
+
+function expCanEditRow(r) {
+  return !!r && (expCanManageAll() || (r.person === currentUser.id && ['pending','rejected'].includes(r.status)));
+}
+
+function expenseRowActions(r) {
+  const actions = [];
+  if (expCanManageAll() && r.status === 'pending') {
+    actions.push(`<button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--success)" onclick="approveExpense(${r.id})">核准</button>`);
+    actions.push(`<button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--error)" onclick="rejectExpense(${r.id})">退回</button>`);
+  }
+  if (expCanEditRow(r)) {
+    actions.push(`<button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="editExpense(${r.id})">修改</button>`);
+    actions.push(`<button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--error)" onclick="deleteExpense(${r.id})">刪除</button>`);
+  }
+  return actions.length ? actions.join('') : '<span style="font-size:11px;color:var(--text3)">—</span>';
 }
 
 function updateExpenseStats(rowsForStats) {
@@ -9686,12 +9698,52 @@ function updateExpenseStats(rowsForStats) {
 function approveExpense(id) {
   if (!expCanManageAll()) { showToast('您沒有核准費用的權限','error'); return; }
   const r = EXPENSES.find(x=>x.id===id);
-  if (r) { r.status='approved'; expFinalizePostClose(r); renderExpense(); renderOverhead(); renderProfit(); renderProfitShare(); saveData(); showToast('已核准費用申請 ✓','success'); }
+  if (r) { r.status='approved'; expReapplyExpenseEffects(r); renderExpense(); renderOverhead(); renderProfit(); renderProfitShare(); saveData(); showToast('已核准費用申請 ✓','success'); }
 }
 function rejectExpense(id) {
   if (!expCanManageAll()) { showToast('您沒有退回費用的權限','error'); return; }
   const r = EXPENSES.find(x=>x.id===id);
   if (r) { r.status='rejected'; renderExpense(); saveData(); showToast('已退回費用申請','error'); }
+}
+function editExpense(id) {
+  const r = EXPENSES.find(x=>x.id===id);
+  if (!expCanEditRow(r)) { showToast('這筆費用不能修改','error'); return; }
+  const nextItem = prompt('付款項目', r.item || '');
+  if (nextItem === null) return;
+  const nextAmount = prompt('金額', r.amount || 0);
+  if (nextAmount === null) return;
+  const nextDate = prompt('日期（YYYY-MM-DD）', r.date || r.month + '-01');
+  if (nextDate === null) return;
+  const nextNote = prompt('備註', r.note || '');
+  if (nextNote === null) return;
+  if (!nextItem.trim()) { showToast('付款項目不可空白','error'); return; }
+  const parsedAmount = parseMoneyInput(nextAmount);
+  if (!parsedAmount) { showToast('金額不可為 0','error'); return; }
+  expRemoveLinkedOverhead(r);
+  Object.assign(r, {
+    item: nextItem.trim(),
+    amount: parsedAmount,
+    date: /^\d{4}-\d{2}-\d{2}$/.test(nextDate.trim()) ? nextDate.trim() : r.date,
+    note: nextNote.trim(),
+  });
+  if (!expCanManageAll() && r.status === 'rejected') r.status = 'pending';
+  delete r.profitAdjustmentShares;
+  delete r.profitAdjustmentApplied;
+  if (r.status === 'approved') expReapplyExpenseEffects(r);
+  renderExpense(); renderOverhead(); renderProfit(); renderProfitShare();
+  saveData();
+  showToast('費用已更新','success');
+}
+function deleteExpense(id) {
+  const idx = EXPENSES.findIndex(x=>x.id===id);
+  const r = EXPENSES[idx];
+  if (!expCanEditRow(r)) { showToast('這筆費用不能刪除','error'); return; }
+  if (!confirm(`確定刪除這筆費用？\n${r.caseName || ''}｜${r.item || ''}｜$${(r.amount || 0).toLocaleString('zh-TW')}`)) return;
+  expRemoveLinkedOverhead(r);
+  EXPENSES.splice(idx, 1);
+  renderExpense(); renderOverhead(); renderProfit(); renderProfitShare();
+  saveData();
+  showToast('費用已刪除','success');
 }
 function expUpdateNote(id,val) {
   const r = EXPENSES.find(x=>x.id===id);
@@ -9738,18 +9790,23 @@ function expBatchCaseOptions() {
     ...CASES
       .filter(expIsSelectableCase)
       .sort(psCaseNameSort)
-      .map(c => ({key:c.code, name:c.name})),
+      .map(c => ({key:c.code, name:c.name, status:c.status})),
   ];
 }
 
 function expIsSelectableCase(c) {
-  if (!c || c.status === '結案') return false;
-  if (c.excludeFromProfitReports || c.psSettled) return false;
-  return !!c.profitSplit && c.profitSplit !== '不分潤';
+  if (!c || c.excludeFromProfitReports) return false;
+  const split = String(c.profitSplit || '').trim();
+  if (!split || split === '不分潤') return false;
+  const text = `${c.code || ''} ${c.name || ''} ${c.clientName || ''} ${c.caseType || ''} ${c.billingMode || ''} ${c.invoiceMode || ''}`;
+  if (/親友|成本轉付|修繕|維修|撤點/.test(text)) return false;
+  if (c.status === '結案' && !expCanManageAll()) return false;
+  return true;
 }
 
 function expBatchCaseLabel(c) {
-  return c.key === c.name ? c.key : `${c.name}｜${c.key}`;
+  const closed = c.status === '結案' ? '（已結案）' : '';
+  return c.key === c.name ? c.key : `${c.name}${closed}｜${c.key}`;
 }
 
 function expResolveBatchCase(input) {
@@ -9790,6 +9847,21 @@ function expFinalizePostClose(row) {
       });
     }
   }
+}
+
+function expRemoveLinkedOverhead(row) {
+  if (!row || !OVERHEAD) return;
+  Object.values(OVERHEAD).forEach(monthData => {
+    if (!monthData || !Array.isArray(monthData.variable)) return;
+    monthData.variable = monthData.variable.filter(v => v.sourceExpenseId !== row.id);
+  });
+}
+
+function expReapplyExpenseEffects(row) {
+  expRemoveLinkedOverhead(row);
+  delete row.profitAdjustmentShares;
+  delete row.profitAdjustmentApplied;
+  expFinalizePostClose(row);
 }
 
 function expBatchCaseChanged(select) {
@@ -9959,7 +10031,7 @@ function submitBatchExpense() {
   const month  = document.getElementById('exp-batch-month').value;
   if (!month) { showToast('請選擇月份','error'); return; }
   const user   = USERS.find(u=>u.id===person) || USERS[0];
-  const status = expCanManageAll() ? 'approved' : 'pending';
+  const status = 'pending';
   let errMsg = '';
   const pendingRows = [];
   document.querySelectorAll('#exp-batch-tbody tr').forEach((tr,i)=>{
@@ -9993,7 +10065,6 @@ function submitBatchExpense() {
   pendingRows.forEach(row => {
     const saved = { id: expNextId++, ...row };
     EXPENSES.push(saved);
-    expFinalizePostClose(saved);
   });
   closeModal('modal-add-expense');
   renderExpense(); renderOverhead(); renderProfit(); renderProfitShare();
