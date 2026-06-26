@@ -1085,7 +1085,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.64 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.65 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3463,7 +3463,7 @@ function tagCompany(arr) {
 }
 
 function removeReplacedExpenseAggregates() {
-  // 2026-01 至 2026-05 個人費用明細已改為逐筆資料，舊彙總列必須替換掉，不能疊加進毛利。
+  // 2026 個人費用改以逐筆資料為主；舊成本控制表彙總列必須替換掉，不能疊加進毛利。
   const duplicateRules = [
     row => String(row.note || '').includes('Codex匯入：2026費用統計 Jan-Apr'),
     row => String(row.note || '').includes('木柵suzuki連動0326ok；總額24,452'),
@@ -3473,12 +3473,11 @@ function removeReplacedExpenseAggregates() {
       const month = String(row.month || '');
       const item = String(row.item || '');
       const note = String(row.note || '');
-      return month >= '2026-01' &&
-        month <= '2026-05' &&
+      return month.startsWith('2026-') &&
         row.category === '歷史費用' &&
         (item.includes('成本控制表：當案費用2026') || item.includes('成本控制表：營業費用2026')) &&
         item.includes('彙總') &&
-        note.includes('原始費用表');
+        (note.includes('原始費用表') || note.includes('費用表'));
     },
   ];
   let removed = 0;
@@ -3486,6 +3485,46 @@ function removeReplacedExpenseAggregates() {
     const row = EXPENSES[i];
     if (duplicateRules.some(rule => rule(row))) {
       EXPENSES.splice(i, 1);
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
+function isFamilyPassThroughCaseRecord(c) {
+  return !!c && (c.caseType === '親友協助／成本轉付' || c.billingMode === '實際成本轉付' || c.invoiceMode === '不開發票');
+}
+
+function isFamilyPassThroughReceivable(row) {
+  if (!row) return false;
+  const c = CASES.find(x => x.code === row.case);
+  return row.receivableType === 'family_pass_through' || isFamilyPassThroughCaseRecord(c);
+}
+
+function isFamilyAggregateReceivable(row) {
+  return isFamilyPassThroughReceivable(row) &&
+    !row.sourcePayableId &&
+    !row.sourceKey &&
+    String(row.item || '').includes('總額');
+}
+
+function isFamilyDetailReceivable(row) {
+  return isFamilyPassThroughReceivable(row) &&
+    (row.sourcePayableId || row.sourceKey || String(row.item || '').startsWith('親友成本轉付：'));
+}
+
+function removeReplacedPassThroughReceivableAggregates() {
+  const casesWithDetails = new Set(
+    RECEIVABLES
+      .filter(isFamilyDetailReceivable)
+      .map(r => r.case)
+      .filter(Boolean)
+  );
+  let removed = 0;
+  for (let i = RECEIVABLES.length - 1; i >= 0; i--) {
+    const row = RECEIVABLES[i];
+    if (casesWithDetails.has(row.case) && isFamilyAggregateReceivable(row)) {
+      RECEIVABLES.splice(i, 1);
       removed += 1;
     }
   }
@@ -3529,6 +3568,7 @@ function normalizeCompanyData() {
   if (may2025IsEmpty) delete OVERHEAD['2025-05'];
   normalizeProfitPayables();
   removeReplacedExpenseAggregates();
+  removeReplacedPassThroughReceivableAggregates();
 }
 
 const USERS = [
@@ -4649,6 +4689,7 @@ function ensureCodexSeedData() {
   PAYABLES.filter(r => r.sourceKey && !r.id).forEach(r => { r.id = maxId(PAYABLES) + 1; });
   rvNextId = Math.max(rvNextId || 1, maxId(RECEIVABLES) + 1);
   PAYABLES.filter(r => ['family_pass_through','private_loan'].includes(r.paymentType)).forEach(syncDerivedReceivableForPayable);
+  removeReplacedPassThroughReceivableAggregates();
   addByKey(EXPENSES, CODEX_SEED_EXPENSES, r => [r.caseKey,r.person,r.month,r.category,r.amount,r.note].join('|'));
   addByKey(EXPENSES, CODEX_SEED_UPY_JIAYI_EXPENSES, r => [r.caseKey,r.person,r.month,r.category,r.amount,r.note].join('|'));
   addByKey(EXPENSES, CODEX_SEED_PROJECT_ADJUSTMENTS, r => [r.caseKey,r.person,r.month,r.category,r.amount,r.note].join('|'));
@@ -4706,12 +4747,13 @@ function ensureCodexSeedData() {
   EXPENSES.forEach(expFinalizePostClose);
   normalizeProfitPayables();
   removeReplacedExpenseAggregates();
+  removeReplacedPassThroughReceivableAggregates();
 }
 
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.64', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.65', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4771,7 +4813,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.64', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.65', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -8923,13 +8965,13 @@ function renderProfit() {
       detailPanel.innerHTML = '<div style="padding:18px;border:1px solid var(--border);border-radius:8px;color:var(--text3);font-size:12px;text-align:center">目前沒有可顯示的成本明細</div>';
       return;
     }
-    const isFamilyPassThroughCase = detailCase.caseType === '親友協助／成本轉付' || detailCase.invoiceMode === '不開發票';
+    const isFamilyPassThroughCase = isFamilyPassThroughCaseRecord(detailCase);
     const revenueRowsRaw = RECEIVABLES
       .filter(r => r.case === detailCase.code && yearOk(r.collectDate || r.invoiceDate))
       .sort((a,b) => detailDate(a).localeCompare(detailDate(b)));
-    const hasFamilyTotalReceivable = isFamilyPassThroughCase && revenueRowsRaw.some(r => !r.sourcePayableId && String(r.item || '').includes('總額'));
-    const revenueRows = hasFamilyTotalReceivable
-      ? revenueRowsRaw.filter(r => !r.sourcePayableId)
+    const hasFamilyDetailReceivable = isFamilyPassThroughCase && revenueRowsRaw.some(isFamilyDetailReceivable);
+    const revenueRows = hasFamilyDetailReceivable
+      ? revenueRowsRaw.filter(r => !isFamilyAggregateReceivable(r))
       : revenueRowsRaw;
     const payableRows = PAYABLES
       .filter(p => p.case === detailCase.code && isProjectCostPayment(p) && yearOk(p.doneDate || p.transferDate || p.wantDate))
@@ -9506,8 +9548,18 @@ function parseMoneyInput(value) {
 function expBatchCaseOptions() {
   return [
     {key:'固定開銷', name:'固定開銷'},
-    ...CASES.map(c => ({key:c.code, name:c.name + (c.status === '結案' ? '（已結案）' : '')})),
+    ...CASES
+      .filter(expIsSelectableCase)
+      .sort(psCaseNameSort)
+      .map(c => ({key:c.code, name:c.name})),
   ];
+}
+
+function expIsSelectableCase(c) {
+  if (!c || c.status !== '進行中') return false;
+  if (c.excludeFromProfitReports || c.psSettled) return false;
+  const ratios = psGetSplitRatio(c);
+  return Object.values(ratios).some(v => Number(v) > 0);
 }
 
 function expBatchCaseLabel(c) {
