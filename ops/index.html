@@ -1087,7 +1087,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.73 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.74 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4830,7 +4830,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.73', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.74', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4890,7 +4890,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.73', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.74', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -11443,6 +11443,22 @@ let toastTimer;
 // ══════════════════════════════════
 // DASHBOARD RENDER
 // ══════════════════════════════════
+function payreqPendingCount() {
+  return PAYABLES.filter(p => p.status === 'pending').length;
+}
+
+function updatePayreqNavBadge(count = payreqPendingCount()) {
+  const navBadge = document.getElementById('badge-payreq');
+  if (!navBadge) return;
+  if (count > 0 && canAccess('payreq')) {
+    navBadge.style.display = '';
+    navBadge.textContent = count;
+  } else {
+    navBadge.style.display = 'none';
+    navBadge.textContent = '';
+  }
+}
+
 function renderDashboard() {
   const canReviewPayreq = canManage('payreq');
   const canSeeTotals = canSeeFinancialTotals();
@@ -11489,11 +11505,7 @@ function renderDashboard() {
   // 待審核請款列表
   const dashBadge = document.getElementById('dash-payreq-badge');
   if (dashBadge) dashBadge.textContent = `${pendingItems.length} 筆`;
-  const navBadge = document.getElementById('badge-payreq');
-  if (navBadge) {
-    if (pendingItems.length > 0) { navBadge.style.display=''; navBadge.textContent = pendingItems.length; }
-    else navBadge.style.display = 'none';
-  }
+  updatePayreqNavBadge();
   const list = document.getElementById('pending-payreq-list');
   if (list) {
     list.innerHTML = pendingItems.length === 0
@@ -11549,6 +11561,7 @@ function renderPayreq() {
 
   const pb = document.getElementById('payreq-pending-badge');
   if (pb) pb.textContent = `${pending.length} 筆`;
+  updatePayreqNavBadge();
   const ab = document.getElementById('payreq-approved-badge');
   if (ab) ab.textContent = `${approved.length} 筆`;
 
