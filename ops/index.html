@@ -145,8 +145,7 @@ body.auth-pending .auth-screen{display:flex}
   flex-shrink:0;
   position:relative;
   z-index:10;
-  overflow-y:auto;
-  overflow-x:hidden;
+  overflow:hidden;
   overscroll-behavior:contain;
 }
 
@@ -244,6 +243,7 @@ body.auth-pending .auth-screen{display:flex}
   height:8px;
   flex:0 0 auto;
   cursor:row-resize;
+  touch-action:none;
   border-top:1px solid var(--border);
   border-bottom:1px solid var(--border);
   background:
@@ -253,11 +253,11 @@ body.auth-pending .auth-screen{display:flex}
 .sidebar-resizer:hover{background-color:var(--accent2)}
 .sidebar-resizer.dragging{background-color:var(--accent2)}
 .sidebar-bottom{
-  flex:0 0 var(--sidebar-bottom-h, 260px);
+  flex:0 0 var(--sidebar-bottom-h, 210px);
   margin-top:0;
   padding:16px;
-  max-height:48vh;
-  min-height:132px;
+  max-height:42vh;
+  min-height:112px;
   overflow-y:auto;
   overflow-x:hidden;
 }
@@ -1066,7 +1066,7 @@ body.auth-pending .auth-screen{display:flex}
     </div>
   </div>
 
-  <div class="sidebar-resizer" id="sidebar-resizer" title="拖曳調整資料狀態高度"></div>
+  <div class="sidebar-resizer" id="sidebar-resizer" title="拖曳調整上方模組與資料狀態空間"></div>
   <div class="sidebar-bottom">
     <div class="data-status" id="data-status-card">
       <div class="data-status-title">
@@ -1087,7 +1087,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.70 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.71 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4760,7 +4760,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.70', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.71', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4820,7 +4820,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.70', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.71', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5733,24 +5733,35 @@ function opsLogout() {
 }
 
 function initSidebarStatusResizer() {
-  const key = 'yutesign_ops_sidebar_bottom_h';
+  const key = 'yutesign_ops_sidebar_bottom_h_v2';
   const root = document.documentElement;
   const resizer = document.getElementById('sidebar-resizer');
+  const sidebar = document.getElementById('sidebar');
   const bottom = document.querySelector('.sidebar-bottom');
-  if (!resizer || !bottom) return;
-  const clamp = value => Math.max(132, Math.min(Math.round(window.innerHeight * 0.48), value));
-  const saved = parseInt(localStorage.getItem(key) || '', 10);
-  if (saved) root.style.setProperty('--sidebar-bottom-h', clamp(saved) + 'px');
-  let startY = 0;
-  let startH = 0;
-  const move = e => {
-    const y = e.touches ? e.touches[0].clientY : e.clientY;
-    const next = clamp(startH - (y - startY));
+  if (!resizer || !bottom || !sidebar) return;
+  const maxBottom = () => Math.min(360, Math.round(window.innerHeight * 0.42));
+  const clamp = value => Math.max(112, Math.min(maxBottom(), Number(value) || 210));
+  const applyHeight = value => {
+    const next = clamp(value);
     root.style.setProperty('--sidebar-bottom-h', next + 'px');
     localStorage.setItem(key, String(next));
   };
+  const saved = parseInt(localStorage.getItem(key) || '', 10);
+  applyHeight(saved || 210);
+
+  let dragging = false;
+  const move = e => {
+    if (!dragging) return;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    const rect = sidebar.getBoundingClientRect();
+    applyHeight(rect.bottom - y);
+    e.preventDefault();
+  };
   const stop = () => {
+    dragging = false;
     resizer.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
     document.removeEventListener('mousemove', move);
     document.removeEventListener('mouseup', stop);
     document.removeEventListener('touchmove', move);
@@ -5758,13 +5769,15 @@ function initSidebarStatusResizer() {
   };
   const start = e => {
     if (window.innerWidth <= 768) return;
-    startY = e.touches ? e.touches[0].clientY : e.clientY;
-    startH = bottom.getBoundingClientRect().height;
+    dragging = true;
     resizer.classList.add('dragging');
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup', stop);
     document.addEventListener('touchmove', move, { passive:false });
     document.addEventListener('touchend', stop);
+    move(e);
     e.preventDefault();
   };
   resizer.addEventListener('mousedown', start);
