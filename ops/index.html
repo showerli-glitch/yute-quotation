@@ -1087,7 +1087,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.72 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.73 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3408,6 +3408,20 @@ body.auth-pending .auth-screen{display:flex}
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-cloud-conflict">
+  <div class="modal" style="max-width:460px;width:92vw">
+    <div class="modal-hd">
+      <div class="modal-title">⚠️ 你的修改未存檔成功</div>
+    </div>
+    <div class="modal-body" style="padding:16px">
+      <p style="margin:0 0 10px">雲端已經有別人（或別的視窗）存進更新的資料，系統已經停止這次存檔，避免互相覆蓋。</p>
+      <p style="margin:0 0 10px;color:var(--text3);font-size:12px" id="cloud-conflict-message"></p>
+      <p style="margin:0 0 14px">你剛剛的修改目前還沒同步到雲端。請按下方按鈕重新整理頁面，套用最新資料後，再重新修改一次。</p>
+      <button class="btn btn-primary" style="width:100%" onclick="reloadForCloudConflict()">重新整理頁面</button>
+    </div>
+  </div>
+</div>
+
 <div class="role-panel" id="role-panel" onclick="if(event.target===this)closeRolePanel()">
   <div class="role-box">
     <div class="role-box-title">切換使用者（內部測試模式）</div>
@@ -3458,6 +3472,8 @@ let opsCloudLastSavedAt = '';
 let opsCloudLastSavedBy = '';
 let opsCloudLastSummary = '';
 let opsCloudConflict = false;
+let opsCloudPendingSync = false;
+let opsCloudConflictModalShown = false;
 
 function tagCompany(arr) {
   (arr || []).forEach(x => { if (x && typeof x === 'object' && !x.companyId) x.companyId = COMPANY_ID; });
@@ -4814,7 +4830,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.72', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.73', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4874,7 +4890,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.72', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.73', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -4886,23 +4902,49 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
   }
 }
 
+function setSaveIndicator(state) {
+  const ind = document.getElementById('save-indicator');
+  if (!ind) return;
+  clearTimeout(ind._t);
+  ind.style.display = 'inline';
+  if (state === 'syncing') {
+    ind.style.color = 'var(--text3)';
+    ind.textContent = '💾 同步雲端中…';
+  } else if (state === 'synced') {
+    ind.style.color = 'var(--text3)';
+    ind.textContent = '✅ 已同步雲端';
+    ind._t = setTimeout(() => { ind.style.display = 'none'; }, 2000);
+  } else if (state === 'error') {
+    ind.style.color = '#c0392b';
+    ind.textContent = '⚠️ 雲端同步失敗';
+  } else {
+    ind.style.color = 'var(--text3)';
+    ind.textContent = '💾 已存檔';
+    ind._t = setTimeout(() => { ind.style.display = 'none'; }, 2000);
+  }
+}
+
 function saveData() {
   try {
     const snapshot = createDataSnapshot();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
     updateDataStatus(snapshot);
-    opsCloudQueueSave(snapshot);
-    // 閃爍存檔提示
-    const ind = document.getElementById('save-indicator');
-    if (ind) {
-      ind.style.display = 'inline';
-      clearTimeout(ind._t);
-      ind._t = setTimeout(() => { ind.style.display = 'none'; }, 2000);
+    if (OPS_AUTH_ENFORCED) {
+      opsCloudQueueSave(snapshot);
+    } else {
+      setSaveIndicator('local');
     }
   } catch(e) {
     console.warn('saveData failed:', e);
   }
 }
+
+window.addEventListener('beforeunload', (e) => {
+  if (!opsCloudPendingSync) return;
+  e.preventDefault();
+  e.returnValue = '';
+  return '';
+});
 
 function formatDateTimeTW(value) {
   if (!value) return '尚未存檔';
@@ -5530,15 +5572,37 @@ async function opsCloudSaveNow(snapshot, options = {}) {
   return true;
 }
 
+function showCloudConflictModal() {
+  if (opsCloudConflictModalShown) return;
+  opsCloudConflictModalShown = true;
+  const msgEl = document.getElementById('cloud-conflict-message');
+  if (msgEl) msgEl.textContent = opsCloudLastSummary || '雲端已有較新的資料。';
+  openModal('modal-cloud-conflict');
+}
+
+function reloadForCloudConflict() {
+  location.reload();
+}
+
 function opsCloudQueueSave(snapshot) {
   if (!OPS_AUTH_ENFORCED || !opsCloudReady || opsApplyingRemote || !opsAuthenticatedEmail) return;
   clearTimeout(opsCloudSaveTimer);
+  opsCloudPendingSync = true;
+  setSaveIndicator('syncing');
   const frozen = JSON.parse(JSON.stringify(snapshot));
   opsCloudSaveTimer = setTimeout(() => {
-    opsCloudSaveNow(frozen).catch(e => {
+    opsCloudSaveNow(frozen).then(() => {
+      opsCloudPendingSync = false;
+      setSaveIndicator('synced');
+    }).catch(e => {
       console.warn('OPS cloud save failed:', e);
-      showToast(opsCloudErrorMessage(e, '雲端同步'), 'error');
       updateDataStatus(frozen);
+      setSaveIndicator('error');
+      if (String(e?.message || '').includes('OPS_CLOUD_CONFLICT')) {
+        showCloudConflictModal();
+      } else {
+        showToast(opsCloudErrorMessage(e, '雲端同步'), 'error');
+      }
     });
   }, 900);
 }
@@ -5623,7 +5687,23 @@ async function opsCloudPushLocalNow() {
   if (!requireManage('dashboard', '只有完整管理者可以上傳雲端快照')) return false;
   const snapshot = createDataSnapshot();
   const summary = opsSnapshotSummary(snapshot);
-  if (!confirm(`確定要用目前這台瀏覽器資料覆蓋 Firebase 快照？\n\n${summary}\n\n測試前建議先下載資料備份。`)) return false;
+  let remoteWarning = '';
+  try {
+    await opsCloudRequireFirebaseUser();
+    const snap = await opsCloudRef().get();
+    if (snap.exists()) {
+      const payload = snap.val();
+      const remoteSavedAt = opsCloudPayloadSavedAt(payload);
+      if (remoteSavedAt && remoteSavedAt !== opsCloudLastSavedAt) {
+        const remoteBy = payload?.meta?.savedBy || '';
+        const remoteSummary = opsSnapshotSummary(payload?.data || payload);
+        remoteWarning = `\n\n⚠️ 雲端目前的資料比你最後看到的更新：\n${formatDateTimeTW(remoteSavedAt)}${remoteBy ? '｜' + remoteBy : ''}\n${remoteSummary}\n上傳會覆蓋掉這份雲端資料！`;
+      }
+    }
+  } catch(e) {
+    console.warn('OPS cloud pre-check failed:', e);
+  }
+  if (!confirm(`確定要用目前這台瀏覽器資料覆蓋 Firebase 快照？\n\n${summary}${remoteWarning}\n\n測試前建議先下載資料備份。`)) return false;
   try {
     await opsCloudSaveNow(snapshot, { force:true });
     showToast('本機快照已上傳到 Firebase', 'success');
@@ -9665,8 +9745,7 @@ function expBatchCaseOptions() {
 function expIsSelectableCase(c) {
   if (!c || c.status === '結案') return false;
   if (c.excludeFromProfitReports || c.psSettled) return false;
-  const ratios = psGetSplitRatio(c);
-  return Object.values(ratios).some(v => Number(v) > 0);
+  return !!c.profitSplit && c.profitSplit !== '不分潤';
 }
 
 function expBatchCaseLabel(c) {
@@ -9676,6 +9755,7 @@ function expBatchCaseLabel(c) {
 function expResolveBatchCase(input) {
   const raw = String(input?.value || '').trim();
   const options = expBatchCaseOptions();
+  if (!raw) return options[0];
   return options.find(c => c.key === raw || c.name === raw || expBatchCaseLabel(c) === raw)
     || options.find(c => raw && (expBatchCaseLabel(c).includes(raw) || raw.includes(c.key) || raw.includes(c.name.replace('（已結案）',''))))
     || null;
@@ -9741,7 +9821,7 @@ function expBatchAddRow(focusNew) {
   tr.style.borderBottom = '1px solid var(--border)';
   tr.innerHTML = `
     <td style="padding:4px 5px;text-align:center;font-size:11px;color:var(--text3)">${idx}</td>
-    <td style="padding:4px 4px"><input type="text" list="dl-exp-batch-cases" data-case-key="固定開銷" value="固定開銷" style="${_CS}" placeholder="輸入案名或代碼" oninput="expBatchCaseChanged(this)" onchange="expBatchCaseChanged(this)"></td>
+    <td style="padding:4px 4px"><input type="text" list="dl-exp-batch-cases" data-case-key="固定開銷" value="" style="${_CS}" placeholder="固定開銷／輸入案名或代碼" oninput="expBatchCaseChanged(this)" onchange="expBatchCaseChanged(this)"></td>
     <td style="padding:4px 4px"><select class="exp-post-close-treatment" style="${_CS};opacity:.55" disabled>${treatmentOpts}</select></td>
     <td style="padding:4px 4px"><input type="date" style="${_CS}" value="${dateDef}"></td>
     <td style="padding:4px 4px"><input type="text" style="${_CS}" placeholder="付款項目（必填）"></td>
