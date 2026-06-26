@@ -1085,7 +1085,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.61 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.62 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3462,16 +3462,8 @@ function tagCompany(arr) {
   return arr;
 }
 
-function hasExpensePatchDetails() {
-  return EXPENSES.some(row =>
-    row?.sourceType === 'expense_patch' ||
-    String(row?.sourceKey || '').startsWith('expense-patch-') ||
-    String(row?.sourceKey || '').startsWith('ops-expense-')
-  );
-}
-
 function removeReplacedExpenseAggregates() {
-  if (!hasExpensePatchDetails()) return 0;
+  // 2026-01 至 2026-05 個人費用明細已改為逐筆資料，舊彙總列必須替換掉，不能疊加進毛利。
   const duplicateRules = [
     row => String(row.note || '').includes('Codex匯入：2026費用統計 Jan-Apr'),
     row => String(row.note || '').includes('木柵suzuki連動0326ok；總額24,452'),
@@ -3495,6 +3487,12 @@ function normalizeProfitPayables() {
     lienFinal.amount = 7634;
     lienFinal.note = '2026-05-20 依家裡正確版公司開銷校正結清；尾款 7,634';
   }
+}
+
+function psCaseNameSort(a, b) {
+  const nameCmp = String(a?.name || '').localeCompare(String(b?.name || ''), 'zh-Hant-u-co-stroke');
+  if (nameCmp !== 0) return nameCmp;
+  return String(a?.code || '').localeCompare(String(b?.code || ''));
 }
 
 function normalizeCompanyData() {
@@ -4702,7 +4700,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.61', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.62', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4762,7 +4760,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.61', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.62', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -10246,7 +10244,7 @@ function psComputeData() {
   const expApproved = EXPENSES.filter(e => e.status === 'approved' && e.caseKey !== '固定開銷' && e.postCloseTreatment !== 'company_absorb');
   const salaryIdx = OH_FIXED_ITEMS.indexOf('員工薪資');
 
-  const unsettledCases = CASES.filter(c => c.profitSplit && !c.excludeFromProfitReports && (c.splitRatio || PROFIT_SPLIT_RATIOS[c.profitSplit]) && !c.psSettled);
+  const unsettledCases = CASES.filter(c => c.profitSplit && !c.excludeFromProfitReports && (c.splitRatio || PROFIT_SPLIT_RATIOS[c.profitSplit]) && !c.psSettled).sort(psCaseNameSort);
   const selectedCodes = Array.isArray(PS_SELECTED_CASES) ? PS_SELECTED_CASES : unsettledCases.map(c=>c.code);
   const selectedCases = unsettledCases.filter(c => selectedCodes.includes(c.code));
 
@@ -10463,7 +10461,7 @@ function renderProfitShare() {
       '自訂': '自訂人員與比例',
       '不分潤': '不分潤（全數留公司）',
     };
-    const myModeCases = CASES.filter(c => !c.psSettled && ['完工','已完工','結案'].includes(c.status) && c.profitSplit && (psGetSplitRatio(c)[currentUser.id] || 0) > 0);
+    const myModeCases = CASES.filter(c => !c.psSettled && ['完工','已完工','結案'].includes(c.status) && c.profitSplit && (psGetSplitRatio(c)[currentUser.id] || 0) > 0).sort(psCaseNameSort);
     const myModeRows = myModeCases.map(c => `
       <tr style="border-bottom:1px solid var(--border)">
         <td style="padding:7px 12px;font-size:12px">${c.name}<div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace">${c.code}</div></td>
@@ -10516,7 +10514,7 @@ function renderProfitShare() {
   const allMonths = psAvailableOverheadMonths();
   psNormalizeOhRange(allMonths);
   const lockedThrough = psSettlementCutoffMonth();
-  const modeCases = CASES.filter(c => !c.psSettled && ['完工','已完工','結案'].includes(c.status));
+  const modeCases = CASES.filter(c => !c.psSettled && ['完工','已完工','結案'].includes(c.status)).sort(psCaseNameSort);
   const modeOptions = [
     ['', '未設定'],
     ['三人', psRatioLabel(PROFIT_SPLIT_RATIOS['三人'])],
