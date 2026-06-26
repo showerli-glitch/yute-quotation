@@ -1087,7 +1087,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.68 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.69 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1122,7 +1122,7 @@ body.auth-pending .auth-screen{display:flex}
     </div>
 
     <!-- KPI -->
-    <div class="kpi-grid">
+    <div class="kpi-grid" id="dashboard-kpi-grid">
       <div class="kpi-card" style="--kpi-color:var(--blue);padding:10px 16px">
         <div class="kpi-label">個案總數</div>
         <div class="kpi-val" id="dash-kpi-cases" style="font-size:20px">—</div>
@@ -1281,7 +1281,7 @@ body.auth-pending .auth-screen{display:flex}
   <div class="page" id="page-payable">
 
     <!-- Stats -->
-    <div class="kpi-row" style="margin-bottom:20px">
+    <div class="kpi-row" id="py-kpi-row" style="margin-bottom:20px">
       <div class="kpi-card" style="padding:10px 16px">
         <div class="kpi-label">待審核</div>
         <div class="kpi-val" id="py-stat-pending-count" style="font-size:20px">0 筆</div>
@@ -1364,7 +1364,7 @@ body.auth-pending .auth-screen{display:flex}
   <!-- ══════════════════════════════════ RECEIVABLE ══════════════════════════════════ -->
   <!-- ══════════════════════════════════ RECEIVABLE ══════════════════════════════════ -->
   <div class="page" id="page-receivable">
-    <div class="kpi-row" style="margin-bottom:20px">
+    <div class="kpi-row" id="rv-kpi-row" style="margin-bottom:20px">
       <div class="kpi-card" style="padding:10px 16px">
         <div class="kpi-label">本月入帳</div>
         <div class="kpi-val" id="rv-stat-month-amt" style="font-size:20px">—</div>
@@ -3606,9 +3606,9 @@ tagCompany(USERS);
 const USER_PERMISSIONS = {
   shower: {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage'},
   nc:     {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage'},
-  peng:   {dashboard:'view_all',payreq:'view_all_apply_self',payable:'view_all',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_all',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
-  lien:   {dashboard:'view_all',payreq:'view_all_apply_self',payable:'view_all',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_all',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
-  sun:    {dashboard:'view_all',payreq:'view_all_apply_self',payable:'view_all',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_all',profitshare:'view_self',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
+  peng:   {dashboard:'view_profit_cases',payreq:'view_all_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
+  lien:   {dashboard:'view_profit_cases',payreq:'view_all_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
+  sun:    {dashboard:'view_profit_cases',payreq:'view_all_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
   lu_yanchen: {dashboard:'none',payreq:'view_all_apply_self',payable:'none',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_profit_cases',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
   chen_hongjun: {dashboard:'view_all',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_all',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
 };
@@ -3641,7 +3641,7 @@ function canManage(page) { return permissionLevel(page) === 'manage'; }
 function canAccess(page) { return permissionLevel(page) !== 'none'; }
 function canApplySelf(page) { return ['manage','view_all_apply_self','view_self_apply_self'].includes(permissionLevel(page)); }
 function canViewPaymentType() { return ['OWNER','FINANCE','ACCOUNTING'].includes(currentUser?.roleCode); }
-function canSeeFinancialTotals() { return ['OWNER','FINANCE'].includes(currentUser?.roleCode); }
+function canSeeFinancialTotals() { return ['OWNER','FINANCE','ACCOUNTING'].includes(currentUser?.roleCode); }
 function canSeeRestrictedCase(c) { return !c?.excludeFromProfitReports || canSeeFinancialTotals(); }
 function isOperatingPayrollPerson(person) {
   return !!person && !['shower','peng','lien'].includes(person);
@@ -4760,7 +4760,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.68', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.69', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4820,7 +4820,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.68', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.69', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7857,6 +7857,8 @@ function sortOpsRows(rows, sortMode, dateGetter, textGetter, amountGetter) {
 function renderPayable() {
   const manage = canManage('payable');
   const showPaymentType = canViewPaymentType();
+  const kpiRow = document.getElementById('py-kpi-row');
+  if (kpiRow) kpiRow.style.display = canSeeFinancialTotals() ? '' : 'none';
   const filterCase = document.getElementById('py-filter-case')?.value || '';
   const kw = (document.getElementById('py-search')?.value || '').toLowerCase();
   const fromDate = document.getElementById('py-date-from')?.value || '';
@@ -8363,6 +8365,8 @@ function rvTab(el, tab) {
 function renderReceivable() {
   if (!canAccess('receivable')) return;
   const manage = canManage('receivable');
+  const kpiRow = document.getElementById('rv-kpi-row');
+  if (kpiRow) kpiRow.style.display = canSeeFinancialTotals() ? '' : 'none';
   const filterCase = document.getElementById('rv-filter-case')?.value || '';
   const kw = (document.getElementById('rv-search')?.value || '').toLowerCase();
   const fromDate = document.getElementById('rv-date-from')?.value || '';
@@ -11287,14 +11291,21 @@ let toastTimer;
 function renderDashboard() {
   const canReviewPayreq = canManage('payreq');
   const canSeeTotals = canSeeFinancialTotals();
+  const kpiGrid = document.getElementById('dashboard-kpi-grid');
+  if (kpiGrid) kpiGrid.style.display = canSeeTotals ? '' : 'none';
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
   // KPI 1: 個案總數；未結案/待結算狀態在列表標籤呈現。
   const visibleCases = CASES.filter(c => userCanViewCaseFinancials(c.code, 'dashboard') || userCanViewCaseFinancials(c.code, 'profit'));
-  const activeCases = visibleCases.filter(c => !c.psSettled && c.status !== '結案');
+  const displayCases = dcSelCases === null ? visibleCases : visibleCases.filter(c => dcSelCases.has(c.code));
+  const displayCaseCodes = new Set(displayCases.map(c => c.code));
+  const inDashboardCaseFilter = code => !code || dcSelCases === null || displayCaseCodes.has(code);
+  const activeCases = displayCases.filter(c => !c.psSettled && c.status !== '結案');
   const kpiCases = document.getElementById('dash-kpi-cases');
-  if (kpiCases) kpiCases.innerHTML = canSeeTotals ? `${visibleCases.length}<span>個</span>` : '—';
+  if (kpiCases) kpiCases.innerHTML = canSeeTotals ? `${displayCases.length}<span>個</span>` : '—';
+  const kpiCasesSub = document.getElementById('dash-kpi-cases-sub');
+  if (kpiCasesSub) kpiCasesSub.textContent = dcSelCases === null ? '目前可見個案' : '目前篩選個案';
 
   // KPI 2: 合約總金額
   const totalContract = activeCases.reduce((s,c) => s+(c.amount||0), 0);
@@ -11302,7 +11313,7 @@ function renderDashboard() {
   if (kpiContract) kpiContract.innerHTML = canSeeTotals ? `${Math.round(totalContract/10000).toLocaleString('zh-TW')}<span>萬</span>` : '—';
 
   // KPI 3: 本月已收款
-  const visibleReceivables = RECEIVABLES.filter(r => userCanViewCaseFinancials(r.case, 'dashboard') || userCanViewCaseFinancials(r.case, 'receivable'));
+  const visibleReceivables = RECEIVABLES.filter(r => inDashboardCaseFilter(r.case) && (userCanViewCaseFinancials(r.case, 'dashboard') || userCanViewCaseFinancials(r.case, 'receivable')));
   const monthCollected = visibleReceivables.filter(r => r.status==='collected' && r.collectDate?.startsWith(thisMonth)).reduce((s,r) => s+(r.collectAmt||0), 0);
   const totalPending   = visibleReceivables.filter(r => r.status==='pending').reduce((s,r) => s+(r.invoiceAmt||0), 0);
   const kpiCollected = document.getElementById('dash-kpi-collected');
@@ -11311,7 +11322,7 @@ function renderDashboard() {
   if (kpiCollectedSub) kpiCollectedSub.textContent = canSeeTotals ? `待入帳 ${Math.round(totalPending/10000)} 萬` : '僅管理者';
 
   // KPI 4: 待付廠商款（approved）；待審核另列提醒。
-  const visiblePayables = PAYABLES.filter(p => !p.case || userCanViewCaseFinancials(p.case, 'dashboard') || userCanViewCaseFinancials(p.case, 'payable'));
+  const visiblePayables = PAYABLES.filter(p => inDashboardCaseFilter(p.case) && (!p.case || userCanViewCaseFinancials(p.case, 'dashboard') || userCanViewCaseFinancials(p.case, 'payable')));
   const pendingItems = visiblePayables.filter(p => p.status==='pending');
   const approvedItems = visiblePayables.filter(p => p.status==='approved');
   const approvedAmt   = approvedItems.reduce((s,p) => s+(p.amount||0), 0);
