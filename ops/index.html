@@ -1087,7 +1087,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.69 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.70 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3514,7 +3514,7 @@ function isFamilySettlementReceivable(row) {
   return isFamilyPassThroughReceivable(row) &&
     !row.sourcePayableId &&
     !row.sourceKey &&
-    String(row.item || '').includes('結清');
+    (String(row.item || '').includes('結清') || row.status === 'collected' || Number(row.collectAmt || 0) > 0);
 }
 
 function isFamilyDetailReceivable(row) {
@@ -4760,7 +4760,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.69', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.70', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4820,7 +4820,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.69', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.70', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -8850,7 +8850,7 @@ function renderProfit() {
   const rvPaid = RECEIVABLES.filter(r => r.status === 'collected' && yearOk(r.collectDate));
 
   // ── 2. 應付廠商：已付款，依年份篩選 ──
-  const pyPaid = PAYABLES.filter(p => p.status === 'paid' && isProjectCostPayment(p) &&
+  const pyPaid = PAYABLES.filter(p => p.status === 'paid' && isCostControlPayment(p) &&
     yearOk(p.doneDate || p.transferDate || p.wantDate));
 
   // ── 3. 費用申請：已核准，非固定開銷，依年份篩選 ──
@@ -8992,7 +8992,7 @@ function renderProfit() {
       ? revenueRowsRaw.filter(r => !isFamilyAggregateReceivable(r) && !isFamilySettlementReceivable(r))
       : revenueRowsRaw;
     const payableRows = PAYABLES
-      .filter(p => p.case === detailCase.code && isProjectCostPayment(p) && yearOk(p.doneDate || p.transferDate || p.wantDate))
+      .filter(p => p.case === detailCase.code && isCostControlPayment(p) && yearOk(p.doneDate || p.transferDate || p.wantDate))
       .sort((a,b) => detailDate(a).localeCompare(detailDate(b)));
     const familyCostRows = isFamilyPassThroughCase && !payableRows.length
       ? revenueRows
@@ -10038,6 +10038,10 @@ function isProfitPaymentType(type) {
 
 function isProjectCostPayment(p) {
   return !NON_PROJECT_COST_PAYMENT_TYPES[p?.paymentType];
+}
+
+function isCostControlPayment(p) {
+  return isProjectCostPayment(p) || p?.paymentType === 'family_pass_through';
 }
 
 function psParticipantList() {
