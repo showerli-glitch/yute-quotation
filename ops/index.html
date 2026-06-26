@@ -238,12 +238,24 @@ body.auth-pending .auth-screen{display:flex}
 }
 .nav-badge.green{background:var(--success-bg);color:var(--success);border-color:rgba(110,184,148,0.3)}
 
+.sidebar-resizer{
+  height:8px;
+  flex:0 0 auto;
+  cursor:row-resize;
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  background:
+    linear-gradient(90deg, transparent 0, transparent 42%, rgba(164,112,55,.35) 42%, rgba(164,112,55,.35) 58%, transparent 58%),
+    var(--surface2);
+}
+.sidebar-resizer:hover{background-color:var(--accent2)}
+.sidebar-resizer.dragging{background-color:var(--accent2)}
 .sidebar-bottom{
-  flex-shrink:0;
+  flex:0 0 var(--sidebar-bottom-h, 342px);
   margin-top:0;
   padding:16px;
-  border-top:1px solid var(--border);
-  max-height:42vh;
+  max-height:62vh;
+  min-height:150px;
   overflow-y:auto;
   overflow-x:hidden;
 }
@@ -934,6 +946,8 @@ body.auth-pending .auth-screen{display:flex}
   .profit-table-wrap{height:auto;overflow:visible}
   .profit-table{width:980px;min-width:980px}
   .form-grid,.form-grid-3{grid-template-columns:1fr}
+  .sidebar-resizer{display:none}
+  .sidebar-bottom{min-height:auto;flex:0 0 auto}
 }
 @media(max-height:760px){
   .sidebar-logo{padding:18px 20px 14px}
@@ -1050,6 +1064,7 @@ body.auth-pending .auth-screen{display:flex}
     </div>
   </div>
 
+  <div class="sidebar-resizer" id="sidebar-resizer" title="拖曳調整資料狀態高度"></div>
   <div class="sidebar-bottom">
     <div class="data-status" id="data-status-card">
       <div class="data-status-title">
@@ -1070,7 +1085,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.58 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.60 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1205,7 +1220,7 @@ body.auth-pending .auth-screen{display:flex}
     <div class="sec-hd" style="margin-bottom:20px">
       <div class="sec-title">廠商請款申請</div>
       <div style="display:flex;gap:8px;align-items:center">
-        <input class="search-input" id="payreq-search" placeholder="搜尋廠商、摘要、個案編號…" oninput="renderPayreq()" style="height:32px">
+        <input class="search-input" id="payreq-search" placeholder="搜尋廠商、摘要、金額、個案編號…" oninput="renderPayreq()" style="height:32px">
         <button class="btn btn-primary" id="btn-new-payreq" onclick="openPayreqModal()">＋ 新增請款申請</button>
       </div>
     </div>
@@ -1295,7 +1310,7 @@ body.auth-pending .auth-screen{display:flex}
         <button class="btn btn-ghost  btn-sm py-tab"        data-tab="approved" onclick="pyTab(this,'approved')">待付款</button>
         <button class="btn btn-ghost  btn-sm py-tab"        data-tab="paid"     onclick="pyTab(this,'paid')">已付款</button>
       </div>
-      <input class="search-input" id="py-search" placeholder="搜尋廠商、摘要、日期、銀行…" oninput="renderPayable()" style="height:32px">
+      <input class="search-input" id="py-search" placeholder="搜尋廠商、摘要、金額、日期、銀行…" oninput="renderPayable()" style="height:32px">
       <select class="filter-select" id="py-filter-case" onchange="renderPayable()" style="min-width:220px;max-width:280px"><option value="">── 全部個案 ──</option></select>
       <input class="filter-select" id="py-date-from" type="date" onchange="renderPayable()" title="起始日期" style="height:32px;min-width:136px">
       <input class="filter-select" id="py-date-to" type="date" onchange="renderPayable()" title="結束日期" style="height:32px;min-width:136px">
@@ -1376,7 +1391,7 @@ body.auth-pending .auth-screen{display:flex}
         <button class="btn btn-ghost  btn-sm rv-tab"        data-tab="pending"   onclick="rvTab(this,'pending')">待收款</button>
         <button class="btn btn-ghost  btn-sm rv-tab"        data-tab="collected" onclick="rvTab(this,'collected')">已入帳</button>
       </div>
-      <input class="search-input" id="rv-search" placeholder="搜尋買受人、項目、個案編號…" oninput="renderReceivable()" style="height:32px">
+      <input class="search-input" id="rv-search" placeholder="搜尋買受人、項目、金額、個案編號…" oninput="renderReceivable()" style="height:32px">
       <select class="filter-select" id="rv-filter-case" onchange="renderReceivable()" style="min-width:220px;max-width:280px"><option value="">── 全部個案 ──</option></select>
       <input class="filter-select" id="rv-date-from" type="date" onchange="renderReceivable()" title="起始日期" style="height:32px;min-width:136px">
       <input class="filter-select" id="rv-date-to" type="date" onchange="renderReceivable()" title="結束日期" style="height:32px;min-width:136px">
@@ -7661,6 +7676,28 @@ function inDateRange(dateValue, fromValue, toValue) {
   return true;
 }
 
+function normalizeSearchLoose(value) {
+  return String(value || '').toLowerCase().replace(/[,\s$，]/g, '');
+}
+
+function searchTextMatches(haystack, keyword) {
+  const kw = String(keyword || '').trim().toLowerCase();
+  if (!kw) return true;
+  const text = String(haystack || '').toLowerCase();
+  return text.includes(kw) || normalizeSearchLoose(text).includes(normalizeSearchLoose(kw));
+}
+
+function searchAmountText(value) {
+  const n = Number(value) || 0;
+  const rounded = Math.round(n);
+  return [
+    String(n),
+    String(rounded),
+    Math.abs(rounded).toLocaleString('zh-TW'),
+    '$' + Math.abs(rounded).toLocaleString('zh-TW')
+  ].join(' ');
+}
+
 function sortOpsRows(rows, sortMode, dateGetter, textGetter, amountGetter) {
   const dir = sortMode.endsWith('-asc') ? 1 : -1;
   const getTime = v => {
@@ -7698,10 +7735,11 @@ function renderPayable() {
     const searchable = [
       p.vendor, p.summary, p.caseName, p.case, p.person,
       p.wantDate, p.transferDate, p.doneDate, p.ticket, p.bank,
+      searchAmountText(p.amount),
       showPaymentType ? paymentTypeLabel(p.paymentType) : '',
       isProfitPaymentType(p.paymentType) ? psPersonName(p.profitPerson) : '',
     ].filter(Boolean).join(' ').toLowerCase();
-    if (kw && !searchable.includes(kw)) return false;
+    if (!searchTextMatches(searchable, kw)) return false;
     return true;
   }), sortMode, payableDate, p => p.vendor, p => p.amount);
   const statusLabel = {pending:'待審核', approved:'待付款', paid:'已付款'};
@@ -7719,7 +7757,7 @@ function renderPayable() {
           <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent)">${showPaymentType && isProfitPaymentType(p.paymentType) ? '分潤款' : caseCodeBreak(p.case||'—')}</div>
         </td>
         <td style="padding:10px 6px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:115px" title="${p.vendor}">${p.vendor}</td>
-        <td style="padding:10px 14px;color:var(--text2);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px" title="${p.summary}">${p.summary}${showPaymentType && paymentTypeLabel(p.paymentType) ? `<div style="margin-top:3px;font-size:10px;color:var(--accent)">${paymentTypeLabel(p.paymentType)}${isProfitPaymentType(p.paymentType) ? ' · ' + psPersonName(p.profitPerson) : ''}</div>` : ''}</td>
+        <td style="padding:10px 14px;color:var(--text2);font-size:12px;white-space:normal;line-height:1.45;overflow-wrap:anywhere;min-width:170px;max-width:280px" title="${p.summary||''}">${p.summary||''}${showPaymentType && paymentTypeLabel(p.paymentType) ? `<div style="margin-top:3px;font-size:10px;color:var(--accent);line-height:1.4">${paymentTypeLabel(p.paymentType)}${isProfitPaymentType(p.paymentType) ? ' · ' + psPersonName(p.profitPerson) : ''}</div>` : ''}</td>
         <td style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">$${p.amount.toLocaleString('zh-TW')}</td>
         <td class="nowrap-col" style="padding:10px 14px;text-align:center;font-size:12px">${p.wantDate||'—'}</td>
         <td class="nowrap-col col-date" style="padding:10px 14px;text-align:center;font-size:12px">${p.transferDate||'—'}</td>
@@ -8199,7 +8237,14 @@ function renderReceivable() {
     if (filterCase && r.case !== filterCase) return false;
     if (!userCanViewCaseFinancials(r.case, 'receivable')) return false;
     if (!inDateRange(receivableDate(r), fromDate, toDate)) return false;
-    if (kw && !`${r.buyer} ${r.item} ${r.caseName} ${r.case} ${r.invoiceNo}`.toLowerCase().includes(kw)) return false;
+    const searchable = [
+      r.buyer, r.item, r.caseName, r.case, r.invoiceNo, r.progress, r.bank,
+      r.collectDate, r.invoiceDate, r.retentionDue,
+      searchAmountText(r.collectAmt),
+      searchAmountText(r.invoiceAmt),
+      searchAmountText(r.contractAmt),
+    ].filter(Boolean).join(' ');
+    if (!searchTextMatches(searchable, kw)) return false;
     return true;
   }), sortMode, receivableDate, r => r.buyer, r => r.collectAmt || r.invoiceAmt || 0);
   const statusLabel = {pending:'待收款', collected:'已入帳'};
@@ -10149,13 +10194,19 @@ function psComputeData() {
   const allocatableGross = baseRows
     .filter(c => !Number.isFinite(c.fixedOverheadShare) && c.gross > 0)
     .reduce((s,c) => s + c.gross, 0);
+  const taxAllocatableRows = baseRows.filter(c => !Number.isFinite(c.taxReserveOverride) && c.gross > 0);
+  const taxAllocatableGross = taxAllocatableRows.reduce((s,c) => s + c.gross, 0);
+  const defaultTaxReserveTotal = -baseRows
+    .filter(c => !Number.isFinite(c.taxReserveOverride))
+    .reduce((s,c) => s + c.invoiceTotal, 0) * PS_TAX_RATE;
   const caseRows = baseRows.map(c => {
     const hasFixedOverhead = Number.isFinite(c.fixedOverheadShare);
     const participatesOverhead = !hasFixedOverhead && c.gross > 0 && allocatableGross > 0;
     const ohRatio = hasFixedOverhead ? 0 : (participatesOverhead ? c.gross / allocatableGross : 0);
     const ohShare = hasFixedOverhead ? -c.fixedOverheadShare : (participatesOverhead ? -ohRatio * dynamicOverheadTotal : 0);
     const preTaxNet = c.gross + ohShare;
-    const taxReserve = Number.isFinite(c.taxReserveOverride) ? -Math.abs(c.taxReserveOverride) : -c.invoiceTotal * PS_TAX_RATE;
+    const taxRatio = (!Number.isFinite(c.taxReserveOverride) && c.gross > 0 && taxAllocatableGross > 0) ? c.gross / taxAllocatableGross : 0;
+    const taxReserve = Number.isFinite(c.taxReserveOverride) ? -Math.abs(c.taxReserveOverride) : defaultTaxReserveTotal * taxRatio;
     const caseNet = preTaxNet + taxReserve;
     return { ...c, ohRatio, ohShare, preTaxNet, taxReserve, caseNet };
   });
@@ -10585,7 +10636,7 @@ function renderProfitShare() {
     ${ratioTable}
     ${historyHtml}
     <div style="margin-top:10px;font-size:11px;color:var(--text3)">
-      ※ 開銷佔比＝正毛利個案毛利／正毛利合計；毛利為負的個案不分攤公司開銷，開銷直接為 0。稅前個案淨利＝毛利＋開銷；稅後個案淨利＝稅前個案淨利－預留營業所得稅；人員分潤／承擔＝Σ(稅後個案淨利×該人於該案的分潤比例)，負數代表該分潤人按比例承擔或由後續分潤抵扣。
+      ※ 開銷佔比＝正毛利個案毛利／正毛利合計；預留營業所得稅總額＝納入個案總銷售額×稅率，再依正毛利占比分攤；毛利為負的個案不分攤公司開銷與預留稅，金額直接為 0。稅前個案淨利＝毛利＋開銷；稅後個案淨利＝稅前個案淨利－預留營業所得稅；人員分潤／承擔＝Σ(稅後個案淨利×該人於該案的分潤比例)，負數代表該分潤人按比例承擔或由後續分潤抵扣。
     </div>`;
 }
 
@@ -11110,7 +11161,7 @@ function renderPayreq() {
   const stTag   = {pending:'tag-pending', approved:'tag-active', paid:'tag-done'};
   const stLabel = {pending:'待審核', approved:'已核准', paid:'已付款'};
   const kw = (document.getElementById('payreq-search')?.value || '').toLowerCase();
-  const match = p => !kw || `${p.vendor} ${p.summary} ${p.caseName} ${p.case}`.toLowerCase().includes(kw);
+  const match = p => searchTextMatches(`${p.vendor} ${p.summary} ${p.caseName} ${p.case} ${searchAmountText(p.amount)} ${p.wantDate || ''}`, kw);
 
   const pending  = PAYABLES.filter(p => p.status === 'pending' && match(p));
   const approved = PAYABLES.filter(p => (p.status === 'approved' || p.status === 'paid') && match(p) && (manage || p.person === currentUser.id))
