@@ -1085,7 +1085,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.63 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.64 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3476,7 +3476,7 @@ function removeReplacedExpenseAggregates() {
       return month >= '2026-01' &&
         month <= '2026-05' &&
         row.category === '歷史費用' &&
-        item.includes('成本控制表：當案費用2026') &&
+        (item.includes('成本控制表：當案費用2026') || item.includes('成本控制表：營業費用2026')) &&
         item.includes('彙總') &&
         note.includes('原始費用表');
     },
@@ -4711,7 +4711,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.63', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.64', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4771,7 +4771,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.63', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.64', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -8923,9 +8923,14 @@ function renderProfit() {
       detailPanel.innerHTML = '<div style="padding:18px;border:1px solid var(--border);border-radius:8px;color:var(--text3);font-size:12px;text-align:center">目前沒有可顯示的成本明細</div>';
       return;
     }
-    const revenueRows = RECEIVABLES
+    const isFamilyPassThroughCase = detailCase.caseType === '親友協助／成本轉付' || detailCase.invoiceMode === '不開發票';
+    const revenueRowsRaw = RECEIVABLES
       .filter(r => r.case === detailCase.code && yearOk(r.collectDate || r.invoiceDate))
       .sort((a,b) => detailDate(a).localeCompare(detailDate(b)));
+    const hasFamilyTotalReceivable = isFamilyPassThroughCase && revenueRowsRaw.some(r => !r.sourcePayableId && String(r.item || '').includes('總額'));
+    const revenueRows = hasFamilyTotalReceivable
+      ? revenueRowsRaw.filter(r => !r.sourcePayableId)
+      : revenueRowsRaw;
     const payableRows = PAYABLES
       .filter(p => p.case === detailCase.code && isProjectCostPayment(p) && yearOk(p.doneDate || p.transferDate || p.wantDate))
       .sort((a,b) => detailDate(a).localeCompare(detailDate(b)));
@@ -8934,7 +8939,10 @@ function renderProfit() {
       .sort((a,b) => detailDate(a).localeCompare(detailDate(b)));
     const sum = (rows, getter) => rows.reduce((s,row) => s + (Number(getter(row)) || 0), 0);
     const revenueActual = sum(revenueRows, r => r.collectAmt);
-    const invoiceTotal = sum(revenueRows, r => r.invoiceAmt);
+    const receivableTotal = isFamilyPassThroughCase
+      ? sum(revenueRows, r => (r.collectAmt || r.invoiceAmt || r.contractAmt || 0))
+      : sum(revenueRows, r => r.collectAmt || r.invoiceAmt || 0);
+    const invoiceTotal = sum(revenueRows.filter(r => r.invoiceDate || r.invoiceNo), r => r.invoiceAmt);
     const payableTotal = sum(payableRows.filter(p => p.status === 'paid'), p => p.amount);
     const expenseTotal = sum(expenseRows, e => e.amount);
     const detailGross = detailCase.gross;
@@ -8955,11 +8963,13 @@ function renderProfit() {
       </div>`;
     const revenueTable = renderTable(
       '應收／入帳明細',
-      [{label:'入帳日',width:'92px'},{label:'買受人'},{label:'項目'},{label:'入帳金額',align:'right',width:'110px'},{label:'發票金額',align:'right',width:'110px'},{label:'發票日',width:'92px'},{label:'發票號碼',width:'120px'}],
+      [{label:'入帳日',width:'92px'},{label:'買受人'},{label:'項目'},{label:'入帳金額',align:'right',width:'110px'},{label:isFamilyPassThroughCase?'應收金額':'發票金額',align:'right',width:'110px'},{label:'發票日',width:'92px'},{label:'發票號碼',width:'120px'}],
       revenueRows,
       r => `<tr style="border-bottom:1px solid var(--border)"><td style="padding:7px 10px;font-size:12px">${r.collectDate||'待入帳'}</td><td style="padding:7px 10px;font-size:12px">${esc(r.buyer||'')}</td><td style="padding:7px 10px;font-size:12px">${esc(r.item||'')}</td><td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace">${money(r.collectAmt)}</td><td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace">${money(r.invoiceAmt)}</td><td style="padding:7px 10px;font-size:12px">${r.invoiceDate||'—'}</td><td style="padding:7px 10px;font-family:'DM Mono',monospace;font-size:12px">${esc(r.invoiceNo||'—')}</td></tr>`,
       '尚無應收明細',
-      `已入帳 ${money(revenueActual)}／發票 ${money(invoiceTotal)}`
+      isFamilyPassThroughCase
+        ? `已收 ${money(revenueActual)}／應收 ${money(receivableTotal)}／發票 ${money(invoiceTotal)}`
+        : `已入帳 ${money(revenueActual)}／發票 ${money(invoiceTotal)}`
     );
     const payableTable = renderTable(
       '廠商成本明細',
