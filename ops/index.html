@@ -1085,7 +1085,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.62 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.63 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3469,6 +3469,17 @@ function removeReplacedExpenseAggregates() {
     row => String(row.note || '').includes('木柵suzuki連動0326ok；總額24,452'),
     row => String(row.note || '').includes('凱揚濱江連動0326ok；總額3,565'),
     row => String(row.note || '').includes('文威豐連動0326ok；總額14,276'),
+    row => {
+      const month = String(row.month || '');
+      const item = String(row.item || '');
+      const note = String(row.note || '');
+      return month >= '2026-01' &&
+        month <= '2026-05' &&
+        row.category === '歷史費用' &&
+        item.includes('成本控制表：當案費用2026') &&
+        item.includes('彙總') &&
+        note.includes('原始費用表');
+    },
   ];
   let removed = 0;
   for (let i = EXPENSES.length - 1; i >= 0; i--) {
@@ -4700,7 +4711,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.62', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.63', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4760,7 +4771,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.62', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.63', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
