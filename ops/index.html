@@ -145,7 +145,9 @@ body.auth-pending .auth-screen{display:flex}
   flex-shrink:0;
   position:relative;
   z-index:10;
-  overflow:hidden;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
 }
 
 .sidebar-logo{
@@ -198,7 +200,7 @@ body.auth-pending .auth-screen{display:flex}
 
 /* Nav */
 .sidebar-scroll{
-  flex:1;
+  flex:1 1 auto;
   min-height:0;
   overflow-y:auto;
   overflow-x:hidden;
@@ -251,11 +253,11 @@ body.auth-pending .auth-screen{display:flex}
 .sidebar-resizer:hover{background-color:var(--accent2)}
 .sidebar-resizer.dragging{background-color:var(--accent2)}
 .sidebar-bottom{
-  flex:0 0 var(--sidebar-bottom-h, 342px);
+  flex:0 0 var(--sidebar-bottom-h, 260px);
   margin-top:0;
   padding:16px;
-  max-height:62vh;
-  min-height:150px;
+  max-height:48vh;
+  min-height:132px;
   overflow-y:auto;
   overflow-x:hidden;
 }
@@ -1085,7 +1087,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.66 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.67 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4764,7 +4766,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.66', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.67', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4824,7 +4826,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.66', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.67', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5742,7 +5744,7 @@ function initSidebarStatusResizer() {
   const resizer = document.getElementById('sidebar-resizer');
   const bottom = document.querySelector('.sidebar-bottom');
   if (!resizer || !bottom) return;
-  const clamp = value => Math.max(150, Math.min(Math.round(window.innerHeight * 0.65), value));
+  const clamp = value => Math.max(132, Math.min(Math.round(window.innerHeight * 0.48), value));
   const saved = parseInt(localStorage.getItem(key) || '', 10);
   if (saved) root.style.setProperty('--sidebar-bottom-h', clamp(saved) + 'px');
   let startY = 0;
