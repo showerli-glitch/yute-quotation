@@ -1085,7 +1085,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.65 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.66 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3508,9 +3508,20 @@ function isFamilyAggregateReceivable(row) {
     String(row.item || '').includes('總額');
 }
 
+function isFamilySettlementReceivable(row) {
+  return isFamilyPassThroughReceivable(row) &&
+    !row.sourcePayableId &&
+    !row.sourceKey &&
+    String(row.item || '').includes('結清');
+}
+
 function isFamilyDetailReceivable(row) {
   return isFamilyPassThroughReceivable(row) &&
     (row.sourcePayableId || row.sourceKey || String(row.item || '').startsWith('親友成本轉付：'));
+}
+
+function familyReceivableCostAmount(row) {
+  return Number(row?.invoiceAmt || row?.contractAmt || row?.collectAmt || 0) || 0;
 }
 
 function removeReplacedPassThroughReceivableAggregates() {
@@ -4753,7 +4764,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.65', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.66', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4813,7 +4824,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.65', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.66', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -8830,6 +8841,8 @@ function renderProfit() {
 
   // 年份篩選器：空 = 全部
   const yearOk = d => pfSelYears.size === 0 || pfSelYears.has((d || '').slice(0,4));
+  const caseYearFallback = c => String(c?.code || '').match(/20\d{2}/)?.[0] || String(c?.startDate || c?.closedDate || '').slice(0,4);
+  const familyDetailYearOk = (row, c) => yearOk(row.collectDate || row.invoiceDate || row.doneDate || row.wantDate || caseYearFallback(c));
   // 案件篩選器：空 = 全部
   const caseOk = code => (pfSelCases.size === 0 || pfSelCases.has(code)) && userCanViewCaseFinancials(code, 'profit');
 
@@ -8845,19 +8858,24 @@ function renderProfit() {
 
   // ── 4. 每個案件毛利計算（依案件篩選） ──
   const caseRows = CASES.filter(c => caseOk(c.code)).map(c => {
+    const isFamilyPassThroughCase = isFamilyPassThroughCaseRecord(c);
+    const familyDetailRows = isFamilyPassThroughCase
+      ? RECEIVABLES.filter(r => r.case === c.code && isFamilyDetailReceivable(r) && familyDetailYearOk(r, c))
+      : [];
     const recordedRevenue = rvPaid.filter(r => r.case === c.code).reduce((s, r) => s + (r.collectAmt || 0), 0);
     const recordedCost = pyPaid.filter(p => p.case === c.code).reduce((s, p) => s + (p.amount || 0), 0);
+    const familyCostFallback = familyDetailRows.reduce((s, r) => s + familyReceivableCostAmount(r), 0);
     const revenue  = Number.isFinite(c.revenueOverride) ? c.revenueOverride : recordedRevenue;
-    const cost     = Number.isFinite(c.vendorCostOverride) ? c.vendorCostOverride : recordedCost;
+    const cost     = Number.isFinite(c.vendorCostOverride) ? c.vendorCostOverride : (recordedCost || familyCostFallback);
     const caseExpenses = expApproved.filter(e => e.caseKey === c.code);
     const expCost  = caseExpenses.filter(e => e.category !== '公司分攤').reduce((s, e) => s + (e.amount || 0), 0);
     const calculatedTaxCost = rvPaid.filter(r => r.case === c.code).reduce((s, r) => s + ((r.invoiceAmt || 0) / 1.05 * 0.05 / 2), 0);
-    const taxCost  = Number.isFinite(c.taxCostOverride) ? c.taxCostOverride : calculatedTaxCost;
+    const taxCost  = Number.isFinite(c.taxCostOverride) ? c.taxCostOverride : (isFamilyPassThroughCase ? 0 : calculatedTaxCost);
     const calculatedGross = revenue - cost - expCost - taxCost;
     const gross    = Number.isFinite(c.grossOverride) ? c.grossOverride : calculatedGross;
     const contract = c.amount || 0;
     const collected= rvPaid.filter(r => r.case === c.code).reduce((s, r) => s + (r.collectAmt || 0), 0);
-    return { ...c, revenue, cost, expCost, taxCost, recordedRevenue, recordedCost, calculatedTaxCost, calculatedGross, gross, contract, collected };
+    return { ...c, revenue, cost, expCost, taxCost, recordedRevenue, recordedCost, familyCostFallback, calculatedTaxCost, calculatedGross, gross, contract, collected };
   }).filter(c => c.contract > 0 || c.revenue > 0 || c.cost > 0);
 
   const detailSelect = document.getElementById('pf-detail-case');
@@ -8967,25 +8985,43 @@ function renderProfit() {
     }
     const isFamilyPassThroughCase = isFamilyPassThroughCaseRecord(detailCase);
     const revenueRowsRaw = RECEIVABLES
-      .filter(r => r.case === detailCase.code && yearOk(r.collectDate || r.invoiceDate))
+      .filter(r => r.case === detailCase.code && (isFamilyPassThroughCase ? familyDetailYearOk(r, detailCase) : yearOk(r.collectDate || r.invoiceDate)))
       .sort((a,b) => detailDate(a).localeCompare(detailDate(b)));
     const hasFamilyDetailReceivable = isFamilyPassThroughCase && revenueRowsRaw.some(isFamilyDetailReceivable);
     const revenueRows = hasFamilyDetailReceivable
-      ? revenueRowsRaw.filter(r => !isFamilyAggregateReceivable(r))
+      ? revenueRowsRaw.filter(r => !isFamilyAggregateReceivable(r) && !isFamilySettlementReceivable(r))
       : revenueRowsRaw;
     const payableRows = PAYABLES
       .filter(p => p.case === detailCase.code && isProjectCostPayment(p) && yearOk(p.doneDate || p.transferDate || p.wantDate))
       .sort((a,b) => detailDate(a).localeCompare(detailDate(b)));
+    const familyCostRows = isFamilyPassThroughCase && !payableRows.length
+      ? revenueRows
+          .filter(isFamilyDetailReceivable)
+          .map(r => ({
+            doneDate: r.collectDate || r.invoiceDate || '',
+            transferDate: '',
+            wantDate: '',
+            vendor: r.buyer || '親友工程',
+            summary: String(r.item || '').replace(/^親友成本轉付：/, ''),
+            amount: familyReceivableCostAmount(r),
+            status: 'paid',
+            person: '',
+            note: r.note || '由成本轉付應收明細列入成本'
+          }))
+      : [];
+    const costRows = payableRows.length ? payableRows : familyCostRows;
     const expenseRows = EXPENSES
       .filter(e => e.caseKey === detailCase.code && e.status === 'approved' && e.caseKey !== '固定開銷' && e.postCloseTreatment !== 'company_absorb' && yearOk(e.month || e.date))
       .sort((a,b) => detailDate(a).localeCompare(detailDate(b)));
     const sum = (rows, getter) => rows.reduce((s,row) => s + (Number(getter(row)) || 0), 0);
-    const revenueActual = sum(revenueRows, r => r.collectAmt);
+    const revenueActual = isFamilyPassThroughCase
+      ? sum(revenueRowsRaw.filter(r => !isFamilyAggregateReceivable(r)), r => r.collectAmt)
+      : sum(revenueRows, r => r.collectAmt);
     const receivableTotal = isFamilyPassThroughCase
       ? sum(revenueRows, r => (r.collectAmt || r.invoiceAmt || r.contractAmt || 0))
       : sum(revenueRows, r => r.collectAmt || r.invoiceAmt || 0);
     const invoiceTotal = sum(revenueRows.filter(r => r.invoiceDate || r.invoiceNo), r => r.invoiceAmt);
-    const payableTotal = sum(payableRows.filter(p => p.status === 'paid'), p => p.amount);
+    const payableTotal = sum(costRows.filter(p => p.status === 'paid'), p => p.amount);
     const expenseTotal = sum(expenseRows, e => e.amount);
     const detailGross = detailCase.gross;
     const renderTable = (title, columns, rows, rowHtml, emptyText, totalText) => `
@@ -9016,7 +9052,7 @@ function renderProfit() {
     const payableTable = renderTable(
       '廠商成本明細',
       [{label:'付款日',width:'92px'},{label:'受款廠商'},{label:'摘要'},{label:'金額',align:'right',width:'110px'},{label:'狀態',width:'78px'},{label:'申請人',width:'90px'},{label:'備註'}],
-      payableRows,
+      costRows,
       p => `<tr style="border-bottom:1px solid var(--border)"><td style="padding:7px 10px;font-size:12px">${p.doneDate||p.transferDate||p.wantDate||'—'}</td><td style="padding:7px 10px;font-size:12px">${esc(p.vendor||'')}</td><td style="padding:7px 10px;font-size:12px">${esc(p.summary||'')}</td><td style="padding:7px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--error)">${money(p.amount)}</td><td style="padding:7px 10px;font-size:12px">${p.status==='paid'?'已付款':p.status==='approved'?'待付款':'待審核'}</td><td style="padding:7px 10px;font-size:12px">${esc(p.person||'')}</td><td style="padding:7px 10px;font-size:11px;color:var(--text3);white-space:normal">${esc(p.note||'')}</td></tr>`,
       '尚無廠商成本明細',
       `已付 ${money(payableTotal)}`
@@ -9556,7 +9592,7 @@ function expBatchCaseOptions() {
 }
 
 function expIsSelectableCase(c) {
-  if (!c || c.status !== '進行中') return false;
+  if (!c || c.status === '結案') return false;
   if (c.excludeFromProfitReports || c.psSettled) return false;
   const ratios = psGetSplitRatio(c);
   return Object.values(ratios).some(v => Number(v) > 0);
