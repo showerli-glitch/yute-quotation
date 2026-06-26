@@ -4663,7 +4663,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.58', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.59', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4723,7 +4723,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.58', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.59', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5635,6 +5635,45 @@ function opsLogout() {
   if (OPS_AUTH_ENFORCED) location.reload();
 }
 
+function initSidebarStatusResizer() {
+  const key = 'yutesign_ops_sidebar_bottom_h';
+  const root = document.documentElement;
+  const resizer = document.getElementById('sidebar-resizer');
+  const bottom = document.querySelector('.sidebar-bottom');
+  if (!resizer || !bottom) return;
+  const clamp = value => Math.max(150, Math.min(Math.round(window.innerHeight * 0.65), value));
+  const saved = parseInt(localStorage.getItem(key) || '', 10);
+  if (saved) root.style.setProperty('--sidebar-bottom-h', clamp(saved) + 'px');
+  let startY = 0;
+  let startH = 0;
+  const move = e => {
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    const next = clamp(startH - (y - startY));
+    root.style.setProperty('--sidebar-bottom-h', next + 'px');
+    localStorage.setItem(key, String(next));
+  };
+  const stop = () => {
+    resizer.classList.remove('dragging');
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', stop);
+    document.removeEventListener('touchmove', move);
+    document.removeEventListener('touchend', stop);
+  };
+  const start = e => {
+    if (window.innerWidth <= 768) return;
+    startY = e.touches ? e.touches[0].clientY : e.clientY;
+    startH = bottom.getBoundingClientRect().height;
+    resizer.classList.add('dragging');
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', stop);
+    document.addEventListener('touchmove', move, { passive:false });
+    document.addEventListener('touchend', stop);
+    e.preventDefault();
+  };
+  resizer.addEventListener('mousedown', start);
+  resizer.addEventListener('touchstart', start, { passive:false });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadData(); // 從 localStorage 還原資料
   ensureCodexSeedData();
@@ -5646,6 +5685,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
   }
   initRoleOptions();
+  initSidebarStatusResizer();
   setTodayMin();
   opsInitGoogleAuth();
 });
@@ -9878,6 +9918,37 @@ let PROFIT_SETTLEMENTS = [];
 // 本次結算暫選的個案（未選=全部未結算個案）；開銷月份範圍
 let PS_SELECTED_CASES = null;
 let PS_OH_START = null, PS_OH_END = null;
+const PS_INITIAL_OVERHEAD_LOCKED_THROUGH = '2025-09';
+
+function psSettlementCutoffMonth() {
+  const months = new Set([PS_INITIAL_OVERHEAD_LOCKED_THROUGH]);
+  Object.entries(OVERHEAD || {}).forEach(([month, data]) => {
+    if (prIsValidMonth(month) && data?.settled) months.add(month);
+  });
+  PROFIT_SETTLEMENTS.forEach(settlement => {
+    (settlement.ohMonths || []).forEach(item => {
+      const month = typeof item === 'string' ? item : item?.month;
+      if (prIsValidMonth(month) && !item?.postCloseOnly) months.add(month);
+    });
+  });
+  return [...months].filter(prIsValidMonth).sort().pop() || '';
+}
+
+function psAvailableOverheadMonths() {
+  const cutoff = psSettlementCutoffMonth();
+  return Object.keys(OVERHEAD || {}).filter(month => prIsValidMonth(month) && (!cutoff || month > cutoff)).sort();
+}
+
+function psNormalizeOhRange(months) {
+  if (!Array.isArray(months) || !months.length) {
+    if (PS_OH_START && !prIsValidMonth(PS_OH_START)) PS_OH_START = null;
+    if (PS_OH_END && !prIsValidMonth(PS_OH_END)) PS_OH_END = null;
+    return;
+  }
+  if (PS_OH_START && !months.includes(PS_OH_START)) PS_OH_START = months[0];
+  if (PS_OH_END && !months.includes(PS_OH_END)) PS_OH_END = months[months.length - 1];
+  if (PS_OH_START && PS_OH_END && PS_OH_START > PS_OH_END) PS_OH_END = PS_OH_START;
+}
 
 function psSetTaxRate(val) {
   if (!requireManage('profitshare')) return;
@@ -10160,10 +10231,9 @@ function psComputeData() {
     };
   });
 
-  // 已結算月份若後來新增「公司吸收」，只把該筆新費用帶到下一期，不重算整月。
-  const allMonths = Object.keys(OVERHEAD).filter(m =>
-    !OVERHEAD[m].settled || (OVERHEAD[m].variable || []).some(v => v.postClosePending && !v.postCloseSettled)
-  ).sort();
+  // 已鎖定的公司開銷月份不再出現在後續結算，避免重複計算。
+  const allMonths = psAvailableOverheadMonths();
+  psNormalizeOhRange(allMonths);
   const inRange = m => (!PS_OH_START || m >= PS_OH_START) && (!PS_OH_END || m <= PS_OH_END);
   const monthKeys = allMonths.filter(inRange);
   const ohMonths = monthKeys.map(m => {
@@ -10404,7 +10474,9 @@ function renderProfitShare() {
   }
 
   // ── 結算設定區 ──
-  const allMonths = Object.keys(OVERHEAD).filter(m => !OVERHEAD[m].settled).sort();
+  const allMonths = psAvailableOverheadMonths();
+  psNormalizeOhRange(allMonths);
+  const lockedThrough = psSettlementCutoffMonth();
   const modeCases = CASES.filter(c => !c.psSettled && ['完工','已完工','結案'].includes(c.status));
   const modeOptions = [
     ['', '未設定'],
@@ -10451,7 +10523,7 @@ function renderProfitShare() {
           <option value="">全部</option>${monthOpts(PS_OH_END)}
         </select>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin:-2px 0 8px">目前同步月份：${claimMonths}。彭／連月薪依此範圍歸屬；工程獎金、分潤預領與結清款則依應付帳款實際付款日計入，不受月份範圍限制。</div>
+      <div style="font-size:11px;color:var(--text3);margin:-2px 0 8px">目前同步月份：${claimMonths}。已鎖定至：${lockedThrough || '尚未鎖定'}；選單只顯示未結算月份。彭／連月薪依此範圍歸屬；工程獎金、分潤預領與結清款則依應付帳款實際付款日計入，不受月份範圍限制。</div>
       <div style="margin-bottom:8px">
         <div style="font-size:12px;color:var(--text3);margin-bottom:4px">納入本次結算的個案：</div>
         ${caseChecks || '<span style="font-size:12px;color:var(--text3)">沒有可結算的個案</span>'}
