@@ -1085,7 +1085,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.60 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.61 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3462,6 +3462,41 @@ function tagCompany(arr) {
   return arr;
 }
 
+function hasExpensePatchDetails() {
+  return EXPENSES.some(row =>
+    row?.sourceType === 'expense_patch' ||
+    String(row?.sourceKey || '').startsWith('expense-patch-') ||
+    String(row?.sourceKey || '').startsWith('ops-expense-')
+  );
+}
+
+function removeReplacedExpenseAggregates() {
+  if (!hasExpensePatchDetails()) return 0;
+  const duplicateRules = [
+    row => String(row.note || '').includes('Codex匯入：2026費用統計 Jan-Apr'),
+    row => String(row.note || '').includes('木柵suzuki連動0326ok；總額24,452'),
+    row => String(row.note || '').includes('凱揚濱江連動0326ok；總額3,565'),
+    row => String(row.note || '').includes('文威豐連動0326ok；總額14,276'),
+  ];
+  let removed = 0;
+  for (let i = EXPENSES.length - 1; i >= 0; i--) {
+    const row = EXPENSES[i];
+    if (duplicateRules.some(rule => rule(row))) {
+      EXPENSES.splice(i, 1);
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
+function normalizeProfitPayables() {
+  const lienFinal = PAYABLES.find(row => row.sourceKey === 'lien-profit-20260520');
+  if (lienFinal) {
+    lienFinal.amount = 7634;
+    lienFinal.note = '2026-05-20 依家裡正確版公司開銷校正結清；尾款 7,634';
+  }
+}
+
 function normalizeCompanyData() {
   [CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, PAYROLL, CLIENTS, VENDORS, EMPLOYEES, PROFIT_SETTLEMENTS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, AUDIT_LOGS]
     .forEach(tagCompany);
@@ -3483,6 +3518,8 @@ function normalizeCompanyData() {
     (may2025.fixedNotes || []).every(v => !String(v || '').trim()) &&
     !(may2025.variable || []).length;
   if (may2025IsEmpty) delete OVERHEAD['2025-05'];
+  normalizeProfitPayables();
+  removeReplacedExpenseAggregates();
 }
 
 const USERS = [
@@ -4409,7 +4446,7 @@ const CODEX_SEED_PROFIT_PAYABLES = [
   { sourceKey:'lien-profit-20260210', case:'', caseName:'', vendor:'連星羽', summary:'工程獎金／分潤預領', amount:500000, wantDate:'2026-02-10', transferDate:'2026-02-10', doneDate:'2026-02-10', ticket:'', bank:'', invoice:'無', receipt:'無', person:'李鎮宇', profitPerson:'lien', paymentType:'engineering_bonus', status:'paid', note:'來源：連星羽預付款記錄' },
   { sourceKey:'lien-profit-20260316', case:'', caseName:'', vendor:'連星羽', summary:'工程獎金／分潤預領', amount:300000, wantDate:'2026-03-16', transferDate:'2026-03-16', doneDate:'2026-03-16', ticket:'', bank:'', invoice:'無', receipt:'無', person:'李鎮宇', profitPerson:'lien', paymentType:'engineering_bonus', status:'paid', note:'來源：連星羽預付款記錄' },
   { sourceKey:'lien-profit-20260421', case:'', caseName:'', vendor:'連星羽', summary:'工程獎金／分潤預領', amount:200000, wantDate:'2026-04-21', transferDate:'2026-04-21', doneDate:'2026-04-21', ticket:'', bank:'', invoice:'無', receipt:'無', person:'李鎮宇', profitPerson:'lien', paymentType:'engineering_bonus', status:'paid', note:'來源：連星羽預付款記錄' },
-  { sourceKey:'lien-profit-20260520', case:'', caseName:'', vendor:'連星羽', summary:'分潤尾款結清', amount:15433, wantDate:'2026-05-20', transferDate:'2026-05-20', doneDate:'2026-05-20', ticket:'', bank:'', invoice:'無', receipt:'無', person:'李鎮宇', profitPerson:'lien', paymentType:'profit_settlement', status:'paid', note:'2026-05-20 依家裡正確版公司開銷校正結清；尾款 15,433' },
+  { sourceKey:'lien-profit-20260520', case:'', caseName:'', vendor:'連星羽', summary:'分潤尾款結清', amount:7634, wantDate:'2026-05-20', transferDate:'2026-05-20', doneDate:'2026-05-20', ticket:'', bank:'', invoice:'無', receipt:'無', person:'李鎮宇', profitPerson:'lien', paymentType:'profit_settlement', status:'paid', note:'2026-05-20 依家裡正確版公司開銷校正結清；尾款 7,634' },
 ];
 const CODEX_202605_PROFIT_CASES = ['YT-VOL-2025-001','YT-UPY-2025-002','YT-SUZ-2025-001','YT-SUZ-2025-002','YT-KYG-2025-001','YT-WWF-2025-001'];
 CODEX_SEED_PROFIT_PAYABLES.forEach(r => { r.profitCaseCodes = CODEX_202605_PROFIT_CASES.slice(); });
@@ -4658,12 +4695,14 @@ function ensureCodexSeedData() {
   });
   ohVarNextId = Math.max(ohVarNextId || 1, 1 + Math.max(0, ...Object.values(OVERHEAD).flatMap(data => (data.variable || []).map(v => Number(v.id) || 0))));
   EXPENSES.forEach(expFinalizePostClose);
+  normalizeProfitPayables();
+  removeReplacedExpenseAggregates();
 }
 
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.60', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.61', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4723,7 +4762,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.60', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.61', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
