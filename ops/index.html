@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.84 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.85 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3654,11 +3654,15 @@ function casePaidPayableAmount(caseCode, options = {}) {
     .reduce((s, p) => s + (Number(p.amount) || 0), 0);
 }
 
+function copyAccountingRow(row) {
+  return JSON.parse(JSON.stringify(row));
+}
+
 function canonicalPayableRowsForCase(caseCode) {
-  if (caseCode === 'YT-FAM-2026-001') return CODEX_SEED_YUCHENG_PAYABLES.map(clone);
-  if (caseCode === 'YT-FAM-2026-002') return CODEX_SEED_HULIN_PAYABLES.map(clone);
+  if (caseCode === 'YT-FAM-2026-001') return CODEX_SEED_YUCHENG_PAYABLES.map(copyAccountingRow);
+  if (caseCode === 'YT-FAM-2026-002') return CODEX_SEED_HULIN_PAYABLES.map(copyAccountingRow);
   const seeded = SPECIAL_CASE_PAYABLE_SEEDS.filter(seed => seed.case === caseCode);
-  if (seeded.length) return seeded.map(clone);
+  if (seeded.length) return seeded.map(copyAccountingRow);
   return null;
 }
 
@@ -3666,7 +3670,7 @@ function canonicalReceivableRowsForCase(caseCode, currentRows = []) {
   if (currentRows.length) return currentRows;
   return SPECIAL_CASE_RECEIVABLE_SEEDS
     .filter(seed => seed.case === caseCode)
-    .map(clone);
+    .map(copyAccountingRow);
 }
 
 function upsertReceivableSeedPreserveEntry(seed) {
@@ -5114,7 +5118,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.84', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.85', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5174,7 +5178,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.84', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.85', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6208,8 +6212,8 @@ document.addEventListener('DOMContentLoaded', () => {
   applyRole(USERS[0]);
   if (!OPS_AUTH_ENFORCED) {
     saveData();
-    renderAll();
   }
+  renderAll(); // 先用 localStorage 資料填畫面，auth-pending 隱藏中跑不影響
   initRoleOptions();
   initSidebarStatusResizer();
   setTodayMin();
