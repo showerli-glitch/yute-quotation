@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.87 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.88 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3752,6 +3752,11 @@ function resetSeededCasePayables(caseCode, seeds) {
   seeds.forEach(seed => PAYABLES.push({ id: nextRowId(PAYABLES), ...clone(seed) }));
 }
 
+function seedCasePayablesIfEmpty(caseCode, seeds) {
+  if (PAYABLES.some(row => row.case === caseCode)) return;
+  seeds.forEach(seed => PAYABLES.push({ id: nextRowId(PAYABLES), ...clone(seed) }));
+}
+
 const SPECIAL_CASE_RECEIVABLE_SEEDS = [
   { sourceKey:'yucheng-family-ar-total-137399', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', collectDate:'2026-06-27', buyer:'親友工程', item:'玉成街親友工程收款', collectAmt:20730, bank:'親友收款', invoiceAmt:0, invoiceDate:'', invoiceNo:'', contractAmt:137399, progress:'已收 20,730／應收 137,399', invoiceLink:'', status:'collected', receivableType:'normal', note:'親友案比照一般個案手動建立應收；目前實收 20,730，其餘待收。' },
   { sourceKey:'hulin-family-ar-total-1450000', case:'YT-FAM-2026-002', caseName:'虎林街住家', collectDate:'2026-05-03', buyer:'親友工程', item:'虎林街住家結清款', collectAmt:1450000, bank:'抵付／已結清', invoiceAmt:0, invoiceDate:'', invoiceNo:'', contractAmt:1450000, progress:'2026-05-03 已結清', invoiceLink:'', status:'collected', receivableType:'normal', note:'親友案比照一般個案，只保留一筆應收；不分潤。' },
@@ -3850,7 +3855,7 @@ function normalizeOrdinaryProjectAccounting() {
     ))
   );
   resetSeededCasePayables('YT-FAM-2026-001', CODEX_SEED_YUCHENG_PAYABLES);
-  resetSeededCasePayables('YT-FAM-2026-002', CODEX_SEED_HULIN_PAYABLES);
+  seedCasePayablesIfEmpty('YT-FAM-2026-002', CODEX_SEED_HULIN_PAYABLES);
   SPECIAL_CASE_RECEIVABLE_SEEDS.forEach(upsertReceivableSeedPreserveEntry);
 
   ['YT-INV-2026-001','YT-VOL-REP-2026-001','YT-VOL-REP-2026-002']
