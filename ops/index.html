@@ -651,12 +651,18 @@ body.auth-pending .auth-screen{display:flex}
   overflow-y:visible;
   -webkit-overflow-scrolling:touch;
 }
-.sticky-table thead th{
+.sticky-table{
+  border-collapse:separate!important;
+  border-spacing:0;
+}
+.sticky-table thead{
   position:sticky;
   top:56px;
   z-index:4;
+}
+.sticky-table thead th{
   background:var(--surface2);
-  box-shadow:0 1px 0 var(--border2);
+  box-shadow:0 1px 0 var(--border2),0 -1px 0 var(--surface2);
 }
 .form-textarea{
   background:var(--surface2);border:1px solid var(--border2);
@@ -928,7 +934,7 @@ body.auth-pending .auth-screen{display:flex}
   .sidebar-backdrop.show{display:block}
   .mobile-menu-btn{display:inline-flex!important}
   .topbar{height:auto;min-height:58px;padding:10px 12px;gap:10px;align-items:flex-start}
-  .sticky-table thead th{top:58px}
+  .sticky-table thead{top:58px}
   .topbar-title{font-size:15px}
   .topbar-sub{font-size:10px}
   .topbar-actions{gap:6px;overflow-x:auto;max-width:58vw;padding-bottom:2px}
@@ -1100,7 +1106,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.81 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.82 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5080,7 +5086,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.81', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.82', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5140,7 +5146,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.81', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.82', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
