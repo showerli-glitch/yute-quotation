@@ -665,11 +665,13 @@ body.auth-pending .auth-screen{display:flex}
   box-shadow:0 1px 0 var(--border2),0 -1px 0 var(--surface2);
 }
 #page-receivable .sticky-table-wrap,
-#page-payable .sticky-table-wrap{
+#page-payable .sticky-table-wrap,
+#page-profit .sticky-table-wrap{
   overflow-y:auto;
 }
 #page-receivable .sticky-table thead,
-#page-payable .sticky-table thead{
+#page-payable .sticky-table thead,
+#page-profit .sticky-table thead{
   top:0;
 }
 .form-textarea{
@@ -6262,7 +6264,7 @@ function toggleMobileSidebar(force) {
 }
 
 function resizeTableWrap() {
-  ['page-receivable','page-payable'].forEach(function(pid){
+  ['page-receivable','page-payable','page-profit'].forEach(function(pid){
     var pg = document.getElementById(pid);
     if(!pg||!pg.classList.contains('active')) return;
     var wrap = pg.querySelector('.sticky-table-wrap');
@@ -6297,7 +6299,7 @@ function navTo(page, el) {
   document.getElementById('topbar-title').textContent = t[0];
   document.getElementById('topbar-sub').textContent = t[1];
   currentPage = page;
-  if (page === 'profit')     renderProfit();
+  if (page === 'profit')     { renderProfit(); requestAnimationFrame(resizeTableWrap); }
   if (page === 'profitshare') renderProfitShare();
   if (page === 'attendance') renderAttendance();
   if (page === 'payreq')     renderPayreq();
