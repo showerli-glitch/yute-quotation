@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.85 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.86 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3654,23 +3654,18 @@ function casePaidPayableAmount(caseCode, options = {}) {
     .reduce((s, p) => s + (Number(p.amount) || 0), 0);
 }
 
-function copyAccountingRow(row) {
-  return JSON.parse(JSON.stringify(row));
-}
+const SOURCE_OF_TRUTH_CASE_CODES = new Set([
+  'YT-FAM-2026-001',
+  'YT-FAM-2026-002',
+  'YT-INV-2026-001',
+  'YT-SUZ-REP-2026-001',
+  'YT-VOL-REP-2026-001',
+  'YT-VOL-REP-2026-002',
+  'YT-LOAN-2026-001',
+]);
 
-function canonicalPayableRowsForCase(caseCode) {
-  if (caseCode === 'YT-FAM-2026-001') return CODEX_SEED_YUCHENG_PAYABLES.map(copyAccountingRow);
-  if (caseCode === 'YT-FAM-2026-002') return CODEX_SEED_HULIN_PAYABLES.map(copyAccountingRow);
-  const seeded = SPECIAL_CASE_PAYABLE_SEEDS.filter(seed => seed.case === caseCode);
-  if (seeded.length) return seeded.map(copyAccountingRow);
-  return null;
-}
-
-function canonicalReceivableRowsForCase(caseCode, currentRows = []) {
-  if (currentRows.length) return currentRows;
-  return SPECIAL_CASE_RECEIVABLE_SEEDS
-    .filter(seed => seed.case === caseCode)
-    .map(copyAccountingRow);
+function shouldUseCaseFinancialOverride(caseRecord) {
+  return caseRecord && !SOURCE_OF_TRUTH_CASE_CODES.has(caseRecord.code);
 }
 
 function upsertReceivableSeedPreserveEntry(seed) {
@@ -3770,7 +3765,7 @@ function normalizeOrdinaryProjectAccounting() {
       status:'進行中', amount:137399, collected:20730, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', billingMode:'一般個案損益',
       invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'',
-      vendorCostOverride:158129, taxCostOverride:0,
+      taxCostOverride:0,
       reconciliationNote:'不分潤個案；依一般工程損益邏輯列入成本控制表。應收 137,399，目前已收 20,730；廠商成本 9 筆合計 158,129；不進分潤儀表，收款完成後可手動結案。'
     },
     {
@@ -3778,35 +3773,35 @@ function normalizeOrdinaryProjectAccounting() {
       status:'結案', amount:1450000, collected:1450000, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', billingMode:'一般個案損益',
       invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'2026-05-03',
-      vendorCostOverride:1414754.75, taxCostOverride:0,
+      taxCostOverride:0,
       reconciliationNote:'不分潤個案；依一般工程損益邏輯列入成本控制表。應收／已收 1,450,000；廠商成本 2025 年 13 筆 462,806 + 2026 年 25 筆 951,948.75 = 1,414,754.75；不進分潤儀表。'
     },
     {
       code:'YT-INV-2026-001', name:'代開發票', client:'INV', clientName:'代開發票',
       status:'完工', amount:48825, collected:48825, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', excludeFromProfitReports:true,
-      vendorCostOverride:42030, taxCostOverride:0,
+      taxCostOverride:0,
       reconciliationNote:'不分潤個案；應收已收 48,825，協力商成本 42,030，列入成本控制表但不進分潤儀表。'
     },
     {
       code:'YT-SUZ-REP-2026-001', name:'Suzuki 維修－民族', client:'SUZ', clientName:'凱騰鈴木',
       status:'完工', amount:9450, collected:9450, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', excludeFromProfitReports:true,
-      vendorCostOverride:0, taxCostOverride:0,
+      taxCostOverride:0,
       reconciliationNote:'不分潤維修個案；民族進水管更新已收 9,450，列入成本控制表但不進分潤儀表。'
     },
     {
       code:'YT-VOL-REP-2026-001', name:'Volvo 修繕－中和', client:'VOL', clientName:'凱銳 Volvo',
       status:'完工', amount:15750, collected:15750, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', excludeFromProfitReports:true,
-      vendorCostOverride:15000, taxCostOverride:0,
+      taxCostOverride:0,
       reconciliationNote:'不分潤維修個案；中和地磚修繕已收 15,750，廠商成本 15,000，列入成本控制表但不進分潤儀表。'
     },
     {
       code:'YT-VOL-REP-2026-002', name:'Volvo 修繕－新莊', client:'VOL', clientName:'凱銳 Volvo',
       status:'完工', amount:10155, collected:10155, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', excludeFromProfitReports:true,
-      vendorCostOverride:9450, taxCostOverride:0,
+      taxCostOverride:0,
       reconciliationNote:'不分潤維修個案；新莊牆面修繕與廁所門鎖更換已收 10,155，廠商成本 9,450，列入成本控制表但不進分潤儀表。'
     },
     {
@@ -3816,6 +3811,14 @@ function normalizeOrdinaryProjectAccounting() {
       taxCostOverride:0, reconciliationNote:'不分潤個案；私人借支比照一般個案進成本控制表。借出款列應付／成本，還款時手動建立應收，不自動由應付生成應收。'
     },
   ].forEach(upsertCaseByCode);
+
+  SOURCE_OF_TRUTH_CASE_CODES.forEach(code => {
+    const c = CASES.find(x => x.code === code);
+    if (!c) return;
+    delete c.revenueOverride;
+    delete c.vendorCostOverride;
+    delete c.grossOverride;
+  });
 
   RECEIVABLES = RECEIVABLES.filter(r => {
     if (r.receivableType !== 'family_pass_through') return true;
@@ -4294,8 +4297,8 @@ const CODEX_SEED_CASES = [
   { code:'YT-ATG-2026-001', name:'板橋安庭E2-15F', client:'ATG', clientName:'安庭傢俱有限公司', status:'進行中', amount:636000, collected:636000, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:15142.85714, reconciliationNote:'案件仍在進行中，目前損益僅供追蹤，不可結算分潤。依2026應收、應付、五份費用表及板橋安庭E2-15F連動成本控制表核對：銷售及已收636,000／17筆已付工程成本588,945／當案費用7,189／稅務成本15,142.86／目前暫估毛利24,723.14（3.89%）。2026-06滑軌、鉸鍊、把手5,429已歸屬本案，預計2026-06-20付款；付款後工程成本將為594,374，暫估毛利將為19,294.14。' },
   { code:'YT-UNI-2026-001', name:'UNI MUSIC 音樂教室', client:'YYS', clientName:'有意思藝文整合有限公司', status:'進行中', amount:753000, collected:753000, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:17928.57143, reconciliationNote:'案件仍在進行中，目前損益僅供追蹤，不可結算分潤。依2026應收、應付、五份費用表及UNI MUSIC安和路音樂教室成本控制表核對：銷售及已收753,000／6筆工程成本214,971.5，均已付款／當案費用2,700／稅務成本17,928.57／目前暫估毛利517,399.93（68.71%）。舊分潤表顯示毛利520,060為舊數字。' },
   { code:'YT-UPY-2026-001', name:'上洋高雄', client:'UPY', clientName:'上洋產業股份有限公司', status:'進行中', amount:2954985, collected:2954985, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:70356.78571, reconciliationNote:'依上洋高雄連動成本控制表、2026應收、應付及五份原始費用表核對：實際銷售及已收2,954,985（發票2,955,000）／工程成本2,470,740，包含2025年兩筆3D圖費用6,750及2026年33筆2,463,990／2025當案費用63,020／2026原始費用截至6月267,501／稅務成本70,356.79／最新毛利83,367.21（2.82%）。成本控制表目前只帶入2026年1至5月費用255,578，顯示毛利95,290；原始費用表另有6月11,907，且4月比統計表多16，後續需回寫成本表。6/20元翔高空10,500尚待付款。' },
-  { code:'YT-FAM-2026-001', name:'玉成街親友工程', client:'FAM', clientName:'親友工程', status:'進行中', amount:137399, collected:20730, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, vendorCostOverride:158129, taxCostOverride:0, reconciliationNote:'親友工程比照一般個案入帳，只是不分潤。應付廠商成本 9 筆合計 158,129；應收 137,399，目前已收 20,730；成本控制表可看損益，分潤儀表排除，收款完成後可手動結案。' },
-  { code:'YT-FAM-2026-002', name:'虎林街住家', client:'FAM', clientName:'親友工程', status:'結案', amount:1450000, collected:1450000, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'2026-05-03', vendorCostOverride:1414754.75, taxCostOverride:0, reconciliationNote:'親友成本轉付案；2025 應付 13 筆合計 462,806，2026 應付 25 筆合計 951,948.75，工程成本以應付帳款 1,414,754.75 為準。應收／成本收回 1,450,000，2026-05-03 已結清。廠商明細只列成本，不逐筆轉應收。差異說明：哥哥直付鋁工藝 15,800 不進公司應付；洗衣機鐵架 2,100 由宇德善意負擔；北富耀燈具 0.25 小數差。' },
+  { code:'YT-FAM-2026-001', name:'玉成街親友工程', client:'FAM', clientName:'親友工程', status:'進行中', amount:137399, collected:20730, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, taxCostOverride:0, reconciliationNote:'親友工程比照一般個案入帳，只是不分潤。應付廠商成本 9 筆合計 158,129；應收 137,399，目前已收 20,730；成本控制表可看損益，分潤儀表排除，收款完成後可手動結案。' },
+  { code:'YT-FAM-2026-002', name:'虎林街住家', client:'FAM', clientName:'親友工程', status:'結案', amount:1450000, collected:1450000, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'2026-05-03', taxCostOverride:0, reconciliationNote:'親友成本轉付案；2025 應付 13 筆合計 462,806，2026 應付 25 筆合計 951,948.75，工程成本以應付帳款 1,414,754.75 為準。應收／成本收回 1,450,000，2026-05-03 已結清。廠商明細只列成本，不逐筆轉應收。差異說明：哥哥直付鋁工藝 15,800 不進公司應付；洗衣機鐵架 2,100 由宇德善意負擔；北富耀燈具 0.25 小數差。' },
 ];
 const CODEX_SEED_RECEIVABLES = [
   { id:2, case:'YT-UPY-2025-002', caseName:'上洋鶯歌', collectDate:'2026-02-05', buyer:'上洋產業股份有限公司', item:'裝修工程款', collectAmt:6767965, bank:'國泰', invoiceAmt:6768000, invoiceDate:'2026-01-23', invoiceNo:'XH38605852', contractAmt:12961028, progress:'完收', invoiceLink:'', status:'collected', note:'Codex匯入：上洋鶯歌成本控制表' },
@@ -5118,7 +5121,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.85', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.86', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5178,7 +5181,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.85', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.86', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6622,13 +6625,10 @@ function openCaseDetail(caseCode) {
   document.getElementById('cd-subtitle').textContent = `${c.code} ｜ ${c.clientName||''} ｜ 負責：${c.person||'—'}`;
 
   // KPI 卡
-  const rvs = canonicalReceivableRowsForCase(caseCode, caseReceivableRows(caseCode));
-  const collected = rvs.filter(receivableIsCollected).reduce((s,r)=>s+(Number(r.collectAmt)||0),0);
-  const canonicalPys = canonicalPayableRowsForCase(caseCode);
-  const pys = canonicalPys || casePayableRows(caseCode, { costControlOnly:true });
-  const paid = Number.isFinite(c.vendorCostOverride)
-    ? c.vendorCostOverride
-    : pys.filter(p => p.status === 'paid').reduce((s,p)=>s+(Number(p.amount)||0),0);
+  const rvs = caseReceivableRows(caseCode);
+  const collected = caseCollectedAmount(caseCode);
+  const pys = casePayableRows(caseCode, { costControlOnly:true });
+  const paid = casePaidPayableAmount(caseCode, { costControlOnly:true });
   const pct = c.amount > 0 ? Math.min(100, Math.round(collected/c.amount*100)) : 0;
   document.getElementById('cd-kpis').innerHTML = `
     <div class="kpi-card" style="padding:12px 16px">
@@ -9435,14 +9435,15 @@ function renderProfit() {
     const casePaidPayables = casePayableRows(c.code, { dateOk: d => yearOk(d), costControlOnly: true }).filter(p => p.status === 'paid');
     const recordedRevenue = casePaidReceivables.reduce((s, r) => s + (r.collectAmt || 0), 0);
     const recordedCost = casePaidPayables.reduce((s, p) => s + (p.amount || 0), 0);
-    const revenue  = Number.isFinite(c.revenueOverride) ? c.revenueOverride : recordedRevenue;
-    const cost     = Number.isFinite(c.vendorCostOverride) ? c.vendorCostOverride : recordedCost;
+    const useOverride = shouldUseCaseFinancialOverride(c);
+    const revenue  = useOverride && Number.isFinite(c.revenueOverride) ? c.revenueOverride : recordedRevenue;
+    const cost     = useOverride && Number.isFinite(c.vendorCostOverride) ? c.vendorCostOverride : recordedCost;
     const caseExpenses = expApproved.filter(e => e.caseKey === c.code);
     const expCost  = caseExpenses.filter(e => e.category !== '公司分攤').reduce((s, e) => s + (e.amount || 0), 0);
     const calculatedTaxCost = casePaidReceivables.reduce((s, r) => s + ((r.invoiceAmt || 0) / 1.05 * 0.05 / 2), 0);
     const taxCost  = Number.isFinite(c.taxCostOverride) ? c.taxCostOverride : (isFamilyPassThroughCase ? 0 : calculatedTaxCost);
     const calculatedGross = revenue - cost - expCost - taxCost;
-    const gross    = Number.isFinite(c.grossOverride) ? c.grossOverride : calculatedGross;
+    const gross    = useOverride && Number.isFinite(c.grossOverride) ? c.grossOverride : calculatedGross;
     const contract = c.amount || 0;
     const collected= recordedRevenue;
     return { ...c, revenue, cost, expCost, taxCost, recordedRevenue, recordedCost, calculatedTaxCost, calculatedGross, gross, contract, collected };
@@ -10981,13 +10982,14 @@ function psComputeData() {
   const baseRows = selectedCases.map(c => {
     const recordedRevenue = rvPaid.filter(r => r.case === c.code).reduce((s,r) => s + (r.collectAmt||0), 0);
     const recordedCost = pyPaid.filter(p => p.case === c.code).reduce((s,p) => s + (p.amount||0), 0);
-    const revenue = Number.isFinite(c.revenueOverride) ? c.revenueOverride : recordedRevenue;
-    const cost    = Number.isFinite(c.vendorCostOverride) ? c.vendorCostOverride : recordedCost;
+    const useOverride = shouldUseCaseFinancialOverride(c);
+    const revenue = useOverride && Number.isFinite(c.revenueOverride) ? c.revenueOverride : recordedRevenue;
+    const cost    = useOverride && Number.isFinite(c.vendorCostOverride) ? c.vendorCostOverride : recordedCost;
     const expCost = expApproved.filter(e => e.caseKey === c.code).reduce((s,e) => s + (e.amount||0), 0);
     const calculatedTaxCost = rvPaid.filter(r => r.case === c.code).reduce((s,r) => s + ((r.invoiceAmt||0)/1.05*0.05/2), 0);
     const taxCost = Number.isFinite(c.taxCostOverride) ? c.taxCostOverride : calculatedTaxCost;
     const calculatedGross = revenue - cost - expCost - taxCost;
-    const gross   = Number.isFinite(c.grossOverride) ? c.grossOverride : calculatedGross;
+    const gross   = useOverride && Number.isFinite(c.grossOverride) ? c.grossOverride : calculatedGross;
     const invoiceTotal = rvPaid.filter(r => r.case === c.code).reduce((s,r) => s + (r.invoiceAmt||0), 0);
     grandGross += gross;
     return {
