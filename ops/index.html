@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.88 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.89 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1345,6 +1345,11 @@ body.auth-pending .auth-screen{display:flex}
       </div>
       <input class="search-input" id="py-search" placeholder="搜尋廠商、摘要、金額、日期、銀行…" oninput="renderPayable()" style="height:32px">
       <select class="filter-select" id="py-filter-case" onchange="renderPayable()" style="min-width:220px;max-width:280px"><option value="">── 全部個案 ──</option></select>
+      <select class="filter-select" id="py-filter-year" onchange="renderPayable()" style="height:32px;min-width:96px">
+        <option value="">全部年度</option>
+        <option value="2025">2025年</option>
+        <option value="2026" selected>2026年</option>
+      </select>
       <input class="filter-select" id="py-date-from" type="date" onchange="renderPayable()" title="起始日期" style="height:32px;min-width:136px">
       <input class="filter-select" id="py-date-to" type="date" onchange="renderPayable()" title="結束日期" style="height:32px;min-width:136px">
       <select class="filter-select" id="py-sort" onchange="renderPayable()" style="height:32px;min-width:148px">
@@ -1402,7 +1407,7 @@ body.auth-pending .auth-screen{display:flex}
         <div class="kpi-sub" id="rv-stat-month-count">—</div>
       </div>
       <div class="kpi-card" style="padding:10px 16px">
-        <div class="kpi-label">本年累計入帳</div>
+        <div class="kpi-label" id="rv-stat-year-label">本年累計入帳</div>
         <div class="kpi-val" id="rv-stat-year-amt" style="font-size:20px">—</div>
         <div class="kpi-sub" id="rv-stat-year-count">—</div>
       </div>
@@ -1426,6 +1431,11 @@ body.auth-pending .auth-screen{display:flex}
       </div>
       <input class="search-input" id="rv-search" placeholder="搜尋買受人、項目、金額、個案編號…" oninput="renderReceivable()" style="height:32px">
       <select class="filter-select" id="rv-filter-case" onchange="renderReceivable()" style="min-width:220px;max-width:280px"><option value="">── 全部個案 ──</option></select>
+      <select class="filter-select" id="rv-filter-year" onchange="renderReceivable()" style="height:32px;min-width:96px">
+        <option value="">全部年度</option>
+        <option value="2025">2025年</option>
+        <option value="2026" selected>2026年</option>
+      </select>
       <input class="filter-select" id="rv-date-from" type="date" onchange="renderReceivable()" title="起始日期" style="height:32px;min-width:136px">
       <input class="filter-select" id="rv-date-to" type="date" onchange="renderReceivable()" title="結束日期" style="height:32px;min-width:136px">
       <select class="filter-select" id="rv-sort" onchange="renderReceivable()" style="height:32px;min-width:148px">
@@ -8519,6 +8529,7 @@ function renderPayable() {
   const kpiRow = document.getElementById('py-kpi-row');
   if (kpiRow) kpiRow.style.display = canSeeFinancialTotals() ? '' : 'none';
   const filterCase = normalizeCaseFilterValue(document.getElementById('py-filter-case')?.value || '');
+  const filterYear = document.getElementById('py-filter-year')?.value || '';
   const kw = (document.getElementById('py-search')?.value || '').toLowerCase();
   const fromDate = document.getElementById('py-date-from')?.value || '';
   const toDate = document.getElementById('py-date-to')?.value || '';
@@ -8529,6 +8540,7 @@ function renderPayable() {
     if (p.case && !userCanViewCaseFinancials(p.case, 'payable')) return false;
     if (!p.case && !['manage','view_all'].includes(permissionLevel('payable'))) return false;
     if (filterCase && p.case !== filterCase) return false;
+    if (filterYear && !payableDate(p).startsWith(filterYear)) return false;
     if (!inDateRange(payableDate(p), fromDate, toDate)) return false;
     const searchable = [
       p.vendor, p.summary, p.caseName, p.case, p.person,
@@ -8544,6 +8556,7 @@ function renderPayable() {
     if (p.case && !userCanViewCaseFinancials(p.case, 'payable')) return false;
     if (!p.case && !['manage','view_all'].includes(permissionLevel('payable'))) return false;
     if (filterCase && p.case !== filterCase) return false;
+    if (filterYear && !payableDate(p).startsWith(filterYear)) return false;
     if (!inDateRange(payableDate(p), fromDate, toDate)) return false;
     const searchable = [
       p.vendor, p.summary, p.caseName, p.case, p.person,
@@ -8639,14 +8652,15 @@ function updatePayableStats(scopeRows = null) {
   const now = new Date();
   const curYear = String(now.getFullYear());
   const curMonth = curYear + '-' + String(now.getMonth()+1).padStart(2,'0');
+  const selYear = document.getElementById('py-filter-year')?.value || '';
   const paidDate = p => p.doneDate || p.transferDate || p.wantDate || '';
   const paidThisMonth = paid.filter(p => paidDate(p).slice(0,7) === curMonth);
-  const paidThisYear  = paid.filter(p => paidDate(p).slice(0,4) === curYear);
+  const paidScopedYear = selYear ? paid.filter(p => paidDate(p).startsWith(selYear)) : paid;
 
   set('py-stat-paid-amt', '$' + sum(paidThisMonth).toLocaleString('zh-TW'));
   set('py-stat-paid-count', paidThisMonth.length + ' 筆');
-  set('py-stat-total-amt', '$' + sum(paidThisYear).toLocaleString('zh-TW'));
-  set('py-stat-total-sub', curYear + ' 年度');
+  set('py-stat-total-amt', '$' + sum(paidScopedYear).toLocaleString('zh-TW'));
+  set('py-stat-total-sub', selYear ? selYear + ' 年度' : '全部年度');
   // 動態更新案件篩選下拉
   const caseFilter = document.getElementById('py-filter-case');
   if (caseFilter) {
@@ -9022,6 +9036,7 @@ function renderReceivable() {
   const kpiRow = document.getElementById('rv-kpi-row');
   if (kpiRow) kpiRow.style.display = canSeeFinancialTotals() ? '' : 'none';
   const filterCase = normalizeCaseFilterValue(document.getElementById('rv-filter-case')?.value || '');
+  const filterYear = document.getElementById('rv-filter-year')?.value || '';
   const kw = (document.getElementById('rv-search')?.value || '').toLowerCase();
   const fromDate = document.getElementById('rv-date-from')?.value || '';
   const toDate = document.getElementById('rv-date-to')?.value || '';
@@ -9031,6 +9046,7 @@ function renderReceivable() {
   const statsRows = RECEIVABLES.filter(r => {
     if (filterCase && r.case !== filterCase) return false;
     if (!userCanViewCaseFinancials(r.case, 'receivable')) return false;
+    if (filterYear && !receivableDate(r).startsWith(filterYear)) return false;
     if (!inDateRange(receivableDate(r), fromDate, toDate)) return false;
     const searchable = [
       r.buyer, r.item, r.caseName, r.case, r.invoiceNo, r.progress, r.bank,
@@ -9116,12 +9132,17 @@ function updateReceivableStats(scopeRows = null) {
   }
   const thisMonth = new Date().toISOString().slice(0,7);
   const thisYear  = new Date().toISOString().slice(0,4);
+  const selYearRv = document.getElementById('rv-filter-year')?.value || '';
   const visibleRows = scopeRows || RECEIVABLES.filter(r => userCanViewCaseFinancials(r.case, 'receivable'));
   const monthRows = visibleRows.filter(r => r.collectDate?.startsWith(thisMonth) && receivableIsCollected(r));
-  const yearRows  = visibleRows.filter(r => r.collectDate?.startsWith(thisYear)  && receivableIsCollected(r));
+  const yearRows  = selYearRv
+    ? visibleRows.filter(r => r.collectDate?.startsWith(selYearRv) && receivableIsCollected(r))
+    : visibleRows.filter(r => receivableIsCollected(r));
   const pending   = visibleRows.filter(r => r.status==='pending');
   const noInv     = visibleRows.filter(r => !r.invoiceNo);
   const sum = (arr, field) => arr.reduce((s,r) => s+(r[field]||0), 0);
+  const rvYearLabel = document.getElementById('rv-stat-year-label');
+  if (rvYearLabel) rvYearLabel.textContent = selYearRv ? selYearRv+'年累計入帳' : '全部累計入帳';
   set('rv-stat-month-amt',    '$'+sum(monthRows,'collectAmt').toLocaleString('zh-TW'));
   set('rv-stat-month-count',  monthRows.length+' 筆');
   set('rv-stat-year-amt',     '$'+sum(yearRows,'collectAmt').toLocaleString('zh-TW'));
