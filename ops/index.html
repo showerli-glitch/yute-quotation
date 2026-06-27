@@ -1087,7 +1087,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.78 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.79 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3040,6 +3040,9 @@ body.auth-pending .auth-screen{display:flex}
           <label class="form-label">入帳日期</label>
           <input class="form-input" id="rv-add-collect-date" type="date">
         </div>
+        <div class="form-field form-full" style="padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text3)">
+          有填入帳金額或入帳日期即視為已入帳；兩者都空白則列待入帳。
+        </div>
         <div class="form-field">
           <label class="form-label">入帳銀行</label>
           <select class="form-select" id="rv-add-bank">
@@ -3076,10 +3079,10 @@ body.auth-pending .auth-screen{display:flex}
           <input class="form-input" id="rv-add-contract-amt" placeholder="例：2,510,000" type="text">
         </div>
         <div class="form-field">
-          <label class="form-label">請款進度（選填）</label>
-          <input class="form-input" id="rv-add-progress" placeholder="例：2/4期、完收">
+          <label class="form-label">期別／進度備註（選填）</label>
+          <input class="form-input" id="rv-add-progress" placeholder="例：2/4期、尾款、完收">
         </div>
-        <div class="form-field">
+        <div class="form-field" style="display:none">
           <label class="form-label">狀態</label>
           <select class="form-select" id="rv-add-status">
             <option value="pending">待入帳</option>
@@ -3577,6 +3580,47 @@ function upsertReceivableBySourceKey(seed) {
   else RECEIVABLES.push({ id: seed.id || nextRowId(RECEIVABLES), ...seed });
 }
 
+function receivableIsCollected(row) {
+  return Number(row?.collectAmt || 0) > 0 || !!row?.collectDate;
+}
+
+function normalizeReceivableStatus(row) {
+  if (!row) return row;
+  row.status = receivableIsCollected(row) ? 'collected' : 'pending';
+  return row;
+}
+
+function upsertReceivableSeedPreserveEntry(seed) {
+  const row = RECEIVABLES.find(r => r.sourceKey === seed.sourceKey);
+  if (!row) {
+    RECEIVABLES.push({ id: seed.id || nextRowId(RECEIVABLES), ...clone(seed) });
+    return;
+  }
+  const legacyWrongCollectAmt = {
+    'invoice-pass-rv-2721': 21935,
+    'invoice-pass-rv-2722': 26870,
+    'volvo-zhonghe-rv-2720': 15740,
+    'volvo-xinzhuang-wall-rv-2723': 8990,
+  };
+  const shouldCorrectLegacyAmt = legacyWrongCollectAmt[seed.sourceKey] === Number(row.collectAmt || 0);
+  const preserved = {
+    id: row.id,
+    collectDate: row.collectDate,
+    collectAmt: shouldCorrectLegacyAmt ? seed.collectAmt : row.collectAmt,
+    bank: row.bank,
+    status: row.status,
+    invoiceAmt: shouldCorrectLegacyAmt ? seed.invoiceAmt : row.invoiceAmt,
+    invoiceDate: row.invoiceDate,
+    invoiceNo: row.invoiceNo,
+    contractAmt: shouldCorrectLegacyAmt ? seed.contractAmt : row.contractAmt,
+    progress: row.progress,
+    note: row.note,
+    invoiceLink: row.invoiceLink,
+  };
+  Object.assign(row, { ...clone(seed), ...preserved });
+  normalizeReceivableStatus(row);
+}
+
 function upsertPayableBySourceKey(seed) {
   const row = PAYABLES.find(p => p.sourceKey === seed.sourceKey);
   if (row) Object.assign(row, { ...seed, id: row.id });
@@ -3614,11 +3658,6 @@ function resetSeededCasePayables(caseCode, seeds) {
   seeds.forEach(seed => PAYABLES.push({ id: nextRowId(PAYABLES), ...clone(seed) }));
 }
 
-function resetSeededCaseReceivables(caseCode, seeds) {
-  RECEIVABLES = RECEIVABLES.filter(row => row.case !== caseCode);
-  seeds.forEach(seed => RECEIVABLES.push({ id: nextRowId(RECEIVABLES), ...clone(seed) }));
-}
-
 const SPECIAL_CASE_RECEIVABLE_SEEDS = [
   { sourceKey:'yucheng-family-ar-total-137399', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', collectDate:'2026-06-27', buyer:'親友工程', item:'玉成街親友工程收款', collectAmt:20730, bank:'親友收款', invoiceAmt:0, invoiceDate:'', invoiceNo:'', contractAmt:137399, progress:'已收 20,730／應收 137,399', invoiceLink:'', status:'collected', receivableType:'normal', note:'親友案比照一般個案手動建立應收；目前實收 20,730，其餘待收。' },
   { sourceKey:'hulin-family-ar-total-1450000', case:'YT-FAM-2026-002', caseName:'虎林街住家', collectDate:'2026-05-03', buyer:'親友工程', item:'虎林街住家結清款', collectAmt:1450000, bank:'抵付／已結清', invoiceAmt:0, invoiceDate:'', invoiceNo:'', contractAmt:1450000, progress:'2026-05-03 已結清', invoiceLink:'', status:'collected', receivableType:'normal', note:'親友案比照一般個案，只保留一筆應收；不分潤。' },
@@ -3647,7 +3686,7 @@ function normalizeOrdinaryProjectAccounting() {
       status:'進行中', amount:137399, collected:20730, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', billingMode:'一般個案損益',
       invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'',
-      revenueOverride:20730, vendorCostOverride:158129, taxCostOverride:0,
+      vendorCostOverride:158129, taxCostOverride:0,
       reconciliationNote:'不分潤個案；依一般工程損益邏輯列入成本控制表。應收 137,399，目前已收 20,730；廠商成本 9 筆合計 158,129；不進分潤儀表，收款完成後可手動結案。'
     },
     {
@@ -3655,35 +3694,35 @@ function normalizeOrdinaryProjectAccounting() {
       status:'結案', amount:1450000, collected:1450000, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', billingMode:'一般個案損益',
       invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'2026-05-03',
-      revenueOverride:1450000, vendorCostOverride:1414754.75, taxCostOverride:0,
+      vendorCostOverride:1414754.75, taxCostOverride:0,
       reconciliationNote:'不分潤個案；依一般工程損益邏輯列入成本控制表。應收／已收 1,450,000；廠商成本 2025 年 13 筆 462,806 + 2026 年 25 筆 951,948.75 = 1,414,754.75；不進分潤儀表。'
     },
     {
       code:'YT-INV-2026-001', name:'代開發票', client:'INV', clientName:'代開發票',
       status:'完工', amount:48825, collected:48825, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', excludeFromProfitReports:true,
-      revenueOverride:48825, vendorCostOverride:42030, taxCostOverride:0,
+      vendorCostOverride:42030, taxCostOverride:0,
       reconciliationNote:'不分潤個案；應收已收 48,825，協力商成本 42,030，列入成本控制表但不進分潤儀表。'
     },
     {
       code:'YT-SUZ-REP-2026-001', name:'Suzuki 維修－民族', client:'SUZ', clientName:'凱騰鈴木',
       status:'完工', amount:9450, collected:9450, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', excludeFromProfitReports:true,
-      revenueOverride:9450, vendorCostOverride:0, taxCostOverride:0,
+      vendorCostOverride:0, taxCostOverride:0,
       reconciliationNote:'不分潤維修個案；民族進水管更新已收 9,450，列入成本控制表但不進分潤儀表。'
     },
     {
       code:'YT-VOL-REP-2026-001', name:'Volvo 修繕－中和', client:'VOL', clientName:'凱銳 Volvo',
       status:'完工', amount:15750, collected:15750, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', excludeFromProfitReports:true,
-      revenueOverride:15750, vendorCostOverride:15000, taxCostOverride:0,
+      vendorCostOverride:15000, taxCostOverride:0,
       reconciliationNote:'不分潤維修個案；中和地磚修繕已收 15,750，廠商成本 15,000，列入成本控制表但不進分潤儀表。'
     },
     {
       code:'YT-VOL-REP-2026-002', name:'Volvo 修繕－新莊', client:'VOL', clientName:'凱銳 Volvo',
       status:'完工', amount:10155, collected:10155, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', excludeFromProfitReports:true,
-      revenueOverride:10155, vendorCostOverride:9450, taxCostOverride:0,
+      vendorCostOverride:9450, taxCostOverride:0,
       reconciliationNote:'不分潤維修個案；新莊牆面修繕與廁所門鎖更換已收 10,155，廠商成本 9,450，列入成本控制表但不進分潤儀表。'
     },
     {
@@ -3710,8 +3749,7 @@ function normalizeOrdinaryProjectAccounting() {
   );
   resetSeededCasePayables('YT-FAM-2026-001', CODEX_SEED_YUCHENG_PAYABLES);
   resetSeededCasePayables('YT-FAM-2026-002', CODEX_SEED_HULIN_PAYABLES);
-  ['YT-FAM-2026-001','YT-FAM-2026-002','YT-INV-2026-001','YT-SUZ-REP-2026-001','YT-VOL-REP-2026-001','YT-VOL-REP-2026-002']
-    .forEach(caseCode => resetSeededCaseReceivables(caseCode, SPECIAL_CASE_RECEIVABLE_SEEDS.filter(seed => seed.case === caseCode)));
+  SPECIAL_CASE_RECEIVABLE_SEEDS.forEach(upsertReceivableSeedPreserveEntry);
 
   ['YT-INV-2026-001','YT-VOL-REP-2026-001','YT-VOL-REP-2026-002']
     .forEach(caseCode => resetSeededCasePayables(caseCode, SPECIAL_CASE_PAYABLE_SEEDS.filter(seed => seed.case === caseCode)));
@@ -4172,8 +4210,8 @@ const CODEX_SEED_CASES = [
   { code:'YT-ATG-2026-001', name:'板橋安庭E2-15F', client:'ATG', clientName:'安庭傢俱有限公司', status:'進行中', amount:636000, collected:636000, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:15142.85714, reconciliationNote:'案件仍在進行中，目前損益僅供追蹤，不可結算分潤。依2026應收、應付、五份費用表及板橋安庭E2-15F連動成本控制表核對：銷售及已收636,000／17筆已付工程成本588,945／當案費用7,189／稅務成本15,142.86／目前暫估毛利24,723.14（3.89%）。2026-06滑軌、鉸鍊、把手5,429已歸屬本案，預計2026-06-20付款；付款後工程成本將為594,374，暫估毛利將為19,294.14。' },
   { code:'YT-UNI-2026-001', name:'UNI MUSIC 音樂教室', client:'YYS', clientName:'有意思藝文整合有限公司', status:'進行中', amount:753000, collected:753000, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:17928.57143, reconciliationNote:'案件仍在進行中，目前損益僅供追蹤，不可結算分潤。依2026應收、應付、五份費用表及UNI MUSIC安和路音樂教室成本控制表核對：銷售及已收753,000／6筆工程成本214,971.5，均已付款／當案費用2,700／稅務成本17,928.57／目前暫估毛利517,399.93（68.71%）。舊分潤表顯示毛利520,060為舊數字。' },
   { code:'YT-UPY-2026-001', name:'上洋高雄', client:'UPY', clientName:'上洋產業股份有限公司', status:'進行中', amount:2954985, collected:2954985, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:70356.78571, reconciliationNote:'依上洋高雄連動成本控制表、2026應收、應付及五份原始費用表核對：實際銷售及已收2,954,985（發票2,955,000）／工程成本2,470,740，包含2025年兩筆3D圖費用6,750及2026年33筆2,463,990／2025當案費用63,020／2026原始費用截至6月267,501／稅務成本70,356.79／最新毛利83,367.21（2.82%）。成本控制表目前只帶入2026年1至5月費用255,578，顯示毛利95,290；原始費用表另有6月11,907，且4月比統計表多16，後續需回寫成本表。6/20元翔高空10,500尚待付款。' },
-  { code:'YT-FAM-2026-001', name:'玉成街親友工程', client:'FAM', clientName:'親友工程', status:'進行中', amount:137399, collected:20730, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, revenueOverride:20730, vendorCostOverride:158129, taxCostOverride:0, reconciliationNote:'親友工程比照一般個案入帳，只是不分潤。應付廠商成本 9 筆合計 158,129；應收 137,399，目前已收 20,730；成本控制表可看損益，分潤儀表排除，收款完成後可手動結案。' },
-  { code:'YT-FAM-2026-002', name:'虎林街住家', client:'FAM', clientName:'親友工程', status:'結案', amount:1450000, collected:1450000, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'2026-05-03', revenueOverride:1450000, vendorCostOverride:1414754.75, taxCostOverride:0, reconciliationNote:'親友成本轉付案；2025 應付 13 筆合計 462,806，2026 應付 25 筆合計 951,948.75，工程成本以應付帳款 1,414,754.75 為準。應收／成本收回 1,450,000，2026-05-03 已結清。廠商明細只列成本，不逐筆轉應收。差異說明：哥哥直付鋁工藝 15,800 不進公司應付；洗衣機鐵架 2,100 由宇德善意負擔；北富耀燈具 0.25 小數差。' },
+  { code:'YT-FAM-2026-001', name:'玉成街親友工程', client:'FAM', clientName:'親友工程', status:'進行中', amount:137399, collected:20730, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, vendorCostOverride:158129, taxCostOverride:0, reconciliationNote:'親友工程比照一般個案入帳，只是不分潤。應付廠商成本 9 筆合計 158,129；應收 137,399，目前已收 20,730；成本控制表可看損益，分潤儀表排除，收款完成後可手動結案。' },
+  { code:'YT-FAM-2026-002', name:'虎林街住家', client:'FAM', clientName:'親友工程', status:'結案', amount:1450000, collected:1450000, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'2026-05-03', vendorCostOverride:1414754.75, taxCostOverride:0, reconciliationNote:'親友成本轉付案；2025 應付 13 筆合計 462,806，2026 應付 25 筆合計 951,948.75，工程成本以應付帳款 1,414,754.75 為準。應收／成本收回 1,450,000，2026-05-03 已結清。廠商明細只列成本，不逐筆轉應收。差異說明：哥哥直付鋁工藝 15,800 不進公司應付；洗衣機鐵架 2,100 由宇德善意負擔；北富耀燈具 0.25 小數差。' },
 ];
 const CODEX_SEED_RECEIVABLES = [
   { id:2, case:'YT-UPY-2025-002', caseName:'上洋鶯歌', collectDate:'2026-02-05', buyer:'上洋產業股份有限公司', item:'裝修工程款', collectAmt:6767965, bank:'國泰', invoiceAmt:6768000, invoiceDate:'2026-01-23', invoiceNo:'XH38605852', contractAmt:12961028, progress:'完收', invoiceLink:'', status:'collected', note:'Codex匯入：上洋鶯歌成本控制表' },
@@ -4996,7 +5034,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.78', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.79', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5056,7 +5094,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.78', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.79', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6491,7 +6529,7 @@ function openCaseDetail(caseCode) {
 
   // KPI 卡
   const rvs = RECEIVABLES.filter(r => r.case === caseCode);
-  const collected = rvs.filter(r => r.status==='collected').reduce((s,r)=>s+(r.collectAmt||0),0);
+  const collected = rvs.filter(receivableIsCollected).reduce((s,r)=>s+(r.collectAmt||0),0);
   const pys = PAYABLES.filter(p => p.case === caseCode);
   const paid = pys.filter(p => p.status==='paid').reduce((s,p)=>s+(p.amount||0),0);
   const pct = c.amount > 0 ? Math.min(100, Math.round(collected/c.amount*100)) : 0;
@@ -6521,7 +6559,7 @@ function openCaseDetail(caseCode) {
         <td style="padding:8px 12px;font-size:12px">${r.collectDate||'—'}</td>
         <td style="padding:8px 12px;font-size:12px">${r.item||'—'}</td>
         <td style="padding:8px 12px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">$${(r.collectAmt||0).toLocaleString('zh-TW')}</td>
-        <td style="padding:8px 12px"><span class="tag ${rvClass[r.status]||'tag-draft'}">${rvLabel[r.status]||r.status}</span></td>
+        <td style="padding:8px 12px"><span class="tag ${receivableIsCollected(r)?'tag-done':'tag-pending'}">${receivableIsCollected(r)?'已入帳':'待入帳'}</span></td>
       </tr>`).join('');
 
   // 廠商請款明細
@@ -6544,7 +6582,7 @@ function closeCaseIfReady(caseCode) {
   const c = CASES.find(x => x.code === caseCode);
   if (!c) return;
   if (c.status === '結案') { showToast('此個案已結案', 'warning'); return; }
-  const pendingReceivables = RECEIVABLES.filter(r => r.case === caseCode && r.status !== 'collected' && Number(r.invoiceAmt || r.contractAmt || r.collectAmt || 0) > 0);
+  const pendingReceivables = RECEIVABLES.filter(r => r.case === caseCode && !receivableIsCollected(r) && Number(r.invoiceAmt || r.contractAmt || r.collectAmt || 0) > 0);
   const pendingPayables = PAYABLES.filter(p => p.case === caseCode && p.status !== 'paid' && Number(p.amount || 0) > 0);
   const warnings = [];
   if (pendingReceivables.length) warnings.push(`尚有 ${pendingReceivables.length} 筆應收未入帳`);
@@ -6578,12 +6616,12 @@ function renderCases() {
     '結案':   'tag-inactive',
   };
   const renderRow = c => {
-    const caseCollected = RECEIVABLES.filter(r => r.case === c.code && r.status === 'collected' && r.receivableType !== 'retention').reduce((s,r) => s+(r.collectAmt||0), 0);
+    const caseCollected = RECEIVABLES.filter(r => r.case === c.code && receivableIsCollected(r) && r.receivableType !== 'retention').reduce((s,r) => s+(r.collectAmt||0), 0);
     const pct = c.amount > 0 ? Math.min(100, Math.round(caseCollected / c.amount * 100)) : (c.pct || 0);
     const retention = RECEIVABLES.find(r => r.case === c.code && (`${r.item||''} ${r.progress||''}`).includes('保固'));
     const retentionAmt = c.retentionAmt || retention?.invoiceAmt || retention?.collectAmt || 0;
     const retentionDue = retention?.retentionDue || c.retentionDue || '';
-    const retentionPaid = !!retention && (retention.status === 'collected' || (retention.collectAmt||0) > 0);
+    const retentionPaid = !!retention && receivableIsCollected(retention);
     const retentionOverdue = !retentionPaid && retentionAmt > 0 && retentionDue && retentionDue < new Date().toISOString().slice(0,10);
     const retentionLabel = !retentionAmt ? '—' : retentionPaid ? '已收' : retentionOverdue ? '已逾期' : '待收';
     const retentionTag = retentionPaid ? 'tag-done' : retentionOverdue ? 'tag-pending' : 'tag-active';
@@ -8767,8 +8805,11 @@ function renderReceivable() {
   const toDate = document.getElementById('rv-date-to')?.value || '';
   const sortMode = document.getElementById('rv-sort')?.value || 'date-desc';
   const receivableDate = r => r.collectDate || r.invoiceDate || r.retentionDue || '';
+  RECEIVABLES.forEach(normalizeReceivableStatus);
   const rows = sortOpsRows(RECEIVABLES.filter(r => {
-    if (rvTab_current !== 'all' && r.status !== rvTab_current) return false;
+    const collected = receivableIsCollected(r);
+    if (rvTab_current === 'collected' && !collected) return false;
+    if (rvTab_current === 'pending' && collected) return false;
     if (filterCase && r.case !== filterCase) return false;
     if (!userCanViewCaseFinancials(r.case, 'receivable')) return false;
     if (!inDateRange(receivableDate(r), fromDate, toDate)) return false;
@@ -8823,7 +8864,7 @@ function renderReceivable() {
             onblur="this.style.background='transparent';this.style.border='none';rvUpdateNote(${r.id},this.value)"
             onkeydown="if(event.key==='Enter')this.blur()">
         </td>
-        <td class="rv-col-status" style="padding:10px 14px;text-align:center"><span class="tag ${statusClass[r.status]||'tag-pending'}">${statusLabel[r.status]||r.status}</span></td>
+        <td class="rv-col-status" style="padding:10px 14px;text-align:center"><span class="tag ${receivableIsCollected(r)?'tag-done':'tag-pending'}">${receivableIsCollected(r)?'已入帳':'待入帳'}</span></td>
         <td class="rv-col-actions" style="padding:10px 14px;text-align:center;white-space:nowrap">
           <div style="display:flex;align-items:center;justify-content:center;gap:4px">
             ${manage ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openInvoice(${r.id})" title="開立發票／標記收款">📄</button>
@@ -8851,8 +8892,8 @@ function updateReceivableStats() {
   const thisMonth = new Date().toISOString().slice(0,7);
   const thisYear  = new Date().toISOString().slice(0,4);
   const visibleRows = RECEIVABLES.filter(r => userCanViewCaseFinancials(r.case, 'receivable'));
-  const monthRows = visibleRows.filter(r => r.collectDate?.startsWith(thisMonth) && r.status==='collected');
-  const yearRows  = visibleRows.filter(r => r.collectDate?.startsWith(thisYear)  && r.status==='collected');
+  const monthRows = visibleRows.filter(r => r.collectDate?.startsWith(thisMonth) && receivableIsCollected(r));
+  const yearRows  = visibleRows.filter(r => r.collectDate?.startsWith(thisYear)  && receivableIsCollected(r));
   const pending   = visibleRows.filter(r => r.status==='pending');
   const noInv     = visibleRows.filter(r => !r.invoiceNo);
   const sum = (arr, field) => arr.reduce((s,r) => s+(r[field]||0), 0);
@@ -9035,6 +9076,7 @@ function submitAddReceivable() {
   const item    = document.getElementById('rv-add-item').value.trim();
   const parseAmt = s => parseInt((s||'').replace(/[^0-9]/g,'')) || 0;
   const collectAmt  = parseAmt(document.getElementById('rv-add-collect-amt').value);
+  const collectDate = document.getElementById('rv-add-collect-date').value;
   const iAmtRaw     = document.getElementById('rv-add-invoice-amt').value.trim();
   const invoiceAmt  = iAmtRaw ? parseAmt(iAmtRaw) : collectAmt;
   const contractAmt = parseAmt(document.getElementById('rv-add-contract-amt').value);
@@ -9054,7 +9096,7 @@ function submitAddReceivable() {
       Object.assign(r, {
         case:        caseVal || r.case,
         caseName,
-        collectDate: document.getElementById('rv-add-collect-date').value,
+        collectDate,
         buyer:       document.getElementById('rv-add-buyer').value.trim(),
         item:        item || r.item,
         collectAmt,
@@ -9065,9 +9107,10 @@ function submitAddReceivable() {
         contractAmt,
         progress:    document.getElementById('rv-add-progress').value.trim(),
         receivableType, retentionDue,
-        status:      document.getElementById('rv-add-status').value,
+        status:      (collectAmt > 0 || collectDate) ? 'collected' : 'pending',
         note:        document.getElementById('rv-add-note').value.trim(),
       });
+      normalizeReceivableStatus(r);
       touchRowMeta(r);
       if (receivableType === 'retention') {
         const c = CASES.find(x => x.code === (caseVal || r.case));
@@ -9091,7 +9134,7 @@ function submitAddReceivable() {
     const caseName = caseEl.selectedOptions[0].text.split(' ').slice(1).join(' ');
     const row = {
       id: rvNextId++, case: caseVal, caseName,
-      collectDate: document.getElementById('rv-add-collect-date').value,
+      collectDate,
       buyer:       document.getElementById('rv-add-buyer').value.trim(),
       item, collectAmt,
       bank:        document.getElementById('rv-add-bank').value,
@@ -9100,9 +9143,10 @@ function submitAddReceivable() {
       contractAmt, progress: document.getElementById('rv-add-progress').value.trim(),
       receivableType, retentionDue,
       invoiceLink: '',
-      status:      document.getElementById('rv-add-status').value,
+      status:      (collectAmt > 0 || collectDate) ? 'collected' : 'pending',
       note:        document.getElementById('rv-add-note').value.trim(),
     };
+    normalizeReceivableStatus(row);
     touchRowMeta(row, true);
     RECEIVABLES.push(row);
     if (receivableType === 'retention') {
@@ -9244,7 +9288,7 @@ function renderProfit() {
   const caseOk = code => (pfSelCases.size === 0 || pfSelCases.has(code)) && userCanViewCaseFinancials(code, 'profit');
 
   // ── 1. 應收：已入帳，依年份篩選 ──
-  const rvPaid = RECEIVABLES.filter(r => r.status === 'collected' && yearOk(r.collectDate));
+  const rvPaid = RECEIVABLES.filter(r => receivableIsCollected(r) && yearOk(r.collectDate));
 
   // ── 2. 應付廠商：已付款，依年份篩選 ──
   const pyPaid = PAYABLES.filter(p => p.status === 'paid' && isCostControlPayment(p) &&
@@ -10791,7 +10835,7 @@ function psOutstandingPostCloseAdjustments() {
 
 // 本次分潤結算的核心計算：個案毛利／開銷分攤／個案淨利／人員分潤
 function psComputeData() {
-  const rvPaid = RECEIVABLES.filter(r => r.status === 'collected');
+  const rvPaid = RECEIVABLES.filter(receivableIsCollected);
   const pyPaid = PAYABLES.filter(p => p.status === 'paid');
   const expApproved = EXPENSES.filter(e => e.status === 'approved' && e.caseKey !== '固定開銷' && e.postCloseTreatment !== 'company_absorb');
   const salaryIdx = OH_FIXED_ITEMS.indexOf('員工薪資');
@@ -11773,8 +11817,8 @@ function renderDashboard() {
 
   // KPI 3: 本月已收款
   const visibleReceivables = RECEIVABLES.filter(r => inDashboardCaseFilter(r.case) && (userCanViewCaseFinancials(r.case, 'dashboard') || userCanViewCaseFinancials(r.case, 'receivable')));
-  const monthCollected = visibleReceivables.filter(r => r.status==='collected' && r.collectDate?.startsWith(thisMonth)).reduce((s,r) => s+(r.collectAmt||0), 0);
-  const totalPending   = visibleReceivables.filter(r => r.status==='pending').reduce((s,r) => s+(r.invoiceAmt||0), 0);
+  const monthCollected = visibleReceivables.filter(r => receivableIsCollected(r) && r.collectDate?.startsWith(thisMonth)).reduce((s,r) => s+(r.collectAmt||0), 0);
+  const totalPending   = visibleReceivables.filter(r => !receivableIsCollected(r)).reduce((s,r) => s+(r.invoiceAmt||0), 0);
   const kpiCollected = document.getElementById('dash-kpi-collected');
   if (kpiCollected) kpiCollected.innerHTML = canSeeTotals ? `${Math.round(monthCollected/10000).toLocaleString('zh-TW')}<span>萬</span>` : '—';
   const kpiCollectedSub = document.getElementById('dash-kpi-collected-sub');
@@ -11827,7 +11871,7 @@ function renderDashboard() {
         <td><div style="font-size:12px;font-weight:500">${r.caseName}</div><div class="case-code" style="font-size:11px">${caseCodeBreak(r.case)}</div></td>
         <td style="font-size:12px">${r.item}</td>
         <td><div class="amount" style="font-size:12px">${r.collectAmt>0?'$'+r.collectAmt.toLocaleString('zh-TW'):'—'}</div></td>
-        <td><span class="tag ${r.status==='collected'?'tag-done':'tag-pending'}">${r.status==='collected'?'已入帳':'待入帳'}</span></td>
+        <td><span class="tag ${receivableIsCollected(r)?'tag-done':'tag-pending'}">${receivableIsCollected(r)?'已入帳':'待入帳'}</span></td>
       </tr>`).join('');
   }
 }
