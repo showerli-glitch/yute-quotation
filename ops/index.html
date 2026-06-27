@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.83 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.84 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3682,19 +3682,20 @@ function upsertReceivableSeedPreserveEntry(seed) {
     'volvo-xinzhuang-wall-rv-2723': 8990,
   };
   const shouldCorrectLegacyAmt = legacyWrongCollectAmt[seed.sourceKey] === Number(row.collectAmt || 0);
+  const shouldBackfillEmptyCollectedSeed = Number(seed.collectAmt || 0) > 0 && !receivableIsCollected(row);
   const preserved = {
     id: row.id,
-    collectDate: row.collectDate,
-    collectAmt: shouldCorrectLegacyAmt ? seed.collectAmt : row.collectAmt,
-    bank: row.bank,
+    collectDate: shouldBackfillEmptyCollectedSeed ? seed.collectDate : row.collectDate,
+    collectAmt: (shouldCorrectLegacyAmt || shouldBackfillEmptyCollectedSeed) ? seed.collectAmt : row.collectAmt,
+    bank: shouldBackfillEmptyCollectedSeed ? seed.bank : row.bank,
     status: row.status,
-    invoiceAmt: shouldCorrectLegacyAmt ? seed.invoiceAmt : row.invoiceAmt,
-    invoiceDate: row.invoiceDate,
-    invoiceNo: row.invoiceNo,
-    contractAmt: shouldCorrectLegacyAmt ? seed.contractAmt : row.contractAmt,
-    progress: row.progress,
-    note: row.note,
-    invoiceLink: row.invoiceLink,
+    invoiceAmt: (shouldCorrectLegacyAmt || (shouldBackfillEmptyCollectedSeed && !Number(row.invoiceAmt || 0))) ? seed.invoiceAmt : row.invoiceAmt,
+    invoiceDate: row.invoiceDate || '',
+    invoiceNo: row.invoiceNo || seed.invoiceNo,
+    contractAmt: (shouldCorrectLegacyAmt || (shouldBackfillEmptyCollectedSeed && !Number(row.contractAmt || 0))) ? seed.contractAmt : row.contractAmt,
+    progress: row.progress || seed.progress,
+    note: row.note || seed.note,
+    invoiceLink: row.invoiceLink || seed.invoiceLink,
   };
   Object.assign(row, { ...clone(seed), ...preserved });
   normalizeReceivableStatus(row);
@@ -5113,7 +5114,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.83', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.84', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5173,7 +5174,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.83', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.84', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
