@@ -646,6 +646,18 @@ body.auth-pending .auth-screen{display:flex}
 }
 .filter-select:focus{outline:none;border-color:var(--accent)}
 .filter-select option{background:#1e1e1e}
+.sticky-table-wrap{
+  overflow-x:auto;
+  overflow-y:visible;
+  -webkit-overflow-scrolling:touch;
+}
+.sticky-table thead th{
+  position:sticky;
+  top:56px;
+  z-index:4;
+  background:var(--surface2);
+  box-shadow:0 1px 0 var(--border2);
+}
 .form-textarea{
   background:var(--surface2);border:1px solid var(--border2);
   border-radius:9px;padding:10px 13px;color:var(--text);
@@ -916,6 +928,7 @@ body.auth-pending .auth-screen{display:flex}
   .sidebar-backdrop.show{display:block}
   .mobile-menu-btn{display:inline-flex!important}
   .topbar{height:auto;min-height:58px;padding:10px 12px;gap:10px;align-items:flex-start}
+  .sticky-table thead th{top:58px}
   .topbar-title{font-size:15px}
   .topbar-sub{font-size:10px}
   .topbar-actions{gap:6px;overflow-x:auto;max-width:58vw;padding-bottom:2px}
@@ -1087,7 +1100,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.79 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.80 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1333,8 +1346,8 @@ body.auth-pending .auth-screen{display:flex}
 
     <!-- Table -->
     <div class="card" style="padding:0;overflow:hidden">
-      <div style="overflow-x:auto" id="py-table-wrap">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <div class="sticky-table-wrap" id="py-table-wrap">
+        <table class="sticky-table" style="width:100%;border-collapse:collapse;font-size:13px">
           <thead>
             <tr style="background:var(--surface2);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px">
               <th style="padding:10px 14px;text-align:left;white-space:nowrap;width:36px">#</th>
@@ -1411,8 +1424,8 @@ body.auth-pending .auth-screen{display:flex}
     </div>
 
     <div class="card" style="padding:0;overflow:hidden">
-      <div style="overflow-x:auto">
-        <table class="rv-table" style="width:100%;border-collapse:collapse;font-size:13px">
+      <div class="sticky-table-wrap">
+        <table class="rv-table sticky-table" style="width:100%;border-collapse:collapse;font-size:13px">
           <thead>
             <tr style="background:var(--surface2);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px">
               <th class="rv-col-no" style="padding:10px 14px;text-align:left;white-space:nowrap">#</th>
@@ -1843,9 +1856,9 @@ body.auth-pending .auth-screen{display:flex}
           成本控制表 — 個案毛利
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;flex:1;display:flex;flex-direction:column">
-          <div style="overflow-x:auto;overflow-y:auto;flex:1">
-            <table class="profit-table">
-              <thead style="position:sticky;top:0;z-index:2">
+          <div class="sticky-table-wrap" style="flex:1">
+            <table class="profit-table sticky-table">
+              <thead>
                 <tr style="background:var(--surface2);color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.5px">
                   <th style="padding:10px 14px;text-align:left;white-space:nowrap">個案名稱</th>
                   <th style="padding:10px 10px;text-align:right;white-space:nowrap">合約金額</th>
@@ -5034,7 +5047,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.79', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.80', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5094,7 +5107,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.79', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.80', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
