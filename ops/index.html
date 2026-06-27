@@ -3602,6 +3602,15 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function sourceKeyWasDeleted(sourceKey) {
+  return !!sourceKey && DELETED_SOURCE_KEYS.includes(String(sourceKey));
+}
+
+function rememberDeletedSourceKey(sourceKey) {
+  const key = String(sourceKey || '').trim();
+  if (key && !DELETED_SOURCE_KEYS.includes(key)) DELETED_SOURCE_KEYS.push(key);
+}
+
 function upsertCaseByCode(seed) {
   const row = CASES.find(c => c.code === seed.code);
   if (row) Object.assign(row, seed);
@@ -3684,6 +3693,7 @@ function normalizeCaseFilterValue(value) {
 }
 
 function upsertReceivableSeedPreserveEntry(seed) {
+  if (sourceKeyWasDeleted(seed.sourceKey)) return;
   const row = RECEIVABLES.find(r => r.sourceKey === seed.sourceKey);
   if (!row) {
     RECEIVABLES.push({ id: seed.id || nextRowId(RECEIVABLES), ...clone(seed) });
@@ -3721,6 +3731,40 @@ function upsertPayableBySourceKey(seed) {
   else PAYABLES.push({ id: seed.id || nextRowId(PAYABLES), ...seed });
 }
 
+function payableRowWasEditedByUser(row) {
+  return !!(row?.updatedAt || row?.updatedBy);
+}
+
+function applyKnownPayableSeedCorrections(row, seed) {
+  if (!row || !seed?.sourceKey) return;
+  const key = seed.sourceKey;
+  if (['hulin-family-ap-2025-7','hulin-family-ap-2025-8','hulin-family-ap-2025-9','hulin-family-ap-2025-10'].includes(key) && row.vendor === '陳志瑋') {
+    row.vendor = '陳志璋';
+    if (String(row.note || '').includes('陳志瑋')) row.note = String(row.note || '').replaceAll('陳志瑋', '陳志璋');
+  }
+  if (key === 'hulin-family-ap-2026-1' && row.vendor === '李嘉航') row.vendor = '富卯';
+  if (key === 'hulin-family-ap-2026-2' && row.vendor === '王育鈞（阿義）') row.vendor = '王有鈞（阿義）';
+  if (key === 'hulin-family-ap-2026-22' && Number(row.amount) === 9339.75) row.amount = 9340;
+  if (!row.caseName && seed.caseName) row.caseName = seed.caseName;
+  if (!row.paymentType && seed.paymentType) row.paymentType = seed.paymentType;
+}
+
+function syncSeededPayablesPreserveManualRows(seeds) {
+  seeds.forEach(seed => {
+    if (sourceKeyWasDeleted(seed.sourceKey)) return;
+    const row = PAYABLES.find(p => p.sourceKey === seed.sourceKey);
+    if (!row) {
+      PAYABLES.push({ id: seed.id || nextRowId(PAYABLES), ...clone(seed) });
+      return;
+    }
+    if (payableRowWasEditedByUser(row)) {
+      applyKnownPayableSeedCorrections(row, seed);
+      return;
+    }
+    Object.assign(row, { ...clone(seed), id: row.id });
+  });
+}
+
 function normalizeCasePayableDuplicates(caseCode) {
   const seen = new Map();
   for (let i = PAYABLES.length - 1; i >= 0; i--) {
@@ -3748,12 +3792,20 @@ function normalizeCasePayableDuplicates(caseCode) {
 }
 
 function resetSeededCasePayables(caseCode, seeds) {
-  PAYABLES = PAYABLES.filter(row => row.case !== caseCode);
-  seeds.forEach(seed => PAYABLES.push({ id: nextRowId(PAYABLES), ...clone(seed) }));
+  const seedKeys = new Set(seeds.map(seed => seed.sourceKey).filter(Boolean));
+  const seen = new Set();
+  PAYABLES = PAYABLES.filter(row => {
+    if (row.case !== caseCode || !row.sourceKey || !seedKeys.has(row.sourceKey)) return true;
+    if (!seen.has(row.sourceKey)) {
+      seen.add(row.sourceKey);
+      return true;
+    }
+    return payableRowWasEditedByUser(row);
+  });
+  syncSeededPayablesPreserveManualRows(seeds);
 }
 
 const SPECIAL_CASE_RECEIVABLE_SEEDS = [
-  { sourceKey:'yucheng-family-ar-total-137399', case:'YT-FAM-2026-001', caseName:'玉成街親友工程', collectDate:'2026-06-27', buyer:'親友工程', item:'玉成街親友工程收款', collectAmt:20730, bank:'親友收款', invoiceAmt:0, invoiceDate:'', invoiceNo:'', contractAmt:137399, progress:'已收 20,730／應收 137,399', invoiceLink:'', status:'collected', receivableType:'normal', note:'親友案比照一般個案手動建立應收；目前實收 20,730，其餘待收。' },
   { sourceKey:'hulin-family-ar-total-1450000', case:'YT-FAM-2026-002', caseName:'虎林街住家', collectDate:'2026-05-03', buyer:'親友工程', item:'虎林街住家結清款', collectAmt:1450000, bank:'抵付／已結清', invoiceAmt:0, invoiceDate:'', invoiceNo:'', contractAmt:1450000, progress:'2026-05-03 已結清', invoiceLink:'', status:'collected', receivableType:'normal', note:'親友案比照一般個案，只保留一筆應收；不分潤。' },
   { sourceKey:'invoice-pass-rv-2721', case:'YT-INV-2026-001', caseName:'代開發票', collectDate:'2026-03-05', buyer:'Volvo 維修客戶', item:'中和新莊 Volvo 維修（小張代開）', collectAmt:21945, bank:'國泰', invoiceAmt:21945, invoiceDate:'', invoiceNo:'XH38605857', contractAmt:21945, progress:'已入帳', invoiceLink:'', status:'collected', receivableType:'normal', note:'代開發票，不分潤。' },
   { sourceKey:'invoice-pass-rv-2722', case:'YT-INV-2026-001', caseName:'代開發票', collectDate:'2026-04-05', buyer:'維修客戶', item:'污水馬達更新工程', collectAmt:26880, bank:'國泰', invoiceAmt:26880, invoiceDate:'', invoiceNo:'ZK97113610', contractAmt:26880, progress:'已入帳', invoiceLink:'', status:'collected', receivableType:'normal', note:'代開發票，不分潤。' },
@@ -3777,11 +3829,11 @@ function normalizeOrdinaryProjectAccounting() {
   [
     {
       code:'YT-FAM-2026-001', name:'玉成街親友工程', client:'FAM', clientName:'親友工程',
-      status:'進行中', amount:137399, collected:20730, person:'李鎮宇', pct:0,
+      status:'進行中', amount:0, collected:0, person:'李鎮宇', pct:0,
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', billingMode:'一般個案損益',
       invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'',
       taxCostOverride:0,
-      reconciliationNote:'不分潤個案；依一般工程損益邏輯列入成本控制表。應收 137,399，目前已收 20,730；廠商成本 9 筆合計 158,129；不進分潤儀表，收款完成後可手動結案。'
+      reconciliationNote:'不分潤個案；依一般工程損益邏輯列入成本控制表。廠商成本 9 筆合計 158,129；應收／收款由使用者手動建立，不再由系統預設合約或補應收；不進分潤儀表。'
     },
     {
       code:'YT-FAM-2026-002', name:'虎林街住家', client:'FAM', clientName:'親友工程',
@@ -3789,7 +3841,7 @@ function normalizeOrdinaryProjectAccounting() {
       profitSplit:'不分潤', caseType:'不分潤／成本追蹤', billingMode:'一般個案損益',
       invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'2026-05-03',
       taxCostOverride:0,
-      reconciliationNote:'不分潤個案；依一般工程損益邏輯列入成本控制表。應收／已收 1,450,000；廠商成本 2025 年 13 筆 462,806 + 2026 年 25 筆 951,948.75 = 1,414,754.75；不進分潤儀表。'
+      reconciliationNote:'不分潤個案；依一般工程損益邏輯列入成本控制表。應收／已收 1,450,000；廠商成本 2025 年 13 筆 462,806 + 2026 年 25 筆 951,949 = 1,414,755；不進分潤儀表。'
     },
     {
       code:'YT-INV-2026-001', name:'代開發票', client:'INV', clientName:'代開發票',
@@ -3846,9 +3898,19 @@ function normalizeOrdinaryProjectAccounting() {
   RECEIVABLES = RECEIVABLES.filter(r =>
     !(r.case === 'YT-FAM-2026-001' && (
       r.sourceKey === 'yucheng-family-ar-total-158129' ||
+      r.sourceKey === 'yucheng-family-ar-total-137399' ||
       String(r.item || '').includes('玉成街親友工程結清款')
     ))
   );
+  RECEIVABLES = RECEIVABLES.filter(r => {
+    if (r.case !== 'YT-INV-2026-001') return true;
+    if (r.sourceKey === 'invoice-pass-rv-2721' || r.sourceKey === 'invoice-pass-rv-2722') return true;
+    const amt = Number(r.collectAmt || r.invoiceAmt || r.contractAmt || 0);
+    const text = `${r.item || ''} ${r.progress || ''}`;
+    const noEntryDate = !r.collectDate && !r.invoiceDate;
+    if (noEntryDate && (amt === 21935 || amt === 26870) && /中和新莊|污水馬達/.test(text)) return false;
+    return true;
+  });
   resetSeededCasePayables('YT-FAM-2026-001', CODEX_SEED_YUCHENG_PAYABLES);
   resetSeededCasePayables('YT-FAM-2026-002', CODEX_SEED_HULIN_PAYABLES);
   SPECIAL_CASE_RECEIVABLE_SEEDS.forEach(upsertReceivableSeedPreserveEntry);
@@ -4312,8 +4374,8 @@ const CODEX_SEED_CASES = [
   { code:'YT-ATG-2026-001', name:'板橋安庭E2-15F', client:'ATG', clientName:'安庭傢俱有限公司', status:'進行中', amount:636000, collected:636000, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:15142.85714, reconciliationNote:'案件仍在進行中，目前損益僅供追蹤，不可結算分潤。依2026應收、應付、五份費用表及板橋安庭E2-15F連動成本控制表核對：銷售及已收636,000／17筆已付工程成本588,945／當案費用7,189／稅務成本15,142.86／目前暫估毛利24,723.14（3.89%）。2026-06滑軌、鉸鍊、把手5,429已歸屬本案，預計2026-06-20付款；付款後工程成本將為594,374，暫估毛利將為19,294.14。' },
   { code:'YT-UNI-2026-001', name:'UNI MUSIC 音樂教室', client:'YYS', clientName:'有意思藝文整合有限公司', status:'進行中', amount:753000, collected:753000, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:17928.57143, reconciliationNote:'案件仍在進行中，目前損益僅供追蹤，不可結算分潤。依2026應收、應付、五份費用表及UNI MUSIC安和路音樂教室成本控制表核對：銷售及已收753,000／6筆工程成本214,971.5，均已付款／當案費用2,700／稅務成本17,928.57／目前暫估毛利517,399.93（68.71%）。舊分潤表顯示毛利520,060為舊數字。' },
   { code:'YT-UPY-2026-001', name:'上洋高雄', client:'UPY', clientName:'上洋產業股份有限公司', status:'進行中', amount:2954985, collected:2954985, person:'李鎮宇', pct:0, profitSplit:'三人', taxCostOverride:70356.78571, reconciliationNote:'依上洋高雄連動成本控制表、2026應收、應付及五份原始費用表核對：實際銷售及已收2,954,985（發票2,955,000）／工程成本2,470,740，包含2025年兩筆3D圖費用6,750及2026年33筆2,463,990／2025當案費用63,020／2026原始費用截至6月267,501／稅務成本70,356.79／最新毛利83,367.21（2.82%）。成本控制表目前只帶入2026年1至5月費用255,578，顯示毛利95,290；原始費用表另有6月11,907，且4月比統計表多16，後續需回寫成本表。6/20元翔高空10,500尚待付款。' },
-  { code:'YT-FAM-2026-001', name:'玉成街親友工程', client:'FAM', clientName:'親友工程', status:'進行中', amount:137399, collected:20730, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, taxCostOverride:0, reconciliationNote:'親友工程比照一般個案入帳，只是不分潤。應付廠商成本 9 筆合計 158,129；應收 137,399，目前已收 20,730；成本控制表可看損益，分潤儀表排除，收款完成後可手動結案。' },
-  { code:'YT-FAM-2026-002', name:'虎林街住家', client:'FAM', clientName:'親友工程', status:'結案', amount:1450000, collected:1450000, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'2026-05-03', taxCostOverride:0, reconciliationNote:'親友成本轉付案；2025 應付 13 筆合計 462,806，2026 應付 25 筆合計 951,948.75，工程成本以應付帳款 1,414,754.75 為準。應收／成本收回 1,450,000，2026-05-03 已結清。廠商明細只列成本，不逐筆轉應收。差異說明：哥哥直付鋁工藝 15,800 不進公司應付；洗衣機鐵架 2,100 由宇德善意負擔；北富耀燈具 0.25 小數差。' },
+  { code:'YT-FAM-2026-001', name:'玉成街親友工程', client:'FAM', clientName:'親友工程', status:'進行中', amount:0, collected:0, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, taxCostOverride:0, reconciliationNote:'親友工程比照一般個案入帳，只是不分潤。應付廠商成本 9 筆合計 158,129；應收／收款由使用者手動建立，成本控制表可看損益，分潤儀表排除，收款完成後可手動結案。' },
+  { code:'YT-FAM-2026-002', name:'虎林街住家', client:'FAM', clientName:'親友工程', status:'結案', amount:1450000, collected:1450000, person:'李鎮宇', pct:0, profitSplit:'不分潤', caseType:'親友協助／成本轉付', billingMode:'實際成本轉付', invoiceMode:'不開發票', excludeFromProfitReports:true, closedDate:'2026-05-03', taxCostOverride:0, reconciliationNote:'親友成本轉付案；2025 應付 13 筆合計 462,806，2026 應付 25 筆合計 951,949，工程成本以應付帳款 1,414,755 為準。應收／成本收回 1,450,000，2026-05-03 已結清。廠商明細只列成本，不逐筆轉應收。差異說明：哥哥直付鋁工藝 15,800 不進公司應付；洗衣機鐵架 2,100 由宇德善意負擔。' },
 ];
 const CODEX_SEED_RECEIVABLES = [
   { id:2, case:'YT-UPY-2025-002', caseName:'上洋鶯歌', collectDate:'2026-02-05', buyer:'上洋產業股份有限公司', item:'裝修工程款', collectAmt:6767965, bank:'國泰', invoiceAmt:6768000, invoiceDate:'2026-01-23', invoiceNo:'XH38605852', contractAmt:12961028, progress:'完收', invoiceLink:'', status:'collected', note:'Codex匯入：上洋鶯歌成本控制表' },
@@ -4943,6 +5005,7 @@ function ensureCodexSeedData() {
   const addByKey = (arr, rows, keyFn) => {
     const existing = new Set(arr.map(keyFn));
     rows.forEach(seed => {
+      if (sourceKeyWasDeleted(seed.sourceKey)) return;
       const key = keyFn(seed);
       if (existing.has(key)) return;
       const row = clone(seed);
@@ -5056,10 +5119,7 @@ function ensureCodexSeedData() {
   addByKey(PAYABLES, CODEX_SEED_WENWEIFENG_PAYABLES, r => [r.case,r.vendor,r.summary,r.amount,r.wantDate].join('|'));
   addByKey(PAYABLES, CODEX_SEED_PROFIT_PAYABLES, r => r.sourceKey || [r.paymentType,r.profitPerson,r.amount,r.doneDate||r.transferDate||r.wantDate].join('|'));
   addByKey(PAYABLES, CODEX_SEED_UPY_JIAYI_PROFIT_PAYABLES, r => r.sourceKey);
-  [...CODEX_SEED_YUCHENG_PAYABLES, ...CODEX_SEED_HULIN_PAYABLES].forEach(seed => {
-    const row = PAYABLES.find(r => r.sourceKey === seed.sourceKey);
-    if (row) Object.assign(row, clone(seed), { id: row.id });
-  });
+  syncSeededPayablesPreserveManualRows([...CODEX_SEED_YUCHENG_PAYABLES, ...CODEX_SEED_HULIN_PAYABLES]);
   CODEX_SEED_PROFIT_PAYABLES.forEach(seed => {
     const row = PAYABLES.find(r => r.sourceKey === seed.sourceKey);
     if (row) Object.assign(row, clone(seed), { id: row.id });
@@ -5136,8 +5196,8 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.87', companyId:COMPANY_ID,
-    CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.88', companyId:COMPANY_ID,
+    CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
     savedAt: new Date().toISOString()
@@ -5196,7 +5256,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.87', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.88', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5558,6 +5618,10 @@ function applyDataSnapshot(d) {
     PAYROLL_DELETED_MONTHS.length = 0;
     PAYROLL_DELETED_MONTHS.push(...d.PAYROLL_DELETED_MONTHS.filter(prIsValidMonth));
   }
+  if (Array.isArray(d.DELETED_SOURCE_KEYS)) {
+    DELETED_SOURCE_KEYS.length = 0;
+    DELETED_SOURCE_KEYS.push(...[...new Set(d.DELETED_SOURCE_KEYS.map(String).filter(Boolean))]);
+  }
   if (d.PROFIT_SETTLEMENTS) { PROFIT_SETTLEMENTS.length = 0; PROFIT_SETTLEMENTS.push(...d.PROFIT_SETTLEMENTS); }
   if (typeof d.PS_TAX_RATE === 'number') PS_TAX_RATE = d.PS_TAX_RATE;
   if (d.pyNextId)    pyNextId  = d.pyNextId;
@@ -5620,6 +5684,7 @@ function clearData() {
   EXPENSES.length = 0; EXPENSES.push(...JSON.parse(JSON.stringify(INIT_EXPENSES))); PAYROLL.length = 0;
   PAYROLL_MONTHS.length = 0; PAYROLL_MONTHS.push(...DEFAULT_PAYROLL_MONTHS);
   PAYROLL_DELETED_MONTHS.length = 0;
+  DELETED_SOURCE_KEYS.length = 0;
   COMPANY_ALLOCATIONS.length = 0;
   TAX_LIABILITIES.length = 0;
   TEST_FEEDBACK.length = 0;
@@ -6358,6 +6423,22 @@ function renderCurrentPage() {
   if (currentPage === 'payroll')    { prRenderMonthOptions(); renderPayroll(); }
 }
 
+function refreshAccountingLinkedViews(caseCode = '') {
+  renderReceivable();
+  renderPayable();
+  renderPayreq();
+  renderCases();
+  renderDashboard();
+  renderProfit();
+  renderProfitShare();
+  renderCurrentPage();
+  const detailModal = document.getElementById('modal-case-detail');
+  if (caseCode && detailModal?.classList.contains('open')) {
+    const titleCode = document.getElementById('cd-subtitle')?.textContent || '';
+    if (titleCode.includes(caseCode)) openCaseDetail(caseCode);
+  }
+}
+
 // ══════════════════════════════════
 // ROLE
 // ══════════════════════════════════
@@ -6889,7 +6970,7 @@ const SYSTEM_NOTES = [
     title:'親友工程／成本轉付要有正式欄位',
     source:'Codex/OPS工作筆記_2026-06-15.md',
     body:'親友工程比照一般個案入帳：應收由使用者手動建立，應付列廠商工程成本，成本控制表看損益；差異只是不進分潤儀表。',
-    items:['虎林街住家已匯入：向哥哥收 1,450,000，工程成本以應付帳款明細 38 筆為準，已結案。','玉成街親友工程：應付成本 158,129，應收 137,399，目前已收 20,730，待收完後可結案。','哥哥直付 15,800 不進公司帳；洗衣機鐵架 2,100 由公司善意負擔。']
+    items:['虎林街住家已匯入：向哥哥收 1,450,000，工程成本以應付帳款明細 38 筆為準，已結案。','玉成街親友工程：應付成本 158,129；應收／收款由使用者手動建立，不再由系統預設合約或補應收。','哥哥直付 15,800 不進公司帳；洗衣機鐵架 2,100 由公司善意負擔。']
   },
   {
     id:'maintenance-parent-case',
@@ -6907,7 +6988,7 @@ const SYSTEM_NOTES = [
     title:'小張代開發票與宇德工程成本要分開',
     source:'Codex/應收應付待匯入清單_2026-06-15.md',
     body:'小張直接向宇德客戶報價施工時，宇德向客戶開發票收款，再以發票金額約除以 1.1 支付小張。2026-06-25 已先以不分潤特殊個案匯入，後續仍需正式交易類型。',
-    items:['同案場可能同時有宇德承攬成本與小張直接對客戶報價。','代開發票已匯入：應付小張 5 筆合計 42,030；應收 2 筆合計實收 48,805。','中和通馬桶 1,800 保留為未收回成本／放棄對客請款，不建立客戶應收。']
+    items:['同案場可能同時有宇德承攬成本與小張直接對客戶報價。','代開發票已匯入：應付小張 5 筆合計 42,030；應收 2 筆合計實收 48,825。','中和通馬桶 1,800 保留為未收回成本／放棄對客請款，不建立客戶應收。']
   },
   {
     id:'yude-company-staging',
@@ -6916,7 +6997,7 @@ const SYSTEM_NOTES = [
     title:'宇德公司不是正式會計分類',
     source:'Codex/宇德公司暫存分類清單_2026-06-16.md',
     body:'案名為宇德公司的資料必須逐筆拆分為工程獎金、親友成本轉付、固定開銷、稅務／會計費、私人借支或實際工程成本，不能直接進損益。',
-    items:['玉成街 9 筆合計 158,129 已歸入玉成街親友工程；應收改由一筆 137,399 手動追蹤，目前已收 20,730，不再由應付自動生成。','李秋惠私人借支／支票借用 6 筆合計 596,000 已歸入「私人借支」不分潤個案；還款時手動建立應收。','上洋高雄 3 筆成本：柏實 7,300、柏實 25,000、丹墨整合 3,000 已補入。']
+    items:['玉成街 9 筆合計 158,129 已歸入玉成街親友工程；應收／收款改由使用者手動建立，不再由應付自動生成，也不預設合約總額。','李秋惠私人借支／支票借用 6 筆合計 596,000 已歸入「私人借支」不分潤個案；還款時手動建立應收。','上洋高雄 3 筆成本：柏實 7,300、柏實 25,000、丹墨整合 3,000 已補入。']
   },
   {
     id:'tax-liability',
@@ -8838,12 +8919,11 @@ function deletePayableConfirm(id) {
   if (!p) return;
   if (p.systemLocked) { showToast('系統結算款不可單獨刪除，請由分潤關係表撤銷結算','error'); return; }
   if (!confirm(`確定刪除「${p.vendor}」$${p.amount.toLocaleString('zh-TW')} 這筆應付帳款？`)) return;
+  const affectedCase = p.case;
+  rememberDeletedSourceKey(p.sourceKey);
   PAYABLES = PAYABLES.filter(x => x.id !== id);
   RECEIVABLES = RECEIVABLES.filter(r => r.sourcePayableId !== id && r.sourceKey !== `payable:${id}`);
-  renderPayable(); renderPayreq();
-  renderCases();
-  renderDashboard();
-  renderProfit(); renderProfitShare();
+  refreshAccountingLinkedViews(affectedCase);
   saveData();
   showToast('已刪除 ✓', 'warning');
 }
@@ -8876,11 +8956,13 @@ function submitAddPayable() {
   if (!summary) { showToast('請填寫摘要', 'error'); return; }
   const amtNum   = parseInt(amount.replace(/[^0-9]/g,''));
   const caseName = caseVal ? (caseEl.selectedOptions[0].text.split(' ').slice(1).join(' ')) : '';
+  let affectedCase = shouldKeepCase ? caseVal : '';
 
   if (editId) {
     // 編輯模式：更新現有記錄
     const p = PAYABLES.find(x => x.id === parseInt(editId));
     if (p) {
+      affectedCase = shouldKeepCase ? caseVal : p.case || '';
       if (p.systemLocked) {
         Object.assign(p, { wantDate:date, bank, status, transferDate, doneDate, ticket });
         if (status === 'paid' && !p.doneDate) {
@@ -8899,7 +8981,7 @@ function submitAddPayable() {
       touchRowMeta(p);
     }
     closeModal('modal-add-payable');
-    renderPayable(); renderPayreq(); renderCases(); renderDashboard(); renderProfit(); renderProfitShare();
+    refreshAccountingLinkedViews(affectedCase);
     saveData();
     showToast('已更新應付帳款 ✓', 'success');
   } else {
@@ -8917,7 +8999,7 @@ function submitAddPayable() {
     PAYABLES.push(row);
     syncDerivedReceivableForPayable(row);
     closeModal('modal-add-payable');
-    renderPayable(); renderPayreq(); renderCases(); renderDashboard(); renderProfit(); renderProfitShare();
+    refreshAccountingLinkedViews(shouldKeepCase ? caseVal : '');
     saveData();
     showToast('已新增應付帳款 ✓', 'success');
   }
@@ -9076,11 +9158,7 @@ function confirmInvoiceOnly() {
   });
   touchRowMeta(rvInvoiceTarget);
   closeModal('modal-invoice');
-  renderReceivable();
-  renderCases();
-  renderDashboard();
-  renderProfit();
-  renderProfitShare();
+  refreshAccountingLinkedViews(rvInvoiceTarget.case);
   saveData();
   showToast('已儲存發票資訊 ✓', 'success');
 }
@@ -9102,11 +9180,7 @@ function confirmCollected() {
   });
   touchRowMeta(rvInvoiceTarget);
   closeModal('modal-invoice');
-  renderReceivable();
-  renderCases();
-  renderDashboard();
-  renderProfit();
-  renderProfitShare();
+  refreshAccountingLinkedViews(rvInvoiceTarget.case);
   saveData();
   showToast('已標記入帳完成 ✓', 'success');
 }
@@ -9207,12 +9281,10 @@ function deleteReceivableConfirm(id) {
   if (!r) return;
   const amt = r.collectAmt ? '$' + r.collectAmt.toLocaleString('zh-TW') : '（無金額）';
   if (!confirm(`確定刪除「${r.caseName} — ${r.item||''}」${amt} 這筆收款紀錄？`)) return;
+  const affectedCase = r.case;
+  rememberDeletedSourceKey(r.sourceKey);
   RECEIVABLES = RECEIVABLES.filter(x => x.id !== id);
-  renderReceivable();
-  renderCases();
-  renderDashboard();
-  renderProfit();
-  renderProfitShare();
+  refreshAccountingLinkedViews(affectedCase);
   saveData();
   showToast('已刪除 ✓', 'warning');
 }
@@ -9231,6 +9303,7 @@ function submitAddReceivable() {
   const contractAmt = parseAmt(document.getElementById('rv-add-contract-amt').value);
   const receivableType = document.getElementById('rv-add-type')?.value || 'normal';
   const retentionDue = receivableType === 'retention' ? (document.getElementById('rv-add-retention-due')?.value || '') : '';
+  let affectedCase = caseVal;
   if (receivableType === 'retention' && !invoiceAmt) { showToast('請填寫保固保留款金額','error'); return; }
   if (receivableType === 'retention' && !retentionDue) { showToast('請選擇保固款到期日','error'); return; }
 
@@ -9239,6 +9312,7 @@ function submitAddReceivable() {
     const r = RECEIVABLES.find(x => x.id === parseInt(editId));
     if (r) {
       const before = auditClone(r);
+      affectedCase = caseVal || r.case || '';
       const caseName = caseVal ? (caseEl.selectedOptions[0].text.split(' ').slice(1).join(' ')) : r.caseName;
       const duplicateAmt = collectAmt || invoiceAmt || contractAmt;
       if (!confirmDuplicateReceivable({ caseCode:(caseVal || r.case), amount:duplicateAmt, excludeId:r.id })) return;
@@ -9272,7 +9346,7 @@ function submitAddReceivable() {
       });
     }
     closeModal('modal-add-receivable');
-    renderReceivable(); renderCases(); renderDashboard(); renderProfit(); renderProfitShare();
+    refreshAccountingLinkedViews(affectedCase);
     saveData();
     showToast('收款紀錄已更新 ✓', 'success');
   } else {
@@ -9307,7 +9381,7 @@ function submitAddReceivable() {
       targetLabel:`${row.buyer || '付款方未填'}／${row.item || '收款項目未填'}`
     });
     closeModal('modal-add-receivable');
-    renderReceivable(); renderCases(); renderDashboard(); renderProfit(); renderProfitShare();
+    refreshAccountingLinkedViews(caseVal);
     saveData();
     showToast('收款紀錄已新增 ✓', 'success');
   }
@@ -11546,6 +11620,7 @@ let PAYROLL = [];
 const DEFAULT_PAYROLL_MONTHS = [...new Set(CODEX_SEED_PAYROLL.map(r => r.month))].sort((a,b) => b.localeCompare(a));
 const PAYROLL_MONTHS = [...DEFAULT_PAYROLL_MONTHS];
 const PAYROLL_DELETED_MONTHS = [];
+const DELETED_SOURCE_KEYS = [];
 let prNextId = 1;
 let prCurrentEmp = 'nc';
 
