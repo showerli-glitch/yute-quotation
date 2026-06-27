@@ -5725,11 +5725,9 @@ function renderAll() {
 }
 
 function renderAfterDataSettles(reason = '') {
-  requestAnimationFrame(() => {
-    renderAll();
-    setTimeout(renderCurrentPage, 80);
-    setTimeout(renderCurrentPage, 300);
-  });
+  renderAll();
+  setTimeout(renderCurrentPage, 150);
+  setTimeout(renderCurrentPage, 500);
 }
 
 function opsInitFirebase() {
@@ -6303,7 +6301,7 @@ function navTo(page, el) {
   if (page === 'profitshare') renderProfitShare();
   if (page === 'attendance') renderAttendance();
   if (page === 'payreq')     renderPayreq();
-  if (page === 'dashboard')  renderDashboard();
+  if (page === 'dashboard')  { renderDashboard(); renderCases(); }
   if (page === 'employees')  renderEmployees();
   if (page === 'clients')    renderClients();
   if (page === 'vendors')    renderVendors();
