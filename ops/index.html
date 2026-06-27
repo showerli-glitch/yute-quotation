@@ -1106,7 +1106,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.82 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.83 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3642,6 +3642,21 @@ function casePaidPayableAmount(caseCode, options = {}) {
     .reduce((s, p) => s + (Number(p.amount) || 0), 0);
 }
 
+function canonicalPayableRowsForCase(caseCode) {
+  if (caseCode === 'YT-FAM-2026-001') return CODEX_SEED_YUCHENG_PAYABLES.map(clone);
+  if (caseCode === 'YT-FAM-2026-002') return CODEX_SEED_HULIN_PAYABLES.map(clone);
+  const seeded = SPECIAL_CASE_PAYABLE_SEEDS.filter(seed => seed.case === caseCode);
+  if (seeded.length) return seeded.map(clone);
+  return null;
+}
+
+function canonicalReceivableRowsForCase(caseCode, currentRows = []) {
+  if (currentRows.length) return currentRows;
+  return SPECIAL_CASE_RECEIVABLE_SEEDS
+    .filter(seed => seed.case === caseCode)
+    .map(clone);
+}
+
 function upsertReceivableSeedPreserveEntry(seed) {
   const row = RECEIVABLES.find(r => r.sourceKey === seed.sourceKey);
   if (!row) {
@@ -5086,7 +5101,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.82', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.83', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5146,7 +5161,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.82', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.83', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6580,10 +6595,13 @@ function openCaseDetail(caseCode) {
   document.getElementById('cd-subtitle').textContent = `${c.code} ｜ ${c.clientName||''} ｜ 負責：${c.person||'—'}`;
 
   // KPI 卡
-  const rvs = caseReceivableRows(caseCode);
-  const collected = caseCollectedAmount(caseCode);
-  const pys = casePayableRows(caseCode);
-  const paid = casePaidPayableAmount(caseCode);
+  const rvs = canonicalReceivableRowsForCase(caseCode, caseReceivableRows(caseCode));
+  const collected = rvs.filter(receivableIsCollected).reduce((s,r)=>s+(Number(r.collectAmt)||0),0);
+  const canonicalPys = canonicalPayableRowsForCase(caseCode);
+  const pys = canonicalPys || casePayableRows(caseCode, { costControlOnly:true });
+  const paid = Number.isFinite(c.vendorCostOverride)
+    ? c.vendorCostOverride
+    : pys.filter(p => p.status === 'paid').reduce((s,p)=>s+(Number(p.amount)||0),0);
   const pct = c.amount > 0 ? Math.min(100, Math.round(collected/c.amount*100)) : 0;
   document.getElementById('cd-kpis').innerHTML = `
     <div class="kpi-card" style="padding:12px 16px">
