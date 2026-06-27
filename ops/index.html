@@ -1100,7 +1100,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.80 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.81 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3603,6 +3603,39 @@ function normalizeReceivableStatus(row) {
   return row;
 }
 
+function caseReceivableRows(caseCode, { includeRetention = true, dateOk = null } = {}) {
+  return RECEIVABLES.filter(r =>
+    r.case === caseCode &&
+    (includeRetention || r.receivableType !== 'retention') &&
+    (!dateOk || dateOk(r.collectDate || r.invoiceDate || ''))
+  );
+}
+
+function caseCollectedAmount(caseCode, options = {}) {
+  return caseReceivableRows(caseCode, options)
+    .filter(receivableIsCollected)
+    .reduce((s, r) => s + (Number(r.collectAmt) || 0), 0);
+}
+
+function caseReceivableTotalAmount(caseCode, options = {}) {
+  return caseReceivableRows(caseCode, options)
+    .reduce((s, r) => s + (Number(r.collectAmt || r.invoiceAmt || r.contractAmt) || 0), 0);
+}
+
+function casePayableRows(caseCode, { dateOk = null, costControlOnly = false } = {}) {
+  return PAYABLES.filter(p =>
+    p.case === caseCode &&
+    (!costControlOnly || isCostControlPayment(p)) &&
+    (!dateOk || dateOk(p.doneDate || p.transferDate || p.wantDate || ''))
+  );
+}
+
+function casePaidPayableAmount(caseCode, options = {}) {
+  return casePayableRows(caseCode, options)
+    .filter(p => p.status === 'paid')
+    .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+}
+
 function upsertReceivableSeedPreserveEntry(seed) {
   const row = RECEIVABLES.find(r => r.sourceKey === seed.sourceKey);
   if (!row) {
@@ -5047,7 +5080,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.80', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.81', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5107,7 +5140,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.80', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.81', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6541,10 +6574,10 @@ function openCaseDetail(caseCode) {
   document.getElementById('cd-subtitle').textContent = `${c.code} ｜ ${c.clientName||''} ｜ 負責：${c.person||'—'}`;
 
   // KPI 卡
-  const rvs = RECEIVABLES.filter(r => r.case === caseCode);
-  const collected = rvs.filter(receivableIsCollected).reduce((s,r)=>s+(r.collectAmt||0),0);
-  const pys = PAYABLES.filter(p => p.case === caseCode);
-  const paid = pys.filter(p => p.status==='paid').reduce((s,p)=>s+(p.amount||0),0);
+  const rvs = caseReceivableRows(caseCode);
+  const collected = caseCollectedAmount(caseCode);
+  const pys = casePayableRows(caseCode);
+  const paid = casePaidPayableAmount(caseCode);
   const pct = c.amount > 0 ? Math.min(100, Math.round(collected/c.amount*100)) : 0;
   document.getElementById('cd-kpis').innerHTML = `
     <div class="kpi-card" style="padding:12px 16px">
@@ -6629,7 +6662,7 @@ function renderCases() {
     '結案':   'tag-inactive',
   };
   const renderRow = c => {
-    const caseCollected = RECEIVABLES.filter(r => r.case === c.code && receivableIsCollected(r) && r.receivableType !== 'retention').reduce((s,r) => s+(r.collectAmt||0), 0);
+    const caseCollected = caseCollectedAmount(c.code, { includeRetention: false });
     const pct = c.amount > 0 ? Math.min(100, Math.round(caseCollected / c.amount * 100)) : (c.pct || 0);
     const retention = RECEIVABLES.find(r => r.case === c.code && (`${r.item||''} ${r.progress||''}`).includes('保固'));
     const retentionAmt = c.retentionAmt || retention?.invoiceAmt || retention?.collectAmt || 0;
@@ -8056,6 +8089,7 @@ function approveReq(id) {
   p.status = 'approved';
   renderPayreq();
   renderPayable();
+  renderCases();
   renderDashboard();
   renderProfit();
   renderProfitShare();
@@ -8072,7 +8106,10 @@ function rejectPayreq(id) {
   PAYABLES.splice(idx, 1);
   renderPayreq();
   renderPayable();
+  renderCases();
   renderDashboard();
+  renderProfit();
+  renderProfitShare();
   saveData();
   showToast('已退回', 'warning');
 }
@@ -8340,7 +8377,7 @@ function renderPayable() {
   const toDate = document.getElementById('py-date-to')?.value || '';
   const sortMode = document.getElementById('py-sort')?.value || 'date-desc';
   const payableDate = p => p.doneDate || p.transferDate || p.wantDate || p.ticket || '';
-  const rows = sortOpsRows(PAYABLES.filter(p => {
+  const baseRows = PAYABLES.filter(p => {
     if (pyTab_current !== 'all' && p.status !== pyTab_current) return false;
     if (p.case && !userCanViewCaseFinancials(p.case, 'payable')) return false;
     if (!p.case && !['manage','view_all'].includes(permissionLevel('payable'))) return false;
@@ -8355,7 +8392,23 @@ function renderPayable() {
     ].filter(Boolean).join(' ').toLowerCase();
     if (!searchTextMatches(searchable, kw)) return false;
     return true;
-  }), sortMode, payableDate, p => p.vendor, p => p.amount);
+  });
+  const statsRows = PAYABLES.filter(p => {
+    if (p.case && !userCanViewCaseFinancials(p.case, 'payable')) return false;
+    if (!p.case && !['manage','view_all'].includes(permissionLevel('payable'))) return false;
+    if (filterCase && p.case !== filterCase) return false;
+    if (!inDateRange(payableDate(p), fromDate, toDate)) return false;
+    const searchable = [
+      p.vendor, p.summary, p.caseName, p.case, p.person,
+      p.wantDate, p.transferDate, p.doneDate, p.ticket, p.bank,
+      searchAmountText(p.amount),
+      showPaymentType ? paymentTypeLabel(p.paymentType) : '',
+      isProfitPaymentType(p.paymentType) ? psPersonName(p.profitPerson) : '',
+    ].filter(Boolean).join(' ').toLowerCase();
+    if (!searchTextMatches(searchable, kw)) return false;
+    return true;
+  });
+  const rows = sortOpsRows(baseRows, sortMode, payableDate, p => p.vendor, p => p.amount);
   const statusLabel = {pending:'待審核', approved:'待付款', paid:'已付款'};
   const statusClass = {pending:'tag-pending', approved:'tag-active', paid:'tag-done'};
   const tbody = document.getElementById('py-tbody');
@@ -8408,10 +8461,10 @@ function renderPayable() {
         </td>
       </tr>`).join('');
   }
-  updatePayableStats();
+  updatePayableStats(statsRows);
 }
 
-function updatePayableStats() {
+function updatePayableStats(scopeRows = null) {
   const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
   if (!canSeeFinancialTotals()) {
     set('py-stat-pending-count', '—');
@@ -8426,7 +8479,7 @@ function updatePayableStats() {
     if (badge) badge.style.display = 'none';
     return;
   }
-  const visiblePayables = PAYABLES.filter(p => !p.case || userCanViewCaseFinancials(p.case, 'payable'));
+  const visiblePayables = scopeRows || PAYABLES.filter(p => !p.case || userCanViewCaseFinancials(p.case, 'payable'));
   const pending  = visiblePayables.filter(p => p.status==='pending');
   const approved = visiblePayables.filter(p => p.status==='approved');
   const paid     = visiblePayables.filter(p => p.status==='paid');
@@ -8495,6 +8548,10 @@ function confirmApprove() {
   touchRowMeta(pyApproveTarget);
   closeModal('modal-approve-payable');
   renderPayable();
+  renderCases();
+  renderDashboard();
+  renderProfit();
+  renderProfitShare();
   saveData();
   showToast('已核准，移至待付款 ✓', 'success');
 }
@@ -8542,7 +8599,7 @@ function markPaid(id) {
     targetLabel:`${p.vendor || '受款人未填'}／${p.summary || '付款項目未填'}`,
     fields:['status','amount','vendor','summary','transferDate','doneDate','bank','paymentType','case','caseName']
   });
-  renderPayable(); renderPayreq(); renderOverhead(); renderDashboard(); renderProfit();
+  renderPayable(); renderPayreq(); renderCases(); renderOverhead(); renderDashboard(); renderProfit();
   renderProfitShare();
   saveData();
   showToast('已標記為已付款 ✓', 'success');
@@ -8579,7 +8636,10 @@ function rejectPayable(id) {
     targetLabel:`${before.vendor || '受款人未填'}／${before.summary || '項目未填'}`
   });
   renderPayable();
+  renderCases();
   renderDashboard();
+  renderProfit();
+  renderProfitShare();
   saveData();
   showToast('已退回並移除', 'warning');
 }
@@ -8716,6 +8776,7 @@ function deletePayableConfirm(id) {
   RECEIVABLES = RECEIVABLES.filter(r => r.sourcePayableId !== id && r.sourceKey !== `payable:${id}`);
   renderPayable(); renderPayreq();
   renderCases();
+  renderDashboard();
   renderProfit(); renderProfitShare();
   saveData();
   showToast('已刪除 ✓', 'warning');
@@ -8772,7 +8833,7 @@ function submitAddPayable() {
       touchRowMeta(p);
     }
     closeModal('modal-add-payable');
-    renderPayable(); renderPayreq(); renderCases(); renderProfit(); renderProfitShare();
+    renderPayable(); renderPayreq(); renderCases(); renderDashboard(); renderProfit(); renderProfitShare();
     saveData();
     showToast('已更新應付帳款 ✓', 'success');
   } else {
@@ -8790,7 +8851,7 @@ function submitAddPayable() {
     PAYABLES.push(row);
     syncDerivedReceivableForPayable(row);
     closeModal('modal-add-payable');
-    renderPayable(); renderCases(); renderProfitShare();
+    renderPayable(); renderPayreq(); renderCases(); renderDashboard(); renderProfit(); renderProfitShare();
     saveData();
     showToast('已新增應付帳款 ✓', 'success');
   }
@@ -8819,10 +8880,7 @@ function renderReceivable() {
   const sortMode = document.getElementById('rv-sort')?.value || 'date-desc';
   const receivableDate = r => r.collectDate || r.invoiceDate || r.retentionDue || '';
   RECEIVABLES.forEach(normalizeReceivableStatus);
-  const rows = sortOpsRows(RECEIVABLES.filter(r => {
-    const collected = receivableIsCollected(r);
-    if (rvTab_current === 'collected' && !collected) return false;
-    if (rvTab_current === 'pending' && collected) return false;
+  const statsRows = RECEIVABLES.filter(r => {
     if (filterCase && r.case !== filterCase) return false;
     if (!userCanViewCaseFinancials(r.case, 'receivable')) return false;
     if (!inDateRange(receivableDate(r), fromDate, toDate)) return false;
@@ -8834,6 +8892,12 @@ function renderReceivable() {
       searchAmountText(r.contractAmt),
     ].filter(Boolean).join(' ');
     if (!searchTextMatches(searchable, kw)) return false;
+    return true;
+  });
+  const rows = sortOpsRows(statsRows.filter(r => {
+    const collected = receivableIsCollected(r);
+    if (rvTab_current === 'collected' && !collected) return false;
+    if (rvTab_current === 'pending' && collected) return false;
     return true;
   }), sortMode, receivableDate, r => r.buyer, r => r.collectAmt || r.invoiceAmt || 0);
   const statusLabel = {pending:'待收款', collected:'已入帳'};
@@ -8887,10 +8951,10 @@ function renderReceivable() {
         </td>
       </tr>`).join('');
   }
-  updateReceivableStats();
+  updateReceivableStats(statsRows);
 }
 
-function updateReceivableStats() {
+function updateReceivableStats(scopeRows = null) {
   const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
   if (!canSeeFinancialTotals()) {
     set('rv-stat-month-amt', '—');
@@ -8904,7 +8968,7 @@ function updateReceivableStats() {
   }
   const thisMonth = new Date().toISOString().slice(0,7);
   const thisYear  = new Date().toISOString().slice(0,4);
-  const visibleRows = RECEIVABLES.filter(r => userCanViewCaseFinancials(r.case, 'receivable'));
+  const visibleRows = scopeRows || RECEIVABLES.filter(r => userCanViewCaseFinancials(r.case, 'receivable'));
   const monthRows = visibleRows.filter(r => r.collectDate?.startsWith(thisMonth) && receivableIsCollected(r));
   const yearRows  = visibleRows.filter(r => r.collectDate?.startsWith(thisYear)  && receivableIsCollected(r));
   const pending   = visibleRows.filter(r => r.status==='pending');
@@ -8948,6 +9012,9 @@ function confirmInvoiceOnly() {
   closeModal('modal-invoice');
   renderReceivable();
   renderCases();
+  renderDashboard();
+  renderProfit();
+  renderProfitShare();
   saveData();
   showToast('已儲存發票資訊 ✓', 'success');
 }
@@ -8971,6 +9038,7 @@ function confirmCollected() {
   closeModal('modal-invoice');
   renderReceivable();
   renderCases();
+  renderDashboard();
   renderProfit();
   renderProfitShare();
   saveData();
@@ -9076,7 +9144,9 @@ function deleteReceivableConfirm(id) {
   RECEIVABLES = RECEIVABLES.filter(x => x.id !== id);
   renderReceivable();
   renderCases();
+  renderDashboard();
   renderProfit();
+  renderProfitShare();
   saveData();
   showToast('已刪除 ✓', 'warning');
 }
@@ -9136,7 +9206,7 @@ function submitAddReceivable() {
       });
     }
     closeModal('modal-add-receivable');
-    renderReceivable(); renderCases(); renderProfit();
+    renderReceivable(); renderCases(); renderDashboard(); renderProfit(); renderProfitShare();
     saveData();
     showToast('收款紀錄已更新 ✓', 'success');
   } else {
@@ -9171,7 +9241,7 @@ function submitAddReceivable() {
       targetLabel:`${row.buyer || '付款方未填'}／${row.item || '收款項目未填'}`
     });
     closeModal('modal-add-receivable');
-    renderReceivable(); renderCases();
+    renderReceivable(); renderCases(); renderDashboard(); renderProfit(); renderProfitShare();
     saveData();
     showToast('收款紀錄已新增 ✓', 'success');
   }
@@ -9300,31 +9370,30 @@ function renderProfit() {
   // 案件篩選器：空 = 全部
   const caseOk = code => (pfSelCases.size === 0 || pfSelCases.has(code)) && userCanViewCaseFinancials(code, 'profit');
 
-  // ── 1. 應收：已入帳，依年份篩選 ──
-  const rvPaid = RECEIVABLES.filter(r => receivableIsCollected(r) && yearOk(r.collectDate));
-
-  // ── 2. 應付廠商：已付款，依年份篩選 ──
+  // ── 1. 應付廠商：已付款，依年份篩選 ──
   const pyPaid = PAYABLES.filter(p => p.status === 'paid' && isCostControlPayment(p) &&
     yearOk(p.doneDate || p.transferDate || p.wantDate));
 
-  // ── 3. 費用申請：已核准，非固定開銷，依年份篩選 ──
+  // ── 2. 費用申請：已核准，非固定開銷，依年份篩選 ──
   const expApproved = EXPENSES.filter(e => e.status === 'approved' && yearOk(e.month) && e.caseKey !== '固定開銷' && e.postCloseTreatment !== 'company_absorb');
 
-  // ── 4. 每個案件毛利計算（依案件篩選） ──
+  // ── 3. 每個案件毛利計算（依案件篩選） ──
   const caseRows = CASES.filter(c => caseOk(c.code)).map(c => {
     const isFamilyPassThroughCase = isFamilyPassThroughCaseRecord(c);
-    const recordedRevenue = rvPaid.filter(r => r.case === c.code).reduce((s, r) => s + (r.collectAmt || 0), 0);
-    const recordedCost = pyPaid.filter(p => p.case === c.code).reduce((s, p) => s + (p.amount || 0), 0);
+    const casePaidReceivables = caseReceivableRows(c.code, { dateOk: d => yearOk(d) }).filter(receivableIsCollected);
+    const casePaidPayables = casePayableRows(c.code, { dateOk: d => yearOk(d), costControlOnly: true }).filter(p => p.status === 'paid');
+    const recordedRevenue = casePaidReceivables.reduce((s, r) => s + (r.collectAmt || 0), 0);
+    const recordedCost = casePaidPayables.reduce((s, p) => s + (p.amount || 0), 0);
     const revenue  = Number.isFinite(c.revenueOverride) ? c.revenueOverride : recordedRevenue;
     const cost     = Number.isFinite(c.vendorCostOverride) ? c.vendorCostOverride : recordedCost;
     const caseExpenses = expApproved.filter(e => e.caseKey === c.code);
     const expCost  = caseExpenses.filter(e => e.category !== '公司分攤').reduce((s, e) => s + (e.amount || 0), 0);
-    const calculatedTaxCost = rvPaid.filter(r => r.case === c.code).reduce((s, r) => s + ((r.invoiceAmt || 0) / 1.05 * 0.05 / 2), 0);
+    const calculatedTaxCost = casePaidReceivables.reduce((s, r) => s + ((r.invoiceAmt || 0) / 1.05 * 0.05 / 2), 0);
     const taxCost  = Number.isFinite(c.taxCostOverride) ? c.taxCostOverride : (isFamilyPassThroughCase ? 0 : calculatedTaxCost);
     const calculatedGross = revenue - cost - expCost - taxCost;
     const gross    = Number.isFinite(c.grossOverride) ? c.grossOverride : calculatedGross;
     const contract = c.amount || 0;
-    const collected= rvPaid.filter(r => r.case === c.code).reduce((s, r) => s + (r.collectAmt || 0), 0);
+    const collected= recordedRevenue;
     return { ...c, revenue, cost, expCost, taxCost, recordedRevenue, recordedCost, calculatedTaxCost, calculatedGross, gross, contract, collected };
   }).filter(c => c.contract > 0 || c.revenue > 0 || c.cost > 0);
 
