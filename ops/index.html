@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.86 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.87 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3598,6 +3598,10 @@ function nextRowId(rows) {
   return Math.max(0, ...rows.map(row => Number(row.id) || 0)) + 1;
 }
 
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 function upsertCaseByCode(seed) {
   const row = CASES.find(c => c.code === seed.code);
   if (row) Object.assign(row, seed);
@@ -3666,6 +3670,17 @@ const SOURCE_OF_TRUTH_CASE_CODES = new Set([
 
 function shouldUseCaseFinancialOverride(caseRecord) {
   return caseRecord && !SOURCE_OF_TRUTH_CASE_CODES.has(caseRecord.code);
+}
+
+function normalizeCaseFilterValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const exact = CASES.find(c => c.code === raw);
+  if (exact) return exact.code;
+  const codeMatch = raw.match(/YT-[A-Z]+-[A-Z]+-\d{4}-\d{3}|YT-[A-Z]+-\d{4}-\d{3}/);
+  if (codeMatch) return codeMatch[0];
+  const byName = CASES.find(c => raw === c.name || raw === `${c.code} ${c.name}` || raw.includes(c.name));
+  return byName?.code || raw;
 }
 
 function upsertReceivableSeedPreserveEntry(seed) {
@@ -5121,7 +5136,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.86', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.87', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5181,7 +5196,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.86', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.87', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -8422,7 +8437,7 @@ function renderPayable() {
   const showPaymentType = canViewPaymentType();
   const kpiRow = document.getElementById('py-kpi-row');
   if (kpiRow) kpiRow.style.display = canSeeFinancialTotals() ? '' : 'none';
-  const filterCase = document.getElementById('py-filter-case')?.value || '';
+  const filterCase = normalizeCaseFilterValue(document.getElementById('py-filter-case')?.value || '');
   const kw = (document.getElementById('py-search')?.value || '').toLowerCase();
   const fromDate = document.getElementById('py-date-from')?.value || '';
   const toDate = document.getElementById('py-date-to')?.value || '';
@@ -8924,7 +8939,7 @@ function renderReceivable() {
   const manage = canManage('receivable');
   const kpiRow = document.getElementById('rv-kpi-row');
   if (kpiRow) kpiRow.style.display = canSeeFinancialTotals() ? '' : 'none';
-  const filterCase = document.getElementById('rv-filter-case')?.value || '';
+  const filterCase = normalizeCaseFilterValue(document.getElementById('rv-filter-case')?.value || '');
   const kw = (document.getElementById('rv-search')?.value || '').toLowerCase();
   const fromDate = document.getElementById('rv-date-from')?.value || '';
   const toDate = document.getElementById('rv-date-to')?.value || '';
@@ -10007,7 +10022,7 @@ function renderExpense() {
   expRefreshMonthOptions();
   const filterPerson = canApprove ? (personFilterEl?.value || '') : currentUser.id;
   const filterMonth  = document.getElementById('exp-filter-month')?.value  || '';
-  const filterCase   = document.getElementById('exp-filter-case')?.value   || '';
+  const filterCase   = normalizeCaseFilterValue(document.getElementById('exp-filter-case')?.value   || '');
   const kw = (document.getElementById('exp-search')?.value || '').toLowerCase();
   const rows = EXPENSES.filter(r => {
     if (expTab_current !== 'all' && r.status !== expTab_current) return false;
