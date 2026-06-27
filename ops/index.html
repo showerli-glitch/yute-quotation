@@ -1087,7 +1087,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.75 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.76 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4830,7 +4830,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.75', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.76', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -4890,7 +4890,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.75', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.76', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6665,6 +6665,60 @@ const SYSTEM_NOTES = [
     source:'Codex/OPS工作筆記_2026-06-15.md',
     body:'這些項目保留在系統規則筆記中，避免被當成已完成資料匯入或正式損益。',
     items:['李秋惠 2026-05-11 借用支票 149,200：支票號碼與歸還狀態待補。','連星羽宇德公司暫存 7,634：保留來源差異註記，不覆蓋分潤結清款。','板橋安庭 5,429：廠商、銀行及單據資訊待補。','應收／應付試算表若要重新匯入，需讀取已修正的最新版，不使用舊錯位資料。']
+  },
+  {
+    id:'production-data-boundary',
+    category:'正式上線',
+    status:'正式上線前',
+    title:'正式資料邊界：Firebase 是正本，seed 只能補空白',
+    source:'AGENTS.md / AI 協作防呆檢查',
+    body:'正式上線後，Firebase snapshot 是資料正本；HTML 內的 INIT、CODEX_SEED、測試 fixture、歷史補丁與預設資料不可默默覆蓋既有主檔、交易、費用、應收、應付或分潤資料。',
+    items:['seed 僅可做空白初始化、補缺漏欄位或明確 migration。','若需要修正正式資料，優先從系統 UI 修改並同步，或建立有名稱、有來源、有審計紀錄的 migration。','清除資料、匯入備份、Codex 補丁都必須先備份，並確認不會把測試資料變成正式資料來源。']
+  },
+  {
+    id:'fixture-summary-detail-rule',
+    category:'正式上線',
+    status:'正式上線前',
+    title:'彙總列與逐筆明細不可並存計算',
+    source:'AGENTS.md / 費用與成本匯入規則',
+    body:'費用、親友成本轉付、應收、應付、公司開銷與分潤資料，只能有一個正式金額來源。若逐筆明細已存在，原則留明細、移除被取代的彙總列，避免毛利、成本或分潤重複計算。',
+    items:['2026 費用匯入是明細替換，不是疊加。','親友案若有成本明細，不可再保留同案同用途的總額列一起計算。','歷史彙總可保留作為註記或追溯來源，但不得進正式加總。']
+  },
+  {
+    id:'field-contract-rule',
+    category:'正式上線',
+    status:'正式上線前',
+    title:'欄位 contract：不可為了畫面自創正式欄位',
+    source:'AGENTS.md / AI 協作防呆檢查',
+    body:'新欄位必須先定義名稱、來源、可寫角色、計算方式與顯示用途，才能進入正式資料。畫面需要資料時，不得臨時自創欄位並讓使用者以為已支援正式流程。',
+    items:['正式欄位需能追到來源：使用者輸入、試算表匯入、Firebase、系統計算或 migration。','顯示用推導欄位只能即時計算，不應混入正式交易資料。','涉及帳務、權限、稅務、分潤、出勤薪資的新欄位，一律先寫入系統規則筆記或 AGENTS.md。']
+  },
+  {
+    id:'business-date-rule',
+    category:'正式上線',
+    status:'正式上線前',
+    title:'日期來源：帳務日期不可由今天日期自動猜',
+    source:'AGENTS.md / AI 協作防呆檢查',
+    body:'createdAt、updatedAt、審計紀錄可用系統時間；但帳期、付款日、入帳日、發票日、結算日、結案日、薪資月份等業務日期必須由資料來源或使用者確認。',
+    items:['批次費用可預設當月方便填寫，但送出前月份與日期仍視為使用者確認。','分潤結算日與結案日不得因重刷或今天日期不同而改變。','匯入歷史資料時，日期以來源表為準，不用系統今天日期補正式值。']
+  },
+  {
+    id:'amount-single-source-rule',
+    category:'正式上線',
+    status:'正式上線前',
+    title:'正式金額要有唯一來源，前端計算只能依正式資料',
+    source:'AGENTS.md / AI 協作防呆檢查',
+    body:'OPS 是純前端 SPA，目前合約、應收、廠商成本、費用、稅務保留、公司開銷與分潤多由前端依資料即時計算；因此正式資料來源必須乾淨，不能把未審核、dry-run、測試或被取代的彙總列拿來算正式帳。',
+    items:['畫面可以即時計算與格式化，但計算規則要寫在系統規則筆記。','未審核費用、待審核廠商請款、測試回報不應進正式毛利或分潤。','金額小數與四捨五入規則要一致，避免試算表與 OPS 尾差擴大。']
+  },
+  {
+    id:'dry-run-session-control',
+    category:'正式上線',
+    status:'正式上線前',
+    title:'dry-run、內測與多 AI session 要有總控邊界',
+    source:'AGENTS.md / AI 協作防呆檢查',
+    body:'dry-run、內測、Codex 匯入、資料補丁與正式輸入必須可區分；多個 AI 或多視窗協作時，以 AGENTS.md 與系統規則筆記為總控邊界，不能各自假設資料規則。',
+    items:['另一個 session 若新增規則或分類，先回寫 AGENTS.md 或系統規則筆記，再修改正式資料。','dry-run operation log 不可被正式 read flow 當成已入帳資料。','任何會影響正式資料的修改，都要先確認可備份、可回復、有審計紀錄。']
   }
 ];
 
