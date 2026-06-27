@@ -664,6 +664,14 @@ body.auth-pending .auth-screen{display:flex}
   background:var(--surface2);
   box-shadow:0 1px 0 var(--border2),0 -1px 0 var(--surface2);
 }
+#page-receivable .sticky-table-wrap,
+#page-payable .sticky-table-wrap{
+  overflow-y:auto;
+}
+#page-receivable .sticky-table thead,
+#page-payable .sticky-table thead{
+  top:0;
+}
 .form-textarea{
   background:var(--surface2);border:1px solid var(--border2);
   border-radius:9px;padding:10px 13px;color:var(--text);
@@ -934,7 +942,9 @@ body.auth-pending .auth-screen{display:flex}
   .sidebar-backdrop.show{display:block}
   .mobile-menu-btn{display:inline-flex!important}
   .topbar{height:auto;min-height:58px;padding:10px 12px;gap:10px;align-items:flex-start}
-  .sticky-table thead{top:58px}
+  .sticky-table thead{top:56px}
+  #page-receivable .sticky-table thead,
+  #page-payable .sticky-table thead{top:0}
   .topbar-title{font-size:15px}
   .topbar-sub{font-size:10px}
   .topbar-actions{gap:6px;overflow-x:auto;max-width:58vw;padding-bottom:2px}
@@ -6251,6 +6261,18 @@ function toggleMobileSidebar(force) {
   if (backdrop) backdrop.classList.toggle('show', shouldOpen);
 }
 
+function resizeTableWrap() {
+  ['page-receivable','page-payable'].forEach(function(pid){
+    var pg = document.getElementById(pid);
+    if(!pg||!pg.classList.contains('active')) return;
+    var wrap = pg.querySelector('.sticky-table-wrap');
+    if(!wrap) return;
+    var top = wrap.getBoundingClientRect().top;
+    wrap.style.height = Math.max(200, window.innerHeight - top - 28) + 'px';
+  });
+}
+window.addEventListener('resize', resizeTableWrap);
+
 function closeMobileSidebar() {
   toggleMobileSidebar(false);
 }
@@ -6286,8 +6308,8 @@ function navTo(page, el) {
   if (page === 'feedback')   renderFeedback();
   if (page === 'systemnotes') renderSystemNotes();
   if (page === 'cases')      renderCases();
-  if (page === 'receivable') { refreshAllCaseDropdowns(); renderReceivable(); }
-  if (page === 'payable')    { refreshAllCaseDropdowns(); renderPayable(); }
+  if (page === 'receivable') { refreshAllCaseDropdowns(); renderReceivable(); requestAnimationFrame(resizeTableWrap); }
+  if (page === 'payable')    { refreshAllCaseDropdowns(); renderPayable();    requestAnimationFrame(resizeTableWrap); }
   if (page === 'expense')    { refreshAllCaseDropdowns(); renderExpense(); }
   if (page === 'overhead')   { ohRenderMonthOptions(); renderOverhead(); }
   if (page === 'payroll')    { prRenderMonthOptions(); renderPayroll(); }
