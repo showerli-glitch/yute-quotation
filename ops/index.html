@@ -1130,7 +1130,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.99 · 2026</div>
+    <div class="sidebar-ver">Codex v1.1.0 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5304,7 +5304,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.99', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.0', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5364,7 +5364,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.99', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.1.0', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6352,9 +6352,16 @@ function opsUnlockForUser(user, email = '', options = {}) {
       ? '目前以 <strong style="color:var(--accent)">雲端內測模式</strong> 執行：只開放白名單帳號登入，資料會同步到 Firebase Realtime Database，並保留本機快取。'
       : '目前以 <strong style="color:var(--accent)">本機內部測試模式</strong> 執行：資料儲存在本機瀏覽器，尚未啟用正式雲端同步。同仁測試前後請由完整管理者下載備份。';
   }
-  applyRole(user);
-  initRoleOptions();
-  if (options.render !== false) renderAfterDataSettles('auth-unlock');
+  // applyRole 跟畫面渲染若拋錯，不能讓它往上傳到呼叫端，否則登入流程後面要做的
+  // opsCloudStart()（建立雲端連線）會被整段跳過，造成「畫面渲染小 bug 卻讓雲端同步永久連不上」。
+  try {
+    applyRole(user);
+    initRoleOptions();
+    if (options.render !== false) renderAfterDataSettles('auth-unlock');
+  } catch (e) {
+    console.warn('OPS applyRole/render failed (cloud sync will continue):', e);
+    showToast('登入後部分畫面渲染異常，請重新整理頁面；雲端同步仍會繼續嘗試連線。', 'error');
+  }
   return true;
 }
 
@@ -10935,6 +10942,9 @@ function renderOverhead() {
   const month = document.getElementById('oh-filter-month')?.value || new Date().toISOString().slice(0,7);
   if (!OVERHEAD[month]) OVERHEAD[month] = { fixed: OH_FIXED_ITEMS.map(()=>0), fixedNotes: OH_FIXED_ITEMS.map(()=>''), variable:[] };
   const data = OVERHEAD[month];
+  if (!Array.isArray(data.fixed)) data.fixed = OH_FIXED_ITEMS.map(()=>0);
+  if (!Array.isArray(data.fixedNotes)) data.fixedNotes = OH_FIXED_ITEMS.map(()=>'');
+  if (!Array.isArray(data.variable)) data.variable = [];
   // Fixed
   // 員工薪資：自動從薪資模組(PAYROLL)該月加總，不可手動編輯
   const payrollSum = PAYROLL.filter(r => r.month === month && isOperatingPayrollPerson(r.person))
