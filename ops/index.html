@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.95 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.96 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5271,7 +5271,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.92', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.96', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5331,7 +5331,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.92', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.96', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6111,12 +6111,24 @@ async function opsCloudCheckNow() {
       showToast(`雲端快照格式異常：${error}`, 'error');
       return false;
     }
+    const remoteSavedAt = meta.savedAt || data.savedAt || '';
+    const localMeta = getLocalDataMeta();
+    const localDiffers = !localMeta ||
+      localMeta.savedAt !== remoteSavedAt ||
+      Number(localMeta.cases || 0) !== Number(data.CASES?.length || 0) ||
+      Number(localMeta.payables || 0) !== Number(data.PAYABLES?.length || 0) ||
+      Number(localMeta.receivables || 0) !== Number(data.RECEIVABLES?.length || 0);
+    if (localDiffers) {
+      opsApplyCloudPayload(payload, { silent:true });
+      showToast('已套用雲端快照並更新畫面', 'success');
+      return true;
+    }
     opsCloudReady = true;
     opsCloudConflict = false;
-    opsCloudLastSavedAt = meta.savedAt || data.savedAt || '';
+    opsCloudLastSavedAt = remoteSavedAt;
     opsCloudLastSavedBy = meta.savedBy || '';
     opsCloudLastSummary = `${formatDateTimeTW(opsCloudLastSavedAt)}｜${opsSnapshotSummary(data)}`;
-    updateDataStatus();
+    updateDataStatus(data);
     showToast('雲端快照檢查完成', 'success');
     return true;
   } catch(e) {
