@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.91 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.92 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1520,10 +1520,10 @@ body.auth-pending .auth-screen{display:flex}
     </div>
     <!-- Stats -->
     <div class="stats-bar" id="exp-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 20px;background:var(--surface);border-bottom:1px solid var(--border)">
-      <div class="stat-item"><div class="stat-label">本月待審核</div><div class="stat-value" id="exp-stat-pending-amt">$0</div></div>
-      <div class="stat-item"><div class="stat-label">本月已核准</div><div class="stat-value" id="exp-stat-approved-amt">$0</div></div>
-      <div class="stat-item"><div class="stat-label">本月申請筆數</div><div class="stat-value" id="exp-stat-count">0 筆</div></div>
-      <div class="stat-item"><div class="stat-label">本月合計</div><div class="stat-value" id="exp-stat-total">$0</div></div>
+      <div class="stat-item"><div class="stat-label" id="exp-stat-pending-label">本月待審核</div><div class="stat-value" id="exp-stat-pending-amt">$0</div></div>
+      <div class="stat-item"><div class="stat-label" id="exp-stat-approved-label">本月已核准</div><div class="stat-value" id="exp-stat-approved-amt">$0</div></div>
+      <div class="stat-item"><div class="stat-label" id="exp-stat-count-label">本月申請筆數</div><div class="stat-value" id="exp-stat-count">0 筆</div></div>
+      <div class="stat-item"><div class="stat-label" id="exp-stat-total-label">本月合計</div><div class="stat-value" id="exp-stat-total">$0</div></div>
     </div>
     <div class="expense-mobile-hint">提示：費用明細可左右滑動查看完整欄位。</div>
     <div id="exp-list-view" class="table-wrap expense-table-scroll">
@@ -5269,7 +5269,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.91', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.92', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5329,7 +5329,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.91', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.92', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -10225,14 +10225,28 @@ function expMonthLabel(month) {
   return `${match[1]}年${Number(match[2])}月`;
 }
 
+function expDefaultMonthOptions() {
+  const months = [];
+  const now = new Date();
+  const year = Number.isFinite(now.getFullYear()) ? now.getFullYear() : 2026;
+  const currentMonth = Number.isFinite(now.getMonth()) ? now.getMonth() + 1 : 12;
+  for (let m = currentMonth; m >= 1; m--) {
+    months.push(`${year}-${String(m).padStart(2, '0')}`);
+  }
+  return months;
+}
+
 function expRefreshMonthOptions() {
   const sel = document.getElementById('exp-filter-month');
   if (!sel) return;
   const current = sel.value || '';
-  const months = [...new Set(EXPENSES
+  const months = [...new Set([
+    ...expDefaultMonthOptions(),
+    ...EXPENSES
     .filter(r => expCanManageAll() || r.person === currentUser.id)
     .map(r => r.month)
-    .filter(month => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(month || ''))))]
+    .filter(month => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(month || '')))
+  ])]
     .sort((a,b) => b.localeCompare(a));
   sel.innerHTML = `<option value="">所有月份</option>` + months
     .map(month => `<option value="${month}">${expMonthLabel(month)}</option>`)
@@ -10318,12 +10332,18 @@ function expenseRowActions(r) {
 
 function updateExpenseStats(rowsForStats) {
   const thisMonth = new Date().toISOString().slice(0,7);
-  const month = document.getElementById('exp-filter-month')?.value || thisMonth;
+  const selectedMonth = document.getElementById('exp-filter-month')?.value || '';
+  const month = selectedMonth || thisMonth;
   const mRows = Array.isArray(rowsForStats)
     ? rowsForStats
     : EXPENSES.filter(r => r.month === month && (expCanManageAll() || r.person === currentUser.id));
   const sum = (arr,s) => arr.filter(r=>r.status===s).reduce((t,r)=>t+r.amount,0);
   const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  const scopeLabel = selectedMonth ? expMonthLabel(selectedMonth) : '目前篩選';
+  set('exp-stat-pending-label', `${scopeLabel}待審核`);
+  set('exp-stat-approved-label', `${scopeLabel}已核准`);
+  set('exp-stat-count-label', `${scopeLabel}申請筆數`);
+  set('exp-stat-total-label', `${scopeLabel}合計`);
   set('exp-stat-pending-amt',  '$'+sum(mRows,'pending').toLocaleString('zh-TW'));
   set('exp-stat-approved-amt', '$'+sum(mRows,'approved').toLocaleString('zh-TW'));
   set('exp-stat-count', mRows.length+' 筆');
