@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.97 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.98 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5272,7 +5272,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.97', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.98', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5332,7 +5332,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.97', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.98', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7100,10 +7100,10 @@ const SYSTEM_NOTES = [
     id:'family-project-rules',
     category:'特殊案件',
     status:'已寫入系統',
-    title:'親友工程／成本轉付要有正式欄位',
-    source:'Codex/OPS工作筆記_2026-06-15.md',
-    body:'親友工程比照一般個案入帳：應收由使用者手動建立，應付列廠商工程成本，成本控制表看損益；差異只是不進分潤儀表。',
-    items:['虎林街住家已匯入：向哥哥收 1,450,000，工程成本以應付帳款明細 38 筆為準，已結案。','玉成街親友工程：應付成本 158,129；應收／收款由使用者手動建立，不再由系統預設合約或補應收。','哥哥直付 15,800 不進公司帳；洗衣機鐵架 2,100 由公司善意負擔。']
+    title:'親友工程／成本轉付以現況個案規則為準',
+    source:'李鎮宇確認／2026-06-28 對帳規則',
+    body:'親友工程比照一般個案入帳：應付列廠商工程成本，應收由使用者手動建立，成本控制表看損益；差異只是不進員工分潤。',
+    items:['虎林街住家已匯入：向哥哥收 1,450,000，工程成本以應付帳款明細 38 筆為準，已結案。','玉成街親友工程：廠商應付成本 9 筆合計 158,129；系統不預設合約金額，使用者若收回成本才手動建立應收。','私人借支比照不分潤個案：借出列應付／成本，還款時手動建立應收。','哥哥直付 15,800 不進公司帳；洗衣機鐵架 2,100 由公司善意負擔。']
   },
   {
     id:'maintenance-parent-case',
@@ -7130,7 +7130,7 @@ const SYSTEM_NOTES = [
     title:'宇德公司不是正式會計分類',
     source:'Codex/宇德公司暫存分類清單_2026-06-16.md',
     body:'案名為宇德公司的資料必須逐筆拆分為工程獎金、親友成本轉付、固定開銷、稅務／會計費、私人借支或實際工程成本，不能直接進損益。',
-    items:['玉成街 9 筆合計 158,129 已歸入玉成街親友工程；應收／收款改由使用者手動建立，不再由應付自動生成，也不預設合約總額。','李秋惠私人借支／支票借用 6 筆合計 596,000 已歸入「私人借支」不分潤個案；還款時手動建立應收。','上洋高雄 3 筆成本：柏實 7,300、柏實 25,000、丹墨整合 3,000 已補入。']
+    items:['玉成街 9 筆合計 158,129 已歸入玉成街親友工程；應收／收款由使用者手動建立，不再由應付自動生成，也不預設合約總額。','李秋惠私人借支／支票借用 6 筆合計 596,000 已歸入「私人借支」不分潤個案；還款時手動建立應收。','修繕、維修、代開發票與私人借支皆以個案承接，進成本控制表，不進員工分潤。','上洋高雄 3 筆成本：柏實 7,300、柏實 25,000、丹墨整合 3,000 已補入。']
   },
   {
     id:'tax-liability',
@@ -7210,8 +7210,8 @@ const SYSTEM_NOTES = [
     status:'正式上線前',
     title:'正式上線前必須完成登入、同步與資料切換',
     source:'Codex/進度清單.md',
-    body:'OPS 目前已是 Google 登入加 Firebase snapshot 的雲端內測模式；正式上線前仍需確認多人同步、權限、安全規則、進行中個案期初匯入與完整回歸測試。',
-    items:['Firebase 規則已改為白名單與公司路徑控管，不可退回只用 auth != null。','正式切換日前資料作為期初匯入，切換日後新資料只輸入 OPS。','完成進行中個案核對，確認已收、已付、待收、待付、成本與毛利差額為 0。','測試前後都要下載 JSON 備份。']
+    body:'OPS 目前已是 Google 登入加 Firebase snapshot 的雲端內測模式；正式輸入前以 Firebase snapshot 為資料正本，左下角需顯示已讀取／已同步後再大量輸入。',
+    items:['Firebase 規則已改為白名單與公司路徑控管，不可退回只用 auth != null。','正式切換日前資料作為期初匯入，切換日後新資料只輸入 OPS。','v1.0.97 起初始化期間的本機修改會先保留待同步 snapshot；但正式大量輸入仍應等左下角顯示雲端已同步。','下載資料備份只匯出 JSON，不改雲端；上傳本機快照會覆蓋 Firebase 共用正本，只能在確認本機資料正確且已先備份後使用。','完成進行中個案核對，確認已收、已付、待收、待付、成本與毛利差額為 0。']
   },
   {
     id:'pending-data',
@@ -7238,7 +7238,7 @@ const SYSTEM_NOTES = [
     title:'彙總列與逐筆明細不可並存計算',
     source:'AGENTS.md / 費用與成本匯入規則',
     body:'費用、親友成本轉付、應收、應付、公司開銷與分潤資料，只能有一個正式金額來源。若逐筆明細已存在，原則留明細、移除被取代的彙總列，避免毛利、成本或分潤重複計算。',
-    items:['2026 費用匯入是明細替換，不是疊加。','親友案若有成本明細，不可再保留同案同用途的總額列一起計算。','歷史彙總可保留作為註記或追溯來源，但不得進正式加總。']
+    items:['2026 費用匯入是明細替換，不是疊加。','親友、私人借支、維修與代開案若已有應收／應付明細，不可再保留同案同用途的總額列一起計算。','歷史彙總可保留作為註記或追溯來源，但不得進正式加總。','同案同金額的應收或應付新增時，系統應提示檢查是否重複；提示只提醒，不直接阻擋。']
   },
   {
     id:'field-contract-rule',
