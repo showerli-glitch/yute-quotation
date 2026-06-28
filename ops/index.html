@@ -1130,7 +1130,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.1.2 · 2026</div>
+    <div class="sidebar-ver">Codex v1.1.3 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4266,8 +4266,8 @@ let EMPLOYEES = [
   {id:'peng', name:'彭俞豪', role:'專案經理', email:'peng@yutesign.com', profitEligible:true, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'獨立作業；薪資視為分潤預支，免打卡'},
   {id:'lien', name:'連星羽', role:'設計師', email:'lien@yutesign.com', profitEligible:true, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'獨立作業；薪資視為分潤預支，免打卡'},
   {id:'sun',  name:'孫一宣', role:'行銷行政', email:'sun@yutesign.com', profitEligible:false, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'既有制度過渡；預計 2026-07 中旬離職，後續外包採分潤制，不納入打卡規範'},
-  {id:'lu_yanchen', name:'盧彥辰', role:'設計助理', email:'lu@yutesign.com', accessRole:'none', profitEligible:false, attendanceRequired:true, startDate:'2026-06-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-06-01 到職；設計助理；手機 GPS 打卡內測人員'},
-  {id:'chen_hongjun', name:'陳虹君', role:'會計', email:'wendy@yutesign.com', accessRole:'none', profitEligible:false, attendanceRequired:true, startDate:'2026-07-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-07-01 到職；會計；帳號先預留，正式到職後再開通'},
+  {id:'lu_yanchen', name:'盧彥辰', role:'設計助理', email:'lu@yutesign.com', accessRole:'design', profitEligible:false, attendanceRequired:true, startDate:'2026-06-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-06-01 到職；設計助理；2026-06-29 正式開通 OPS 登入，模組權限仍以 USER_PERMISSIONS.lu_yanchen 為準'},
+  {id:'chen_hongjun', name:'陳虹君', role:'會計', email:'wendy@yutesign.com', accessRole:'accounting', profitEligible:false, attendanceRequired:true, startDate:'2026-07-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-07-01 到職；會計；提前於 2026-06-29 開通 OPS 登入測試，模組權限仍以 USER_PERMISSIONS.chen_hongjun 為準'},
 ];
 const INIT_EMPLOYEES = JSON.parse(JSON.stringify(EMPLOYEES));
 const CODEX_REQUIRED_EMPLOYEES = INIT_EMPLOYEES
@@ -5327,7 +5327,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.2', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.3', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5387,7 +5387,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.1.2', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.1.3', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
