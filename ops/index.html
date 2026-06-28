@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.92 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.93 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3597,12 +3597,12 @@ function removeReplacedExpenseAggregates() {
     row => {
       const month = String(row.month || '');
       const item = String(row.item || '');
-      const note = String(row.note || '');
       return month.startsWith('2026-') &&
+        row.sourceType !== 'expense_patch' &&
         row.category === '歷史費用' &&
-        (item.includes('成本控制表：當案費用2026') || item.includes('成本控制表：營業費用2026')) &&
-        item.includes('彙總') &&
-        (note.includes('原始費用表') || note.includes('費用表'));
+        item.includes('成本控制表') &&
+        item.includes('2026') &&
+        item.includes('彙總');
     },
   ];
   let removed = 0;
@@ -5209,6 +5209,7 @@ function ensureCodexSeedData() {
   addByKey(EXPENSES, CODEX_SEED_EXPENSES, r => [r.caseKey,r.person,r.month,r.category,r.amount,r.note].join('|'));
   addByKey(EXPENSES, CODEX_SEED_UPY_JIAYI_EXPENSES, r => [r.caseKey,r.person,r.month,r.category,r.amount,r.note].join('|'));
   addByKey(EXPENSES, CODEX_SEED_PROJECT_ADJUSTMENTS, r => [r.caseKey,r.person,r.month,r.category,r.amount,r.note].join('|'));
+  removeReplacedExpenseAggregates();
   addByKey(COMPANY_ALLOCATIONS, CODEX_SEED_COMPANY_ALLOCATIONS, r => r.caseKey);
   addByKey(TAX_LIABILITIES, CODEX_SEED_TAX_LIABILITIES, r => r.sourceKey);
   // 每次載入都執行，清除各台電腦 localStorage 中可能殘留的重複月總額。
