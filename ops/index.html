@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.89 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.90 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -2812,6 +2812,69 @@ body.auth-pending .auth-screen{display:flex}
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-new-case')">取消</button>
       <button class="btn btn-primary" onclick="submitNewCase()">建立個案</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ MODAL: EDIT CASE ════════ -->
+<div class="modal-overlay" id="modal-edit-case" onclick="if(event.target===this)closeModal('modal-edit-case')">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title">編輯個案</div>
+      <button class="modal-close" onclick="closeModal('modal-edit-case')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--accent);font-family:'DM Mono',monospace;margin-bottom:12px" id="edit-case-code-display"></div>
+      <div class="form-grid">
+        <div class="form-field form-full">
+          <label class="form-label">個案名稱</label>
+          <input class="form-input" id="edit-case-name" type="text">
+        </div>
+        <div class="form-field">
+          <label class="form-label">合約金額（含稅）</label>
+          <input class="form-input" id="edit-case-amount" type="text" placeholder="例：2,510,000">
+        </div>
+        <div class="form-field">
+          <label class="form-label">負責業務</label>
+          <select class="form-select" id="edit-case-person">
+            <option>李鎮宇</option>
+            <option>彭俞豪</option>
+            <option>連星羽</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">狀態</label>
+          <select class="form-select" id="edit-case-status">
+            <option value="進行中">進行中</option>
+            <option value="待開工">待開工</option>
+            <option value="完工">完工</option>
+            <option value="結案">結案</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">分潤模式</label>
+          <select class="form-select" id="edit-case-profit-mode" onchange="editCaseProfitModeChange()">
+            <option value="三人">三人分潤（李彭連）</option>
+            <option value="自訂">自訂比例</option>
+            <option value="不分潤">不分潤（只列成本控制）</option>
+          </select>
+        </div>
+        <div class="form-field" id="edit-case-ratio-wrap" style="display:none">
+          <label class="form-label">自訂比例（合計需 = 100%）</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:12px">李鎮宇</span><input class="form-input" id="edit-ratio-shower" type="number" min="0" max="100" step="1" style="width:64px">%
+            <span style="font-size:12px">彭俞豪</span><input class="form-input" id="edit-ratio-peng"   type="number" min="0" max="100" step="1" style="width:64px">%
+            <span style="font-size:12px">連星羽</span><input class="form-input" id="edit-ratio-lien"   type="number" min="0" max="100" step="1" style="width:64px">%
+          </div>
+        </div>
+      </div>
+      <div id="edit-case-locked-notice" style="display:none;margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--text3)">
+        ⚠️ 此案已歷史結算鎖定（psSettled），修改個案資料不會影響已鎖定的分潤計算結果。
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-case')">取消</button>
+      <button class="btn btn-primary" onclick="submitEditCase()">儲存</button>
     </div>
   </div>
 </div>
@@ -6849,6 +6912,7 @@ function renderCases() {
       <td style="white-space:nowrap">
         ${canSetLocation ? `<button class="btn btn-ghost btn-sm" onclick="openCaseLocation('${c.code}')">座標</button>` : ''}
         ${canSetLocation && c.status !== '結案' ? `<button class="btn btn-ghost btn-sm" onclick="closeCaseIfReady('${c.code}')">結案</button>` : ''}
+        ${canSetLocation ? `<button class="btn btn-ghost btn-sm" onclick="openEditCase('${c.code}')">編輯</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="openCaseDetail('${c.code}')">詳情</button>
       </td>
     </tr>`;
@@ -8378,6 +8442,71 @@ function submitNewCase() {
   closeModal('modal-new-case');
   saveData();
   showToast(`個案 ${caseCodeFinal} 已建立 ✓`, 'success');
+}
+
+// ══════════════════════════════════
+// EDIT CASE
+// ══════════════════════════════════
+let editCaseTarget = null;
+function openEditCase(caseCode) {
+  if (!requireManage('dashboard', '您沒有編輯個案的權限')) return;
+  const c = CASES.find(x => x.code === caseCode);
+  if (!c) return;
+  editCaseTarget = c;
+  document.getElementById('edit-case-code-display').textContent = caseCode + '　' + (c.name||'');
+  document.getElementById('edit-case-name').value   = c.name || '';
+  document.getElementById('edit-case-amount').value = c.amount ? c.amount.toLocaleString('zh-TW') : '';
+  document.getElementById('edit-case-person').value = c.person || '李鎮宇';
+  document.getElementById('edit-case-status').value = c.status || '進行中';
+  const pm = c.profitSplit === '不分潤' ? '不分潤' : c.profitSplit === '自訂' ? '自訂' : '三人';
+  document.getElementById('edit-case-profit-mode').value = pm;
+  const ratio = c.splitRatio || {};
+  document.getElementById('edit-ratio-shower').value = Math.round((ratio.shower||0)*100) || '';
+  document.getElementById('edit-ratio-peng').value   = Math.round((ratio.peng  ||0)*100) || '';
+  document.getElementById('edit-ratio-lien').value   = Math.round((ratio.lien  ||0)*100) || '';
+  document.getElementById('edit-case-ratio-wrap').style.display = pm === '自訂' ? '' : 'none';
+  document.getElementById('edit-case-locked-notice').style.display = c.psSettled ? '' : 'none';
+  openModal('modal-edit-case');
+}
+function editCaseProfitModeChange() {
+  const pm = document.getElementById('edit-case-profit-mode').value;
+  document.getElementById('edit-case-ratio-wrap').style.display = pm === '自訂' ? '' : 'none';
+}
+function submitEditCase() {
+  if (!editCaseTarget) return;
+  const name   = document.getElementById('edit-case-name').value.trim();
+  if (!name) { showToast('請填寫個案名稱', 'error'); return; }
+  const amtRaw = document.getElementById('edit-case-amount').value.trim();
+  const amount = parseInt(amtRaw.replace(/[^0-9]/g,'')) || 0;
+  const person = document.getElementById('edit-case-person').value;
+  const status = document.getElementById('edit-case-status').value;
+  const pm     = document.getElementById('edit-case-profit-mode').value;
+  editCaseTarget.name   = name;
+  editCaseTarget.amount = amount;
+  editCaseTarget.person = person;
+  editCaseTarget.status = status;
+  if (pm === '不分潤') {
+    editCaseTarget.profitSplit = '不分潤';
+    editCaseTarget.excludeFromProfitReports = true;
+    editCaseTarget.caseType = editCaseTarget.caseType || '不分潤／成本追蹤';
+  } else if (pm === '自訂') {
+    const s = parseFloat(document.getElementById('edit-ratio-shower').value)||0;
+    const p = parseFloat(document.getElementById('edit-ratio-peng').value)||0;
+    const l = parseFloat(document.getElementById('edit-ratio-lien').value)||0;
+    if (Math.round(s+p+l) !== 100) { showToast('分潤比例合計必須等於 100%', 'error'); return; }
+    editCaseTarget.profitSplit = '自訂';
+    editCaseTarget.splitRatio  = { shower: s/100, peng: p/100, lien: l/100 };
+    editCaseTarget.excludeFromProfitReports = false;
+  } else {
+    editCaseTarget.profitSplit = '三人';
+    editCaseTarget.excludeFromProfitReports = false;
+    delete editCaseTarget.splitRatio;
+  }
+  closeModal('modal-edit-case');
+  renderCases();
+  renderDashboard();
+  saveData();
+  showToast(`${name} 已更新 ✓`, 'success');
 }
 
 // ══════════════════════════════════
