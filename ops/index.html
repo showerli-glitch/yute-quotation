@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.90 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.91 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5269,7 +5269,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.90', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.91', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5329,7 +5329,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.90', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.91', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5584,8 +5584,12 @@ function applyExpensePatch(data, fileName = 'expense patch') {
   const rowCount = rows.length;
   const beforeSummary = auditSummary();
   const beforeCount = EXPENSES.length;
-  for (let i = EXPENSES.length - 1; i >= 0; i--) {
-    if (expensePatchShouldReplace(EXPENSES[i], data)) EXPENSES.splice(i, 1);
+  if (data.replaceAllExpenses === true) {
+    EXPENSES.length = 0;
+  } else {
+    for (let i = EXPENSES.length - 1; i >= 0; i--) {
+      if (expensePatchShouldReplace(EXPENSES[i], data)) EXPENSES.splice(i, 1);
+    }
   }
   const existingKeys = new Set(EXPENSES.map(row => String(row.sourceKey || '')).filter(Boolean));
   const nextBaseId = Math.max(Number(expNextId) || 1, Math.max(0, ...EXPENSES.map(row => Number(row.id) || 0)) + 1);
