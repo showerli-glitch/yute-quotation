@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.94 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.95 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3984,8 +3984,8 @@ function normalizeOrdinaryProjectAccounting() {
     if (noEntryDate && (amt === 21935 || amt === 26870) && /中和新莊|污水馬達/.test(text)) return false;
     return true;
   });
-  resetSeededCasePayables('YT-FAM-2026-001', CODEX_SEED_YUCHENG_PAYABLES);
-  resetSeededCasePayables('YT-FAM-2026-002', CODEX_SEED_HULIN_PAYABLES);
+  // 虎林街／玉成街已改由 syncSeededPayablesPreserveManualRows 處理（保留手動編輯，只修正已知錯誤值），
+  // 不可在此再用 resetSeededCasePayables 整批清空重建，否則會蓋掉使用者手動修正的資料。
   SPECIAL_CASE_RECEIVABLE_SEEDS.forEach(upsertReceivableSeedPreserveEntry);
 
   ['YT-INV-2026-001','YT-VOL-REP-2026-001','YT-VOL-REP-2026-002']
