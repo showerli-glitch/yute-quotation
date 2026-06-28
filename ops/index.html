@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.93 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.94 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4683,7 +4683,7 @@ const CODEX_SEED_MUZHA_PAYABLES = [
   [1009,'俊民工程','怪手工程',37800,'2025-12-10'],
   [1010,'東榮（幸全）','木作材料',69031,'2025-12-30'],
   [1011,'簡秋隆','木工工資',104750,'2025-12-10'],
-  [1012,'陳志璋','木工工資2工*3700=7400',7400,'2025-12-20'],
+  [1012,'陳志瑋','木工工資2工*3700=7400',7400,'2025-12-20'],
   [1013,'衡岳（阿瑞）','木柵路',14800,'2025-11-20'],
   [1014,'盛揚高空車','木柵高空車',11550,'2025-11-10'],
   [1015,'陳文池','泥作',90200,'2025-12-10'],
@@ -5190,6 +5190,7 @@ function ensureCodexSeedData() {
   addByKey(PAYABLES, CODEX_SEED_MINZU_PAYABLES, r => [r.case,r.vendor,r.summary,r.amount,r.wantDate].join('|'));
   addByKey(PAYABLES, CODEX_SEED_KAIYANG_PAYABLES, r => [r.case,r.vendor,r.summary,r.amount,r.wantDate].join('|'));
   addByKey(PAYABLES, CODEX_SEED_WENWEIFENG_PAYABLES, r => [r.case,r.vendor,r.summary,r.amount,r.wantDate].join('|'));
+  ['YT-SUZ-2025-001','YT-SUZ-2025-002','YT-KYG-2025-001','YT-WWF-2025-001'].forEach(normalizeCasePayableDuplicates);
   addByKey(PAYABLES, CODEX_SEED_PROFIT_PAYABLES, r => r.sourceKey || [r.paymentType,r.profitPerson,r.amount,r.doneDate||r.transferDate||r.wantDate].join('|'));
   addByKey(PAYABLES, CODEX_SEED_UPY_JIAYI_PROFIT_PAYABLES, r => r.sourceKey);
   syncSeededPayablesPreserveManualRows([...CODEX_SEED_YUCHENG_PAYABLES, ...CODEX_SEED_HULIN_PAYABLES]);
