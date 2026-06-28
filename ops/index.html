@@ -240,15 +240,27 @@ body.auth-pending .auth-screen{display:flex}
 .nav-badge.green{background:var(--success-bg);color:var(--success);border-color:rgba(110,184,148,0.3)}
 
 .sidebar-resizer{
-  height:8px;
+  height:20px;
   flex:0 0 auto;
   cursor:row-resize;
   touch-action:none;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   border-top:1px solid var(--border);
   border-bottom:1px solid var(--border);
-  background:
-    linear-gradient(90deg, transparent 0, transparent 42%, rgba(164,112,55,.35) 42%, rgba(164,112,55,.35) 58%, transparent 58%),
-    var(--surface2);
+  background:var(--surface2);
+  color:var(--accent);
+  position:relative;
+  z-index:2;
+  user-select:none;
+}
+.sidebar-resizer::before{
+  content:'';
+  width:52px;
+  height:4px;
+  border-top:1px solid rgba(164,112,55,.55);
+  border-bottom:1px solid rgba(164,112,55,.55);
 }
 .sidebar-resizer:hover{background-color:var(--accent2)}
 .sidebar-resizer.dragging{background-color:var(--accent2)}
@@ -6459,38 +6471,48 @@ function initSidebarStatusResizer() {
   applyHeight(saved || 210);
 
   let dragging = false;
-  const move = e => {
+  let startY = 0;
+  let startH = 0;
+  let moved = false;
+  const currentHeight = () => parseInt(getComputedStyle(bottom).height || '', 10) || 210;
+  const stop = e => {
     if (!dragging) return;
-    const y = e.touches ? e.touches[0].clientY : e.clientY;
-    const rect = sidebar.getBoundingClientRect();
-    applyHeight(rect.bottom - y);
-    e.preventDefault();
-  };
-  const stop = () => {
     dragging = false;
     resizer.classList.remove('dragging');
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-    document.removeEventListener('mousemove', move);
-    document.removeEventListener('mouseup', stop);
-    document.removeEventListener('touchmove', move);
-    document.removeEventListener('touchend', stop);
+    if (e?.pointerId != null && resizer.releasePointerCapture) {
+      try { resizer.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+    if (!moved) {
+      const h = currentHeight();
+      applyHeight(h > 150 ? 112 : 210);
+    }
+  };
+  const move = e => {
+    if (!dragging) return;
+    const dy = e.clientY - startY;
+    if (Math.abs(dy) > 3) moved = true;
+    applyHeight(startH - dy);
+    e.preventDefault();
   };
   const start = e => {
     if (window.innerWidth <= 768) return;
     dragging = true;
+    moved = false;
+    startY = e.clientY;
+    startH = currentHeight();
     resizer.classList.add('dragging');
     document.body.style.cursor = 'row-resize';
     document.body.style.userSelect = 'none';
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseup', stop);
-    document.addEventListener('touchmove', move, { passive:false });
-    document.addEventListener('touchend', stop);
-    move(e);
+    if (e.pointerId != null && resizer.setPointerCapture) resizer.setPointerCapture(e.pointerId);
     e.preventDefault();
   };
-  resizer.addEventListener('mousedown', start);
-  resizer.addEventListener('touchstart', start, { passive:false });
+  resizer.addEventListener('pointerdown', start);
+  resizer.addEventListener('pointermove', move);
+  resizer.addEventListener('pointerup', stop);
+  resizer.addEventListener('pointercancel', stop);
+  window.addEventListener('resize', () => applyHeight(currentHeight()));
 }
 
 document.addEventListener('DOMContentLoaded', () => {
