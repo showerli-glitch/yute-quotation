@@ -1118,7 +1118,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.0.96 · 2026</div>
+    <div class="sidebar-ver">Codex v1.0.97 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3580,6 +3580,7 @@ let opsCloudLastSavedBy = '';
 let opsCloudLastSummary = '';
 let opsCloudConflict = false;
 let opsCloudPendingSync = false;
+let opsCloudPendingSnapshot = null;
 let opsCloudConflictModalShown = false;
 
 function tagCompany(arr) {
@@ -5271,7 +5272,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.96', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.0.97', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5331,7 +5332,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.0.96', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.0.97', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6032,15 +6033,27 @@ function reloadForCloudConflict() {
   location.reload();
 }
 
+function opsSnapshotTimeMs(value) {
+  const t = Date.parse(value || '');
+  return Number.isFinite(t) ? t : 0;
+}
+
 function opsCloudQueueSave(snapshot) {
-  if (!OPS_AUTH_ENFORCED || !opsCloudReady || opsApplyingRemote || !opsAuthenticatedEmail) return;
+  if (!OPS_AUTH_ENFORCED || opsApplyingRemote) return;
+  if (!opsAuthenticatedEmail) { setSaveIndicator('local'); return; }
   clearTimeout(opsCloudSaveTimer);
   opsCloudPendingSync = true;
   setSaveIndicator('syncing');
   const frozen = JSON.parse(JSON.stringify(snapshot));
+  opsCloudPendingSnapshot = frozen;
+  if (!opsCloudReady) {
+    updateDataStatus(frozen);
+    return;
+  }
   opsCloudSaveTimer = setTimeout(() => {
     opsCloudSaveNow(frozen).then(() => {
       opsCloudPendingSync = false;
+      opsCloudPendingSnapshot = null;
       setSaveIndicator('synced');
     }).catch(e => {
       console.warn('OPS cloud save failed:', e);
@@ -6182,7 +6195,35 @@ async function opsCloudStart() {
     const ref = opsCloudRef();
     const initial = await ref.get();
     if (initial.exists()) {
-      opsApplyCloudPayload(initial.val(), { silent:true });
+      const payload = initial.val();
+      const data = payload?.data || payload;
+      const remoteSavedAt = opsCloudPayloadSavedAt(payload);
+      const localMeta = getLocalDataMeta();
+      const pending = opsCloudPendingSnapshot;
+      const localSnapshot = pending || (() => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch(e) {
+          return null;
+        }
+      })();
+      const localSavedAt = localSnapshot?.savedAt || localMeta?.savedAt || '';
+      const localLooksNewer = localSnapshot &&
+        opsSnapshotTimeMs(localSavedAt) > opsSnapshotTimeMs(remoteSavedAt);
+      if (localLooksNewer) {
+        opsCloudReady = true;
+        opsCloudLastSavedAt = remoteSavedAt || '';
+        opsCloudLastSavedBy = payload?.meta?.savedBy || '';
+        opsCloudLastSummary = `${formatDateTimeTW(remoteSavedAt)}｜${opsSnapshotSummary(data)}`;
+        await opsCloudSaveNow(localSnapshot, { force:true });
+        opsCloudPendingSync = false;
+        opsCloudPendingSnapshot = null;
+        setSaveIndicator('synced');
+        showToast('本機新增資料已補同步到雲端', 'success');
+      } else {
+        opsApplyCloudPayload(payload, { silent:true });
+      }
     } else {
       await opsCloudSaveNow(createDataSnapshot());
       showToast('已建立 OPS 雲端同步資料庫', 'success');
