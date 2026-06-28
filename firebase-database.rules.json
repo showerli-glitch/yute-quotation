@@ -16,8 +16,8 @@
         ".read": false,
         ".write": false,
         "snapshot": {
-          ".read": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com')",
-          ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com') && newData.hasChildren(['data', 'meta']) && newData.child('meta/companyId').val() == 'yutesign' && newData.child('meta/savedBy').val() == auth.token.email && newData.child('meta/source').val() == 'ops-v2-cloud-sync' && newData.child('data/format').val() == 'yutesign-ops-backup' && newData.child('data/companyId').val() == 'yutesign'",
+          ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/^[^@]+@yutesign[.]com$/))",
+          ".write": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/^[^@]+@yutesign[.]com$/)) && newData.hasChildren(['data', 'meta']) && newData.child('meta/companyId').val() == 'yutesign' && newData.child('meta/savedBy').val() == auth.token.email && newData.child('meta/source').val() == 'ops-v2-cloud-sync' && newData.child('data/format').val() == 'yutesign-ops-backup' && newData.child('data/companyId').val() == 'yutesign'",
           ".validate": "newData.child('meta/savedAt').isString() && newData.child('meta/appVersion').isString() && newData.child('meta/appVersion').val().length <= 20 && newData.child('data/formatVersion').isNumber() && newData.child('data').hasChildren(['CASES', 'PAYABLES', 'RECEIVABLES', 'EMPLOYEES'])"
         },
         "v1": {
@@ -91,8 +91,8 @@
           ".read": false,
           ".write": false,
           "snapshot": {
-            ".read": "auth != null && auth.token.email_verified == true && $companyId == 'yutesign' && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com')",
-            ".write": "auth != null && auth.token.email_verified == true && $companyId == 'yutesign' && (auth.token.email == 'shower.li@yutesign.com' || auth.token.email == 'nc@yutesign.com') && newData.hasChildren(['data', 'meta']) && newData.child('meta/companyId').val() == $companyId && newData.child('meta/savedBy').val() == auth.token.email && newData.child('meta/source').val() == 'ops-v2-cloud-sync' && newData.child('data/companyId').val() == $companyId",
+            ".read": "auth != null && auth.token.email_verified == true && $companyId == 'yutesign' && (auth.token.email.matches(/^[^@]+@yutesign[.]com$/))",
+            ".write": "auth != null && auth.token.email_verified == true && $companyId == 'yutesign' && (auth.token.email.matches(/^[^@]+@yutesign[.]com$/)) && newData.hasChildren(['data', 'meta']) && newData.child('meta/companyId').val() == $companyId && newData.child('meta/savedBy').val() == auth.token.email && newData.child('meta/source').val() == 'ops-v2-cloud-sync' && newData.child('data/companyId').val() == $companyId",
             ".validate": "newData.child('meta/savedAt').isString() && newData.child('meta/appVersion').isString() && newData.child('meta/appVersion').val().length <= 20 && newData.child('data/formatVersion').isNumber()"
           },
           "v1": {
