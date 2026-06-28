@@ -1130,7 +1130,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.1.0 · 2026</div>
+    <div class="sidebar-ver">Codex v1.1.1 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1292,6 +1292,29 @@ body.auth-pending .auth-screen{display:flex}
           </tr>
         </thead>
         <tbody id="payreq-pending-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;overflow-x:auto">
+      <div class="card-hd">
+        <div class="card-title">已退回</div>
+        <span class="tag tag-inactive" id="payreq-rejected-badge">0 筆</span>
+      </div>
+      <table class="tbl" style="min-width:980px">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>個案名稱</th>
+            <th>受款廠商</th>
+            <th>摘要</th>
+            <th>金額</th>
+            <th class="nowrap-col">希望付款日</th>
+            <th class="person-col">申請人</th>
+            <th>狀態</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="payreq-rejected-tbody"></tbody>
       </table>
     </div>
 
@@ -5304,7 +5327,7 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.0', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.1', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5364,7 +5387,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.1.0', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.1.1', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6282,28 +6305,21 @@ async function opsCloudStart() {
     const initial = await ref.get();
     if (initial.exists()) {
       const payload = initial.val();
-      const data = payload?.data || payload;
-      const remoteSavedAt = opsCloudPayloadSavedAt(payload);
-      // 只有「真的有還沒送出的本機編輯」(opsCloudPendingSnapshot) 才允許補推覆蓋雲端；
-      // 如果只是拿本機 localStorage 快取的時間戳跟雲端比，時鐘誤差或快取太舊都可能誤判，
-      // 改成一律以雲端為準，避免不小心拿舊資料蓋掉同事剛存的新資料。
-      const pending = opsCloudPendingSnapshot;
-      const pendingLooksNewer = pending &&
-        opsSnapshotTimeMs(pending.savedAt) > opsSnapshotTimeMs(remoteSavedAt);
-      if (pendingLooksNewer) {
-        opsCloudReady = true;
-        opsCloudLastSavedAt = remoteSavedAt || '';
-        opsCloudLastSavedBy = payload?.meta?.savedBy || '';
-        opsCloudLastSummary = `${formatDateTimeTW(remoteSavedAt)}｜${opsSnapshotSummary(data)}`;
-        await opsCloudSaveNow(pending, { force:true });
-        opsCloudPendingSync = false;
-        opsCloudPendingSnapshot = null;
-        opsCloudPendingSince = null;
-        hideSyncStuckModalIfShown();
-        setSaveIndicator('synced');
-        showToast('本機新增資料已補同步到雲端', 'success');
-      } else {
-        opsApplyCloudPayload(payload, { silent:true });
+      // 初次連上雲端時一律以雲端資料為準，不管本機看起來多新都不自動覆蓋雲端：
+      // 「本機比較新就補推」這個邏輯曾經造成真實資料遺失事故——使用者在頁面剛載入、
+      // Firebase 還沒連上的那一兩秒內隨手做了一個操作，觸發 saveData() 把當下還沒
+      // 套用雲端資料的舊本機快取存進 opsCloudPendingSnapshot，等 Firebase 連上後，
+      // 這份「時間戳碼比雲端新，但內容其實沒有雲端最新資料」的舊快取被判定成「比較新」，
+      // 整包覆蓋掉雲端，蓋掉同事已經同步好的資料。修正後一律套用雲端，本機若有還沒送出
+      // 的編輯就清掉並提示使用者，不再讓任何本機快取有機會在初次連線時贏過雲端正本。
+      const hadPending = !!opsCloudPendingSnapshot;
+      opsCloudPendingSnapshot = null;
+      opsCloudPendingSync = false;
+      opsCloudPendingSince = null;
+      hideSyncStuckModalIfShown();
+      opsApplyCloudPayload(payload, { silent:true });
+      if (hadPending) {
+        showToast('剛剛雲端連線完成前的本機修改可能還沒送出，請確認資料是否需要重新輸入一次', 'error');
       }
     } else {
       await opsCloudSaveNow(createDataSnapshot());
@@ -8374,9 +8390,10 @@ function setPayreqRadio(groupId, value) {
 }
 
 function openEditPayreqModal(id) {
-  if (!requireManage('payreq', '您沒有編輯請款申請的權限')) return;
-  const p = PAYABLES.find(x => Number(x.id) === Number(id) && x.status === 'pending');
-  if (!p) { showToast('找不到這筆待審核請款', 'error'); return; }
+  const p = PAYABLES.find(x => Number(x.id) === Number(id) && (x.status === 'pending' || x.status === 'rejected'));
+  if (!p) { showToast('找不到這筆待審核或已退回的請款', 'error'); return; }
+  if (p.status === 'pending' && !requireManage('payreq', '您沒有編輯請款申請的權限')) return;
+  if (p.status === 'rejected' && !(canManage('payreq') || p.person === currentUser.id)) { showToast('您沒有修改這筆請款的權限', 'error'); return; }
   payreqEditId = p.id;
   const prCase = document.getElementById('pr-case');
   if (prCase) {
@@ -8448,8 +8465,8 @@ function submitPayReq() {
     note
   };
   if (payreqEditId) {
-    const row = PAYABLES.find(x => Number(x.id) === Number(payreqEditId) && x.status === 'pending');
-    if (!row) { showToast('找不到要更新的待審核請款', 'error'); return; }
+    const row = PAYABLES.find(x => Number(x.id) === Number(payreqEditId) && (x.status === 'pending' || x.status === 'rejected'));
+    if (!row) { showToast('找不到要更新的待審核或已退回請款', 'error'); return; }
     Object.assign(row, data, { id: row.id, status: 'pending' });
   } else {
     PAYABLES.push({ id: pyNextId++, ...data });
@@ -8485,8 +8502,8 @@ function rejectPayreq(id) {
   if (idx === -1) return;
   const p = PAYABLES[idx];
   const amt = (p.amount || 0).toLocaleString('zh-TW');
-  if (!confirm(`確定退回「${p.vendor || '未填廠商'}／${p.summary || '未填摘要'}」$${amt} 這筆請款申請？\n退回後會從待審核清單移除，需重新新增才能恢復。`)) return;
-  PAYABLES.splice(idx, 1);
+  if (!confirm(`確定退回「${p.vendor || '未填廠商'}／${p.summary || '未填摘要'}」$${amt} 這筆請款申請？\n退回後會移到「已退回」分類，申請人可以修改後重新送出審核，不需要重新新增。`)) return;
+  p.status = 'rejected';
   renderPayreq();
   renderPayable();
   renderCases();
@@ -8494,7 +8511,7 @@ function rejectPayreq(id) {
   renderProfit();
   renderProfitShare();
   saveData();
-  showToast('已退回', 'warning');
+  showToast('已退回，申請人可修改後重新送出', 'warning');
 }
 
 function submitNewClient() {
@@ -12448,12 +12465,16 @@ function renderPayreq() {
   const match = p => searchTextMatches(`${p.vendor} ${p.summary} ${p.caseName} ${p.case} ${searchAmountText(p.amount)} ${p.wantDate || ''}`, kw);
 
   const pending  = PAYABLES.filter(p => p.status === 'pending' && match(p));
+  const rejected = PAYABLES.filter(p => p.status === 'rejected' && match(p) && (manage || p.person === currentUser.id))
+                           .slice().sort((a,b) => a.id - b.id);
   const approved = PAYABLES.filter(p => (p.status === 'approved' || p.status === 'paid') && match(p) && (manage || p.person === currentUser.id))
                            .slice().sort((a,b) => a.id - b.id);
 
   const pb = document.getElementById('payreq-pending-badge');
   if (pb) pb.textContent = `${pending.length} 筆`;
   updatePayreqNavBadge();
+  const rb = document.getElementById('payreq-rejected-badge');
+  if (rb) rb.textContent = `${rejected.length} 筆`;
   const ab = document.getElementById('payreq-approved-badge');
   if (ab) ab.textContent = `${approved.length} 筆`;
 
@@ -12478,6 +12499,28 @@ function renderPayreq() {
               <button class="btn btn-ghost btn-sm" onclick="rejectPayreq(${p.id})">退回</button>
               <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px" onclick="openEditPayreqModal(${p.id})" title="編輯請款申請">✎</button>
               <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px;color:var(--error)" onclick="deletePayableConfirm(${p.id})" title="刪除">✕</button>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>'}
+            </div>
+          </td>
+        </tr>`).join('');
+  }
+
+  const rt = document.getElementById('payreq-rejected-tbody');
+  if (rt) {
+    rt.innerHTML = rejected.length === 0
+      ? `<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--text3)">沒有被退回的請款</td></tr>`
+      : rejected.map((p, i) => `<tr>
+          <td><span class="case-code">${String(i+1).padStart(3,'0')}</span></td>
+          <td>${p.caseName ? `<div style="font-size:12px;font-weight:500">${p.caseName}</div>` : ''}<div class="case-code" style="font-size:11px">${p.case?caseCodeBreak(p.case):'—'}</div></td>
+          <td style="font-size:13px;font-weight:500">${p.vendor}</td>
+          <td style="font-size:12px;color:var(--text2)">${p.summary}</td>
+          <td><div class="amount">${p.amount>=0?'':'-'}$${Math.abs(p.amount).toLocaleString('zh-TW')}</div></td>
+          <td class="nowrap-col" style="font-size:12px;font-family:'DM Mono',monospace">${p.wantDate||'—'}</td>
+          <td class="person-col" style="font-size:12px">${p.person||'—'}</td>
+          <td><span class="tag tag-inactive">已退回</span></td>
+          <td style="white-space:nowrap">
+            <div style="display:flex;align-items:center;gap:4px">
+              ${(manage || p.person === currentUser.id) ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px" onclick="openEditPayreqModal(${p.id})" title="修改後可重新送出審核">✎ 修改並重送</button>` : ''}
+              ${manage ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px;color:var(--error)" onclick="deletePayableConfirm(${p.id})" title="永久刪除">✕</button>` : ''}
             </div>
           </td>
         </tr>`).join('');
