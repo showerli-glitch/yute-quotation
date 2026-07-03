@@ -1551,7 +1551,7 @@ body.auth-pending .auth-screen{display:flex}
         <select id="exp-filter-case" onchange="renderExpense()" class="filter-select" style="min-width:160px;max-width:220px"><option value="">── 全部個案 ──</option></select>
       </div>
       <input class="search-input" id="exp-search" placeholder="搜尋項目、類別、個案編號…" oninput="renderExpense()" style="height:32px">
-      <button class="btn btn-primary btn-sm" onclick="expBatchInit();openModal('modal-add-expense')">＋ 月份費用申請</button>
+      <button class="btn btn-primary btn-sm" onclick="expBatchEditId=null;expBatchInit();const mEl=document.getElementById('exp-batch-month');if(mEl)mEl.disabled=false;const t=document.getElementById('exp-batch-modal-title');if(t)t.textContent='月份費用批次申請';const b=document.getElementById('exp-batch-submit-btn');if(b)b.textContent='送出申請';openModal('modal-add-expense')">＋ 月份費用申請</button>
     </div>
     <!-- Stats -->
     <div class="stats-bar" id="exp-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 20px;background:var(--surface);border-bottom:1px solid var(--border)">
@@ -3327,11 +3327,11 @@ body.auth-pending .auth-screen{display:flex}
 </div>
 
 <!-- ════════ MODAL: ADD EXPENSE ════════ -->
-<div class="modal-overlay" id="modal-add-expense" onclick="if(event.target===this)closeModal('modal-add-expense')">
+<div class="modal-overlay" id="modal-add-expense" onclick="if(event.target===this)expBatchClose()">
   <div class="modal expense-modal" style="max-width:1100px;width:96vw">
     <div class="modal-hd">
-      <div class="modal-title">月份費用批次申請</div>
-      <button class="modal-close" onclick="closeModal('modal-add-expense')">✕</button>
+      <div class="modal-title" id="exp-batch-modal-title">月份費用批次申請</div>
+      <button class="modal-close" onclick="expBatchClose()">✕</button>
     </div>
     <div class="modal-body" style="padding:16px 20px">
       <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
@@ -3342,6 +3342,8 @@ body.auth-pending .auth-screen{display:flex}
           <option value="peng">彭俞豪</option>
           <option value="lien">連星羽</option>
           <option value="sun">孫一宣</option>
+          <option value="lu_yanchen">盧彥辰</option>
+          <option value="chen_hongjun">陳虹君</option>
         </select>
         <label style="font-size:13px;font-weight:600;white-space:nowrap;color:var(--text2)">月份</label>
         <input id="exp-batch-month" type="month" onchange="expBatchMonthChanged()" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:6px 12px;font-size:13px;color:var(--text);width:150px">
@@ -3384,8 +3386,8 @@ body.auth-pending .auth-screen{display:flex}
       <button onclick="expBatchAddRow()" style="margin-top:8px;background:none;border:1px dashed var(--border2);border-radius:8px;padding:6px 16px;font-size:12px;color:var(--accent);cursor:pointer;width:100%">＋ 新增一列</button>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-add-expense')">取消</button>
-      <button class="btn btn-primary" onclick="submitBatchExpense()">送出申請</button>
+      <button class="btn btn-ghost" onclick="expBatchClose()">取消</button>
+      <button class="btn btn-primary" id="exp-batch-submit-btn" onclick="submitBatchExpense()">送出申請</button>
     </div>
   </div>
 </div>
@@ -3437,22 +3439,22 @@ body.auth-pending .auth-screen{display:flex}
         <div>
           <div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:10px;letter-spacing:0.06em">薪資結構 (A)</div>
           <div class="form-grid">
-            <div class="form-field form-full"><label class="form-label">底薪</label><input class="form-input" id="pr-baseSalary" type="text" placeholder="0"></div>
-            <div class="form-field form-full"><label class="form-label">油資電話津貼</label><input class="form-input" id="pr-phoneAllowance" type="text" placeholder="0"></div>
-            <div class="form-field form-full"><label class="form-label">全勤獎金</label><input class="form-input" id="pr-fullAttendanceBonus" type="text" placeholder="0"></div>
-            <div class="form-field form-full"><label class="form-label">職務津貼</label><input class="form-input" id="pr-dutyAllowance" type="text" placeholder="0"></div>
-            <div class="form-field form-full"><label class="form-label">績效獎金</label><input class="form-input" id="pr-performanceBonus" type="text" placeholder="0"></div>
-            <div class="form-field form-full"><label class="form-label">誤餐費</label><input class="form-input" id="pr-mealAllowance" type="text" placeholder="0"></div>
+            <div class="form-field form-full"><label class="form-label">底薪</label><input class="form-input" id="pr-baseSalary" type="text" placeholder="0" oninput="prLiveCalc()"></div>
+            <div class="form-field form-full"><label class="form-label">油資電話津貼</label><input class="form-input" id="pr-phoneAllowance" type="text" placeholder="0" oninput="prLiveCalc()"></div>
+            <div class="form-field form-full"><label class="form-label">全勤獎金</label><input class="form-input" id="pr-fullAttendanceBonus" type="text" placeholder="0" oninput="prLiveCalc()"></div>
+            <div class="form-field form-full"><label class="form-label">職務津貼</label><input class="form-input" id="pr-dutyAllowance" type="text" placeholder="0" oninput="prLiveCalc()"></div>
+            <div class="form-field form-full"><label class="form-label">績效獎金</label><input class="form-input" id="pr-performanceBonus" type="text" placeholder="0" oninput="prLiveCalc()"></div>
+            <div class="form-field form-full"><label class="form-label">誤餐費</label><input class="form-input" id="pr-mealAllowance" type="text" placeholder="0" oninput="prLiveCalc()"></div>
           </div>
         </div>
         <!-- B -->
         <div>
           <div style="font-size:11px;font-weight:600;color:var(--blue);margin-bottom:10px;letter-spacing:0.06em">非固定項目 (B)</div>
           <div class="form-grid" style="margin-bottom:16px">
-            <div class="form-field form-full"><label class="form-label">加班費</label><input class="form-input" id="pr-overtimePay" type="text" placeholder="0"></div>
-            <div class="form-field form-full"><label class="form-label">費用墊支</label><input class="form-input" id="pr-expenseReimbursement" type="text" placeholder="0"></div>
-            <div class="form-field form-full"><label class="form-label">年終獎金</label><input class="form-input" id="pr-yearEndBonus" type="text" placeholder="0"></div>
-            <div class="form-field form-full"><label class="form-label">工程獎金</label><input class="form-input" id="pr-engineeringBonus" type="text" placeholder="0"></div>
+            <div class="form-field form-full"><label class="form-label">加班費</label><input class="form-input" id="pr-overtimePay" type="text" placeholder="0" oninput="prLiveCalc()"></div>
+            <div class="form-field form-full"><label class="form-label">費用墊支</label><input class="form-input" id="pr-expenseReimbursement" type="text" placeholder="0" oninput="prLiveCalc()"></div>
+            <div class="form-field form-full"><label class="form-label">年終獎金</label><input class="form-input" id="pr-yearEndBonus" type="text" placeholder="0" oninput="prLiveCalc()"></div>
+            <div class="form-field form-full"><label class="form-label">工程獎金</label><input class="form-input" id="pr-engineeringBonus" type="text" placeholder="0" oninput="prLiveCalc()"></div>
             <div class="form-field form-full"><label class="form-label">工程獎金備註（例：匯款日期）</label><input class="form-input" id="pr-engineeringBonusNote" type="text" placeholder="例：2026/1/7 匯款"></div>
           </div>
           <div id="pr-custom-items" style="margin-bottom:8px"></div>
@@ -3462,21 +3464,28 @@ body.auth-pending .auth-screen{display:flex}
         <div>
           <div style="font-size:11px;font-weight:600;color:var(--error);margin-bottom:10px;letter-spacing:0.06em">應代扣項目 (C)</div>
           <div class="form-grid">
-            <div class="form-field form-full"><label class="form-label">勞保費</label><input class="form-input" id="pr-laborInsurance" type="text" placeholder="0"></div>
-            <div class="form-field form-full"><label class="form-label">健保費</label><input class="form-input" id="pr-healthInsurance" type="text" placeholder="0"></div>
-            <div class="form-field form-full"><label class="form-label">自願提撥退休金</label><input class="form-input" id="pr-voluntaryPension" type="text" placeholder="0"></div>
-            <div class="form-field form-full"><label class="form-label">請假扣款（含備註）</label><input class="form-input" id="pr-leaveDeduction" type="text" placeholder="0"></div>
+            <div class="form-field form-full"><label class="form-label">勞保費</label><input class="form-input" id="pr-laborInsurance" type="text" placeholder="0" oninput="prLiveCalc()"></div>
+            <div class="form-field form-full"><label class="form-label">健保費</label><input class="form-input" id="pr-healthInsurance" type="text" placeholder="0" oninput="prLiveCalc()"></div>
+            <div class="form-field form-full"><label class="form-label">自願提撥退休金</label><input class="form-input" id="pr-voluntaryPension" type="text" placeholder="0" oninput="prLiveCalc()"></div>
+            <div class="form-field form-full"><label class="form-label">請假扣款（含備註）</label><input class="form-input" id="pr-leaveDeduction" type="text" placeholder="0" oninput="prLiveCalc()"></div>
             <div class="form-field form-full"><label class="form-label">請假備註</label><input class="form-input" id="pr-leaveNote" type="text" placeholder="例：1/7、1/26請假共4天"></div>
           </div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
-        <div class="form-field"><label class="form-label">扣除已領金額</label><input class="form-input" id="pr-advancePaid" type="text" placeholder="0"></div>
+        <div class="form-field"><label class="form-label">扣除已領金額</label><input class="form-input" id="pr-advancePaid" type="text" placeholder="0" oninput="prLiveCalc()"></div>
         <div class="form-field"><label class="form-label">發薪日</label><input class="form-input" id="pr-payDate" type="date"></div>
         <div class="form-field"><label class="form-label">備註</label><input class="form-input" id="pr-note" placeholder=""></div>
       </div>
     </div>
     <div class="modal-footer">
+      <div id="pr-live-preview" style="flex:1;display:flex;gap:16px;align-items:center;font-size:12px;font-family:'DM Mono',monospace;color:var(--text2)">
+        <span>A＝<b id="pr-live-a" style="color:var(--accent)">—</b></span>
+        <span>B＝<b id="pr-live-b" style="color:var(--blue)">—</b></span>
+        <span>C＝<b id="pr-live-c" style="color:var(--error)">—</b></span>
+        <span style="font-size:13px;color:var(--text)">實領＝<b id="pr-live-net" style="color:var(--success)">—</b></span>
+        <span>匯入＝<b id="pr-live-transfer" style="color:var(--accent)">—</b></span>
+      </div>
       <button class="btn btn-ghost" onclick="closeModal('modal-edit-payroll')">取消</button>
       <button class="btn btn-ghost" onclick="printPayslip()">🖨 列印 / PDF</button>
       <button class="btn btn-primary" onclick="submitPayroll()">儲存薪資單</button>
@@ -5949,6 +5958,14 @@ function renderAll() {
 
 function renderAfterDataSettles(reason = '') {
   renderAll();
+  try {
+    const restorePage = sessionStorage.getItem('opsRestorePage');
+    if (restorePage && restorePage !== currentPage) {
+      sessionStorage.removeItem('opsRestorePage');
+      setTimeout(() => { if (canAccess(restorePage)) navTo(restorePage); }, 200);
+      return;
+    }
+  } catch(e) {}
   setTimeout(renderCurrentPage, 150);
   setTimeout(renderCurrentPage, 500);
 }
@@ -6084,7 +6101,26 @@ function showCloudConflictModal() {
   openModal('modal-cloud-conflict');
 }
 
+function prLiveCalc() {
+  const p = id => parseMoneyInput(document.getElementById(id)?.value || '0') || 0;
+  const aTotal = p('pr-baseSalary') + p('pr-phoneAllowance') + p('pr-fullAttendanceBonus') + p('pr-dutyAllowance') + p('pr-performanceBonus') + p('pr-mealAllowance');
+  const bBase  = p('pr-overtimePay') + p('pr-expenseReimbursement') + p('pr-yearEndBonus') + p('pr-engineeringBonus');
+  const bCustom = prGetCustomItems ? prGetCustomItems().reduce((s,it)=>s+it.amount,0) : 0;
+  const bTotal = bBase + bCustom;
+  const cTotal = p('pr-laborInsurance') + p('pr-healthInsurance') + p('pr-voluntaryPension') + p('pr-leaveDeduction');
+  const net = aTotal + bTotal - cTotal;
+  const transfer = net - p('pr-advancePaid');
+  const fmt = n => '$' + Math.round(n).toLocaleString('zh-TW');
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = fmt(val); };
+  set('pr-live-a', aTotal);
+  set('pr-live-b', bTotal);
+  set('pr-live-c', cTotal);
+  set('pr-live-net', net);
+  set('pr-live-transfer', transfer);
+}
+
 function reloadForCloudConflict() {
+  try { sessionStorage.setItem('opsRestorePage', currentPage); } catch(e) {}
   location.reload();
 }
 
@@ -10541,31 +10577,7 @@ function rejectExpense(id) {
 function editExpense(id) {
   const r = EXPENSES.find(x=>x.id===id);
   if (!expCanEditRow(r)) { showToast('這筆費用不能修改','error'); return; }
-  const nextItem = prompt('付款項目', r.item || '');
-  if (nextItem === null) return;
-  const nextAmount = prompt('金額', r.amount || 0);
-  if (nextAmount === null) return;
-  const nextDate = prompt('日期（YYYY-MM-DD）', r.date || r.month + '-01');
-  if (nextDate === null) return;
-  const nextNote = prompt('備註', r.note || '');
-  if (nextNote === null) return;
-  if (!nextItem.trim()) { showToast('付款項目不可空白','error'); return; }
-  const parsedAmount = parseMoneyInput(nextAmount);
-  if (!parsedAmount) { showToast('金額不可為 0','error'); return; }
-  expRemoveLinkedOverhead(r);
-  Object.assign(r, {
-    item: nextItem.trim(),
-    amount: parsedAmount,
-    date: /^\d{4}-\d{2}-\d{2}$/.test(nextDate.trim()) ? nextDate.trim() : r.date,
-    note: nextNote.trim(),
-  });
-  if (!expCanManageAll() && r.status === 'rejected') r.status = 'pending';
-  delete r.profitAdjustmentShares;
-  delete r.profitAdjustmentApplied;
-  if (r.status === 'approved') expReapplyExpenseEffects(r);
-  renderExpense(); renderOverhead(); renderProfit(); renderProfitShare();
-  saveData();
-  showToast('費用已更新','success');
+  expBatchInitEdit(id);
 }
 function deleteExpense(id) {
   const idx = EXPENSES.findIndex(x=>x.id===id);
@@ -10711,6 +10723,52 @@ function expBatchCaseChanged(select) {
 }
 
 let _batchN = 0;
+let expBatchEditId = null;
+
+function expBatchClose() {
+  expBatchEditId = null;
+  const t = document.getElementById('exp-batch-modal-title');
+  if (t) t.textContent = '月份費用批次申請';
+  const b = document.getElementById('exp-batch-submit-btn');
+  if (b) b.textContent = '送出申請';
+  closeModal('modal-add-expense');
+}
+
+function expBatchInitEdit(id) {
+  const r = EXPENSES.find(x => x.id === id);
+  if (!r) return;
+  expBatchEditId = id;
+  _batchN = 0;
+  const tbody = document.getElementById('exp-batch-tbody');
+  if (tbody) tbody.innerHTML = '';
+  expRefreshBatchCaseDatalist();
+  const mEl = document.getElementById('exp-batch-month');
+  if (mEl) { mEl.value = r.month || ''; mEl.disabled = true; }
+  const personEl = document.getElementById('exp-batch-person');
+  if (personEl) { personEl.value = r.person || currentUser.id; personEl.disabled = true; personEl.style.opacity = '.75'; }
+  expBatchAddRow(false);
+  const t = document.getElementById('exp-batch-modal-title');
+  if (t) t.textContent = '修改費用申請';
+  const b = document.getElementById('exp-batch-submit-btn');
+  if (b) b.textContent = '儲存修改';
+  // Pre-fill the single row
+  setTimeout(() => {
+    const tr = document.querySelector('#exp-batch-tbody tr');
+    if (!tr) return;
+    const ins = tr.querySelectorAll('input,select');
+    const caseEl=ins[0], treatmentEl=ins[1], dateEl=ins[2], itemEl=ins[3], amtEl=ins[4], catEl=ins[5], recEl=ins[6], noteEl=ins[7];
+    if (caseEl) { caseEl.value = r.caseName || r.caseKey || '固定開銷'; expBatchCaseChanged(caseEl); }
+    if (treatmentEl && r.postCloseTreatment) { treatmentEl.value = r.postCloseTreatment; treatmentEl.disabled = false; treatmentEl.style.opacity = '1'; }
+    if (dateEl) dateEl.value = r.date || (r.month + '-01');
+    if (itemEl) itemEl.value = r.item || '';
+    if (amtEl)  amtEl.value = r.amount || 0;
+    if (catEl)  catEl.value = r.category || catEl.options[0]?.value || '';
+    if (recEl)  recEl.value = r.receipt || recEl.options[0]?.value || '';
+    if (noteEl) noteEl.value = r.note || '';
+  }, 50);
+  openModal('modal-add-expense');
+}
+
 function expBatchAddRow(focusNew) {
   const id = ++_batchN;
   const tbody = document.getElementById('exp-batch-tbody');
@@ -10895,11 +10953,34 @@ function submitBatchExpense() {
   });
   if (errMsg) { showToast(errMsg,'error'); return; }
   if (!pendingRows.length) { showToast('請至少填寫一列費用','error'); return; }
+  if (expBatchEditId !== null) {
+    const r = EXPENSES.find(x => x.id === expBatchEditId);
+    if (r) {
+      const row = pendingRows[0];
+      expRemoveLinkedOverhead(r);
+      Object.assign(r, {
+        caseKey: row.caseKey, caseName: row.caseName,
+        date: row.date, item: row.item, amount: row.amount,
+        category: row.category, receipt: row.receipt,
+        postCloseTreatment: row.postCloseTreatment,
+        note: row.note,
+      });
+      if (!expCanManageAll() && r.status === 'rejected') r.status = 'pending';
+      delete r.profitAdjustmentShares;
+      delete r.profitAdjustmentApplied;
+      if (r.status === 'approved') expReapplyExpenseEffects(r);
+    }
+    expBatchClose();
+    renderExpense(); renderOverhead(); renderProfit(); renderProfitShare();
+    saveData();
+    showToast('費用已更新 ✓','success');
+    return;
+  }
   pendingRows.forEach(row => {
     const saved = { id: expNextId++, ...row };
     EXPENSES.push(saved);
   });
-  closeModal('modal-add-expense');
+  expBatchClose();
   renderExpense(); renderOverhead(); renderProfit(); renderProfitShare();
   saveData();
   showToast(`已送出 ${pendingRows.length} 筆費用申請 ✓`,'success');
@@ -12173,6 +12254,7 @@ function openEditPayroll() {
   const ntEl = document.getElementById('pr-note');
   if (ntEl) ntEl.value = rec?.note||'';
   openModal('modal-edit-payroll');
+  setTimeout(prLiveCalc, 50);
 }
 
 function prRenderCustomItems(items) {
