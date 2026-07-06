@@ -2232,8 +2232,8 @@ body.auth-pending .auth-screen{display:flex}
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead>
             <tr style="background:var(--surface2);color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:.5px">
-              <th style="padding:10px 14px;text-align:left;white-space:nowrap">代碼</th>
-              <th style="padding:10px 14px;text-align:left;white-space:nowrap">廠商名稱</th>
+              <th style="padding:10px 14px;text-align:left;white-space:nowrap;cursor:pointer;user-select:none" onclick="vdSetSort('code')" id="vd-th-code">代碼 <span id="vd-sort-code">↑</span></th>
+              <th style="padding:10px 14px;text-align:left;white-space:nowrap;cursor:pointer;user-select:none" onclick="vdSetSort('name')" id="vd-th-name">廠商名稱 <span id="vd-sort-name"></span></th>
               <th style="padding:10px 14px;text-align:left;white-space:nowrap">工種</th>
               <th style="padding:10px 14px;text-align:left;white-space:nowrap">統一編號</th>
               <th style="padding:10px 14px;text-align:left;white-space:nowrap">負責人/聯絡人</th>
@@ -12915,6 +12915,13 @@ function submitClient() {
 // ══════════════════════════════════
 // VENDOR MODULE
 // ══════════════════════════════════
+let vdSortKey = 'code', vdSortAsc = true;
+function vdSetSort(key) {
+  if (vdSortKey === key) vdSortAsc = !vdSortAsc;
+  else { vdSortKey = key; vdSortAsc = true; }
+  renderVendors();
+}
+
 function renderVendors() {
   const manage = canManage('vendors');
   const kw = (document.getElementById('vd-search')?.value || '').toLowerCase();
@@ -12925,6 +12932,26 @@ function renderVendors() {
     const matchTrade = !tradeF || v.trade === tradeF;
     const matchStatus = !statusF || v.status === statusF;
     return matchKw && matchTrade && matchStatus;
+  });
+
+  // 排序：狀態永遠有效在前、停用在後；次要依選擇欄位
+  const statusOrder = s => s === '有效' ? 0 : 1;
+  list.sort((a, b) => {
+    const sd = statusOrder(a.status) - statusOrder(b.status);
+    if (sd !== 0) return sd;
+    let cmp = 0;
+    if (vdSortKey === 'code') {
+      cmp = a.code.localeCompare(b.code, 'zh-TW', {numeric: true});
+    } else if (vdSortKey === 'name') {
+      cmp = a.name.localeCompare(b.name, 'zh-TW', {sensitivity: 'base'});
+    }
+    return vdSortAsc ? cmp : -cmp;
+  });
+
+  // 更新欄位標頭箭頭
+  ['code','name'].forEach(k => {
+    const el = document.getElementById(`vd-sort-${k}`);
+    if (el) el.textContent = vdSortKey === k ? (vdSortAsc ? '↑' : '↓') : '';
   });
 
   const statsEl = document.getElementById('vd-stats-line');
