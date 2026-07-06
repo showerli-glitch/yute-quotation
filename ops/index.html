@@ -5747,6 +5747,8 @@ function applyDataSnapshot(d) {
   if (d.RECEIVABLES) { RECEIVABLES.length = 0; RECEIVABLES.push(...d.RECEIVABLES); }
   if (d.CLIENTS)     { CLIENTS.length = 0;     CLIENTS.push(...d.CLIENTS); }
   if (d.VENDORS)     { VENDORS.length = 0;     VENDORS.push(...d.VENDORS); }
+  // migration: DM-011 莊自強 → TL-009 泥作及貼磚
+  { const v = VENDORS.find(x => x.code === 'DM-011' && x.name === '莊自強'); if (v) { v.code = 'TL-009'; v.trade = '泥作及貼磚'; } }
   if (d.EMPLOYEES)   { EMPLOYEES.length = 0;   EMPLOYEES.push(...d.EMPLOYEES); }
   if (d.EXPENSES && d.EXPENSES.length) { EXPENSES.length = 0; EXPENSES.push(...d.EXPENSES); }
   else { EXPENSES.length = 0; EXPENSES.push(...JSON.parse(JSON.stringify(INIT_EXPENSES))); }
