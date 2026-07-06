@@ -1130,7 +1130,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.1.5 · 2026</div>
+    <div class="sidebar-ver">Codex v1.1.6 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -12191,7 +12191,7 @@ function renderPayroll() {
       </div>
       <div style="text-align:right">
         <div style="font-size:11px;color:var(--text3)">底薪</div>
-        <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent)">$${cfg.baseSalary.toLocaleString('zh-TW')}</div>
+        <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent)">$${(rec?.baseSalary ?? cfg.baseSalary).toLocaleString('zh-TW')}</div>
       </div>`;
   }
 
