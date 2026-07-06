@@ -5336,8 +5336,8 @@ function ensureCodexSeedData() {
 function createDataSnapshot() {
   normalizeCompanyData();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.3', companyId:COMPANY_ID,
-    CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.4', companyId:COMPANY_ID,
+    CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
     savedAt: new Date().toISOString()
@@ -5396,7 +5396,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.1.3', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.1.4', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5750,6 +5750,16 @@ function applyDataSnapshot(d) {
     Object.assign(OVERHEAD, d.OVERHEAD);
   }
   if (d.PAYROLL)     { PAYROLL.length = 0;     PAYROLL.push(...d.PAYROLL); }
+  if (d.PAYROLL_EMPLOYEE_ACCOUNTS && typeof d.PAYROLL_EMPLOYEE_ACCOUNTS === 'object') {
+    Object.keys(PAYROLL_EMPLOYEE_ACCOUNTS).forEach(k => delete PAYROLL_EMPLOYEE_ACCOUNTS[k]);
+    Object.entries(d.PAYROLL_EMPLOYEE_ACCOUNTS).forEach(([person, account]) => {
+      if (!account || typeof account !== 'object') return;
+      PAYROLL_EMPLOYEE_ACCOUNTS[person] = {
+        bank: String(account.bank || ''),
+        account: String(account.account || '')
+      };
+    });
+  }
   if (Array.isArray(d.PAYROLL_MONTHS)) {
     PAYROLL_MONTHS.length = 0;
     PAYROLL_MONTHS.push(...d.PAYROLL_MONTHS.filter(prIsValidMonth));
@@ -12025,6 +12035,7 @@ const PR_CONFIG = {
          baseSalary:0, phoneAllowance:0, fullAttendanceBonus:0, dutyAllowance:0, performanceBonus:0, mealAllowance:0,
          laborInsurance:0, healthInsurance:0},
 };
+const PAYROLL_EMPLOYEE_ACCOUNTS = {};
 
 // 2025/10 ~ 2026/5 實領薪資匯入（其餘項目暫以0填入；2026/5 行政薪資待正式薪資明細複核）
 const CODEX_SEED_PAYROLL = [
@@ -12127,7 +12138,7 @@ function prSelectEmp(el, person) {
 
 function prGetConfig(person) {
   const emp = EMPLOYEES.find(e => e.id === person) || USERS.find(u => u.id === person);
-  return PR_CONFIG[person] || {
+  const fallback = {
     name: emp?.name || '未設定員工',
     role: emp?.role || emp?.roleCode || '員工',
     bank: '',
@@ -12140,6 +12151,13 @@ function prGetConfig(person) {
     mealAllowance: 0,
     laborInsurance: 0,
     healthInsurance: 0,
+  };
+  const base = PR_CONFIG[person] || fallback;
+  const savedAccount = PAYROLL_EMPLOYEE_ACCOUNTS[person] || {};
+  return {
+    ...base,
+    bank: savedAccount.bank ?? base.bank ?? '',
+    account: savedAccount.account ?? base.account ?? '',
   };
 }
 
@@ -12214,7 +12232,7 @@ function renderPayroll() {
 function openEditPayroll() {
   if (!requireManage('payroll', '您只有查看薪資的權限')) return;
   const month = document.getElementById('pr-filter-month')?.value || '2026-03';
-  const cfg   = PR_CONFIG[prCurrentEmp];
+  const cfg   = prGetConfig(prCurrentEmp);
   const rec   = PAYROLL.find(r=>r.person===prCurrentEmp && r.month===month);
   const t = document.getElementById('pr-modal-title');
   const i = document.getElementById('pr-modal-info');
@@ -12326,6 +12344,14 @@ function submitPayroll() {
   if (cfg) {
     cfg.bank    = s('pr-bank');
     cfg.account = s('pr-account');
+    PAYROLL_EMPLOYEE_ACCOUNTS[prCurrentEmp] = {
+      bank: cfg.bank,
+      account: cfg.account
+    };
+    if (PR_CONFIG[prCurrentEmp]) {
+      PR_CONFIG[prCurrentEmp].bank = cfg.bank;
+      PR_CONFIG[prCurrentEmp].account = cfg.account;
+    }
   }
   closeModal('modal-edit-payroll');
   renderPayroll();
