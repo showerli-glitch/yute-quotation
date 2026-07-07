@@ -1130,7 +1130,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.1.8 · 2026</div>
+    <div class="sidebar-ver">Codex v1.1.9 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1660,7 +1660,6 @@ body.auth-pending .auth-screen{display:flex}
           <option value="2025-10">2025年10月</option>
         </select>
       </div>
-      <button class="btn btn-primary btn-sm" id="btn-new-overhead" onclick="openAddOverheadModal()">＋ 新增不固定支出</button>
     </div>
     <!-- Stats -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px 20px;background:var(--surface);border-bottom:1px solid var(--border)">
@@ -1684,7 +1683,10 @@ body.auth-pending .auth-screen{display:flex}
       </div>
       <!-- 不固定支出 -->
       <div>
-        <div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:12px;letter-spacing:0.06em">不固定支出</div>
+        <div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:12px;letter-spacing:0.06em;display:flex;align-items:center;gap:8px">
+          不固定支出
+          <button class="btn btn-ghost btn-sm" id="btn-new-overhead" style="font-size:10px;padding:2px 8px" onclick="openAddOverheadModal()">＋ 新增項目</button>
+        </div>
         <table class="data-table" style="font-size:12px">
           <thead><tr><th>#</th><th>名稱與說明</th><th style="text-align:right">金額</th><th>備註</th><th style="width:40px"></th></tr></thead>
           <tbody id="oh-variable-tbody"></tbody>
@@ -5349,7 +5351,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.5', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.9', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5409,7 +5411,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.1.5', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.1.9', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
