@@ -1130,7 +1130,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.1.7 · 2026</div>
+    <div class="sidebar-ver">Codex v1.1.8 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1674,11 +1674,12 @@ body.auth-pending .auth-screen{display:flex}
         <div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:12px;letter-spacing:0.06em;display:flex;align-items:center;gap:8px">
           固定支出
           <span style="font-size:10px;color:var(--text3);font-weight:400">金額可直接點擊編輯</span>
+          <button id="btn-oh-add-fixed" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;display:none" onclick="ohPromptAddFixed()">＋ 新增項目</button>
         </div>
         <table class="data-table" style="font-size:12px">
-          <thead><tr><th>項目</th><th style="text-align:right">金額</th><th>備註</th></tr></thead>
+          <thead><tr><th>項目</th><th style="text-align:right">金額</th><th>備註</th><th style="width:32px"></th></tr></thead>
           <tbody id="oh-fixed-tbody"></tbody>
-          <tfoot><tr style="border-top:1px solid var(--border2)"><td style="padding:10px 14px;font-weight:600;color:var(--text)">小計</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent)" id="oh-fixed-subtotal">$0</td><td></td></tr></tfoot>
+          <tfoot><tr style="border-top:1px solid var(--border2)"><td style="padding:10px 14px;font-weight:600;color:var(--text)">小計</td><td style="padding:10px 14px;text-align:right;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent)" id="oh-fixed-subtotal">$0</td><td></td><td></td></tr></tfoot>
         </table>
       </div>
       <!-- 不固定支出 -->
@@ -5349,7 +5350,7 @@ function createDataSnapshot() {
   syncPayrollEmployeeAccountsFromConfig();
   return {
     format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.5', companyId:COMPANY_ID,
-    CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
+    CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
     savedAt: new Date().toISOString()
@@ -5762,6 +5763,9 @@ function applyDataSnapshot(d) {
   if (d.OVERHEAD)    {
     Object.keys(OVERHEAD).forEach(k => delete OVERHEAD[k]);
     Object.assign(OVERHEAD, d.OVERHEAD);
+  }
+  if (Array.isArray(d.OH_FIXED_CONFIG) && d.OH_FIXED_CONFIG.length > 0) {
+    OH_FIXED_CONFIG.length = 0; OH_FIXED_CONFIG.push(...d.OH_FIXED_CONFIG);
   }
   if (d.PAYROLL)     { PAYROLL.length = 0;     PAYROLL.push(...d.PAYROLL); }
   if (d.PAYROLL_EMPLOYEE_ACCOUNTS && typeof d.PAYROLL_EMPLOYEE_ACCOUNTS === 'object') {
@@ -11018,6 +11022,8 @@ const OH_FIXED_ITEMS = [
   '衛星犬資料處理','飲水機保養費','google訂閱費','市話','公務機話費',
   '網路費','會計師記帳費','外聘清潔費','員工福利公司飲料','貨車保養維修','文具影印機紙張墨水'
 ];
+// 可自訂的固定支出項目清單（從 OH_FIXED_ITEMS 初始化，存入 snapshot）
+let OH_FIXED_CONFIG = [...OH_FIXED_ITEMS];
 
 let OVERHEAD = {};
 let ohVarNextId = 1;
@@ -11058,39 +11064,60 @@ function ohRenderMonthOptions(preferredMonth) {
   else if (sorted.length) sel.value = sorted[0];
 }
 
+function ohInitMonth(month) {
+  // 新月份：優先複製上個月的金額，備註清空
+  const sorted = Object.keys(OVERHEAD).filter(m => m < month).sort();
+  const prevMonth = sorted[sorted.length - 1];
+  const prevData = prevMonth ? OVERHEAD[prevMonth] : null;
+  OVERHEAD[month] = {
+    fixed: OH_FIXED_CONFIG.map((_,i) => (prevData?.fixed?.[i] || 0)),
+    fixedNotes: OH_FIXED_CONFIG.map(()=>''),
+    variable: []
+  };
+}
+
 function renderOverhead() {
   const manage = canManage('overhead');
   ohRenderMonthOptions();
   const month = document.getElementById('oh-filter-month')?.value || new Date().toISOString().slice(0,7);
-  if (!OVERHEAD[month]) OVERHEAD[month] = { fixed: OH_FIXED_ITEMS.map(()=>0), fixedNotes: OH_FIXED_ITEMS.map(()=>''), variable:[] };
+  if (!OVERHEAD[month]) ohInitMonth(month);
   const data = OVERHEAD[month];
-  if (!Array.isArray(data.fixed)) data.fixed = OH_FIXED_ITEMS.map(()=>0);
-  if (!Array.isArray(data.fixedNotes)) data.fixedNotes = OH_FIXED_ITEMS.map(()=>'');
+  // 確保陣列長度與設定同步
+  while (data.fixed.length < OH_FIXED_CONFIG.length) data.fixed.push(0);
+  while (data.fixedNotes.length < OH_FIXED_CONFIG.length) data.fixedNotes.push('');
   if (!Array.isArray(data.variable)) data.variable = [];
-  // Fixed
-  // 員工薪資：自動從薪資模組(PAYROLL)該月加總，不可手動編輯
+  // 員工薪資：自動從薪資模組加總，不可手動編輯
   const payrollSum = PAYROLL.filter(r => r.month === month && isOperatingPayrollPerson(r.person))
     .reduce((s,r) => s + payrollNetAmount(r), 0);
-  const salaryIdx = OH_FIXED_ITEMS.indexOf('員工薪資');
+  const salaryIdx = OH_FIXED_CONFIG.indexOf('員工薪資');
   if (salaryIdx >= 0) data.fixed[salaryIdx] = payrollSum;
 
   const fixedTbody = document.getElementById('oh-fixed-tbody');
   if (fixedTbody) {
-    fixedTbody.innerHTML = OH_FIXED_ITEMS.map((name,i) => {
+    fixedTbody.innerHTML = OH_FIXED_CONFIG.map((name,i) => {
       const isPayroll = i === salaryIdx;
       return `
       <tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-        <td style="padding:8px 14px;font-size:12px">${name}</td>
-        <td style="padding:4px 8px;text-align:right">
+        <td style="padding:8px 14px;font-size:12px;white-space:nowrap">${name}</td>
+        <td style="padding:4px 8px;text-align:right;white-space:nowrap">
           ${isPayroll
-            ? `<span style="display:inline-block;width:90px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--text);padding:3px 5px">$${(data.fixed[i]||0).toLocaleString('zh-TW')}</span>`
-            : `<input type="text" value="${data.fixed[i]||0}" ${manage?'':'readonly'}
+            ? `<span style="display:inline-block;width:100px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--text);padding:3px 5px">$${(data.fixed[i]||0).toLocaleString('zh-TW')}</span>`
+            : `<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text3);padding:3px 2px">$</span><input type="text" value="${(data.fixed[i]||0).toLocaleString('zh-TW')}" ${manage?'':'readonly'}
             style="background:transparent;border:none;outline:none;width:90px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--text);padding:3px 5px;border-radius:4px"
-            onfocus="this.style.background='var(--surface2)';this.style.border='1px solid var(--border)'"
+            onfocus="this.style.background='var(--surface2)';this.style.border='1px solid var(--border)';this.value=String(${data.fixed[i]||0})"
             onblur="this.style.background='transparent';this.style.border='none';ohUpdateFixed('${month}',${i},this.value)"
             onkeydown="if(event.key==='Enter')this.blur()">`}
         </td>
-        <td style="padding:4px 8px;font-size:11px;color:var(--text3)">${isPayroll ? '自動同步薪資模組' : (data.fixedNotes[i]||'')}</td>
+        <td style="padding:4px 8px">
+          ${isPayroll
+            ? `<span style="font-size:11px;color:var(--text3)">自動同步薪資模組</span>`
+            : `<input type="text" value="${(data.fixedNotes[i]||'').replace(/"/g,'&quot;')}" placeholder="備註…" ${manage?'':'readonly'}
+              style="background:transparent;border:none;outline:none;width:100%;font-size:11px;color:var(--text3);padding:2px 4px;border-radius:4px"
+              onfocus="this.style.background='var(--surface2)';this.style.border='1px solid var(--border)'"
+              onblur="this.style.background='transparent';this.style.border='none';ohUpdateNote('${month}',${i},this.value)"
+              onkeydown="if(event.key==='Enter')this.blur()">`}
+        </td>
+        ${manage && !isPayroll ? `<td style="padding:4px 6px;text-align:center"><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--error);padding:2px 6px" onclick="ohDeleteFixedItem(${i})" title="刪除此項目">✕</button></td>` : '<td></td>'}
       </tr>`;
     }).join('');
   }
@@ -11110,6 +11137,10 @@ function renderOverhead() {
         </tr>`).join('');
     }
   }
+  // 顯示/隱藏「新增項目」按鈕
+  const btnAddFixed = document.getElementById('btn-oh-add-fixed');
+  if (btnAddFixed) btnAddFixed.style.display = manage ? '' : 'none';
+
   // Stats
   const fixedSum = data.fixed.reduce((s,v)=>s+(parseInt(v)||0),0);
   const varSum   = data.variable.reduce((s,v)=>s+(v.amount||0),0);
@@ -11127,6 +11158,46 @@ function ohUpdateFixed(month, idx, val) {
   OVERHEAD[month].fixed[idx] = parseInt(val.replace(/[^0-9]/g,'')) || 0;
   renderOverhead();
   saveData();
+}
+function ohUpdateNote(month, idx, val) {
+  if (!requireManage('overhead')) return;
+  if (!OVERHEAD[month]) return;
+  if (!Array.isArray(OVERHEAD[month].fixedNotes)) OVERHEAD[month].fixedNotes = OH_FIXED_CONFIG.map(()=>'');
+  OVERHEAD[month].fixedNotes[idx] = val.trim();
+  saveData();
+}
+function ohDeleteFixedItem(idx) {
+  if (!requireManage('overhead')) return;
+  const name = OH_FIXED_CONFIG[idx];
+  if (name === '員工薪資') { showToast('員工薪資不可刪除','error'); return; }
+  if (!confirm(`確定刪除固定支出項目「${name}」？\n所有月份的此項目資料都會移除。`)) return;
+  OH_FIXED_CONFIG.splice(idx, 1);
+  Object.values(OVERHEAD).forEach(data => {
+    if (Array.isArray(data.fixed)) data.fixed.splice(idx, 1);
+    if (Array.isArray(data.fixedNotes)) data.fixedNotes.splice(idx, 1);
+  });
+  renderOverhead();
+  saveData();
+  showToast(`已刪除「${name}」`, 'success');
+}
+function ohAddFixedItem(name) {
+  name = (name || '').trim();
+  if (!name) { showToast('請輸入項目名稱','error'); return; }
+  if (OH_FIXED_CONFIG.includes(name)) { showToast('已有相同名稱的項目','error'); return; }
+  OH_FIXED_CONFIG.push(name);
+  Object.values(OVERHEAD).forEach(data => {
+    if (Array.isArray(data.fixed)) data.fixed.push(0);
+    if (Array.isArray(data.fixedNotes)) data.fixedNotes.push('');
+  });
+  renderOverhead();
+  saveData();
+  showToast(`已新增「${name}」`, 'success');
+}
+function ohPromptAddFixed() {
+  if (!requireManage('overhead')) return;
+  const name = prompt('新固定支出項目名稱：');
+  if (name === null) return;
+  ohAddFixedItem(name);
 }
 function ohDeleteVar(month, id) {
   if (!requireManage('overhead')) return;
