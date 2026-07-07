@@ -1130,7 +1130,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.1.9 · 2026</div>
+    <div class="sidebar-ver">Codex v1.1.10 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1674,6 +1674,7 @@ body.auth-pending .auth-screen{display:flex}
           固定支出
           <span style="font-size:10px;color:var(--text3);font-weight:400">金額可直接點擊編輯</span>
           <button id="btn-oh-add-fixed" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;display:none" onclick="ohPromptAddFixed()">＋ 新增項目</button>
+          <button id="btn-oh-copy-prev" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;display:none" onclick="ohCopyFixedFromPrevMonth()">複製上月固定支出</button>
         </div>
         <table class="data-table" style="font-size:12px">
           <thead><tr><th>項目</th><th style="text-align:right">金額</th><th>備註</th><th style="width:32px"></th></tr></thead>
@@ -5295,17 +5296,17 @@ function ensureCodexSeedData() {
   });
   // 2026/1~4 公司開銷細項匯入（來源：2026公司開銷 Google Sheet，員工薪資由薪資模組自動帶入）
   CODEX_SEED_OH_DETAIL.forEach(({month, fixed, fixedNotes, extraVariable}) => {
-    if (!OVERHEAD[month]) OVERHEAD[month] = { fixed: OH_FIXED_ITEMS.map(()=>0), fixedNotes: OH_FIXED_ITEMS.map(()=>''), variable:[] };
+    if (!OVERHEAD[month]) OVERHEAD[month] = { fixed: OH_FIXED_CONFIG.map(()=>0), fixedNotes: OH_FIXED_CONFIG.map(()=>''), variable:[] };
     const data = OVERHEAD[month];
     if (data.ohDetailImported) return;
-    data.fixed = fixed.slice();
-    data.fixedNotes = OH_FIXED_ITEMS.map((_,i) => fixedNotes[i] || '');
+    data.fixed = OH_FIXED_CONFIG.map(name => fixed[OH_FIXED_ITEMS.indexOf(name)] || 0);
+    data.fixedNotes = OH_FIXED_CONFIG.map(name => fixedNotes[OH_FIXED_ITEMS.indexOf(name)] || '');
     data.variable = data.variable.filter(v => v.note !== '2025-2026分潤表');
     extraVariable.forEach(v => data.variable.push({ id: ohVarNextId++, ...v }));
     data.ohDetailImported = true;
   });
   if (!OVERHEAD['2026-05']) {
-    OVERHEAD['2026-05'] = { fixed: OH_FIXED_ITEMS.map(()=>0), fixedNotes: OH_FIXED_ITEMS.map(()=>''), variable:[], note:'Codex 2026-05 薪資歸屬月份' };
+    OVERHEAD['2026-05'] = { fixed: OH_FIXED_CONFIG.map(()=>0), fixedNotes: OH_FIXED_CONFIG.map(()=>''), variable:[], note:'Codex 2026-05 薪資歸屬月份' };
   }
   PAYABLES.filter(p => p.status === 'paid').forEach(pySyncRentToOverhead);
   pyNextId = Math.max(pyNextId || 1, maxId(PAYABLES) + 1);
@@ -5351,7 +5352,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.9', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.1.10', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5411,7 +5412,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.1.9', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.1.10', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -9148,11 +9149,14 @@ function pySyncRentToOverhead(p) {
   const date = p.doneDate || p.transferDate || p.wantDate || '';
   const month = date.slice(0,7);
   if (!prIsValidMonth(month)) return;
-  if (!OVERHEAD[month]) OVERHEAD[month] = { fixed: OH_FIXED_ITEMS.map(()=>0), fixedNotes: OH_FIXED_ITEMS.map(()=>''), variable:[] };
-  const idx = OH_FIXED_ITEMS.indexOf('房租');
+  if (!OVERHEAD[month]) ohInitMonth(month);
+  const idx = OH_FIXED_CONFIG.indexOf('房租');
   if (idx < 0) return;
   const note = `應付已付款連動：${p.vendor || '受款人未填'}／${p.summary || '房租'}／${(p.amount || 0).toLocaleString('zh-TW')}／${date}`;
-  OVERHEAD[month].fixedNotes = OVERHEAD[month].fixedNotes || OH_FIXED_ITEMS.map(()=>'');
+  OVERHEAD[month].fixed = OVERHEAD[month].fixed || OH_FIXED_CONFIG.map(()=>0);
+  OVERHEAD[month].fixedNotes = OVERHEAD[month].fixedNotes || OH_FIXED_CONFIG.map(()=>'');
+  while (OVERHEAD[month].fixed.length < OH_FIXED_CONFIG.length) OVERHEAD[month].fixed.push(0);
+  while (OVERHEAD[month].fixedNotes.length < OH_FIXED_CONFIG.length) OVERHEAD[month].fixedNotes.push('');
   const old = OVERHEAD[month].fixedNotes[idx] || '';
   if (!old.includes(`AP#${p.id}`)) {
     OVERHEAD[month].fixedNotes[idx] = [old, `AP#${p.id} ${note}`].filter(Boolean).join('；');
@@ -10712,7 +10716,7 @@ function expFinalizePostClose(row) {
     row.profitAdjustmentApplied = row.profitAdjustmentApplied || {};
   }
   if (row.postCloseTreatment === 'company_absorb') {
-    if (!OVERHEAD[row.month]) OVERHEAD[row.month] = { fixed: OH_FIXED_ITEMS.map(()=>0), fixedNotes: OH_FIXED_ITEMS.map(()=>''), variable:[] };
+    if (!OVERHEAD[row.month]) ohInitMonth(row.month);
     const vars = OVERHEAD[row.month].variable || (OVERHEAD[row.month].variable = []);
     if (!vars.some(v => v.sourceExpenseId === row.id)) {
       vars.push({
@@ -11067,15 +11071,18 @@ function ohRenderMonthOptions(preferredMonth) {
 }
 
 function ohInitMonth(month) {
-  // 新月份：優先複製上個月的金額，備註清空
-  const sorted = Object.keys(OVERHEAD).filter(m => m < month).sort();
-  const prevMonth = sorted[sorted.length - 1];
-  const prevData = prevMonth ? OVERHEAD[prevMonth] : null;
+  // 新月份只建立空白資料，避免瀏覽月份時自動產生看似正式的支出金額。
   OVERHEAD[month] = {
-    fixed: OH_FIXED_CONFIG.map((_,i) => (prevData?.fixed?.[i] || 0)),
+    fixed: OH_FIXED_CONFIG.map(()=>0),
     fixedNotes: OH_FIXED_CONFIG.map(()=>''),
     variable: []
   };
+}
+
+function ohPreviousMonthData(month) {
+  const sorted = Object.keys(OVERHEAD || {}).filter(m => prIsValidMonth(m) && m < month).sort();
+  const prevMonth = sorted[sorted.length - 1];
+  return { prevMonth, prevData: prevMonth ? OVERHEAD[prevMonth] : null };
 }
 
 function renderOverhead() {
@@ -11119,7 +11126,7 @@ function renderOverhead() {
               onblur="this.style.background='transparent';this.style.border='none';ohUpdateNote('${month}',${i},this.value)"
               onkeydown="if(event.key==='Enter')this.blur()">`}
         </td>
-        ${manage && !isPayroll ? `<td style="padding:4px 6px;text-align:center"><button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--error);padding:2px 6px" onclick="ohDeleteFixedItem(${i})" title="刪除此項目">✕</button></td>` : '<td></td>'}
+        <td></td>
       </tr>`;
     }).join('');
   }
@@ -11142,6 +11149,8 @@ function renderOverhead() {
   // 顯示/隱藏「新增項目」按鈕
   const btnAddFixed = document.getElementById('btn-oh-add-fixed');
   if (btnAddFixed) btnAddFixed.style.display = manage ? '' : 'none';
+  const btnCopyPrev = document.getElementById('btn-oh-copy-prev');
+  if (btnCopyPrev) btnCopyPrev.style.display = manage ? '' : 'none';
 
   // Stats
   const fixedSum = data.fixed.reduce((s,v)=>s+(parseInt(v)||0),0);
@@ -11170,17 +11179,20 @@ function ohUpdateNote(month, idx, val) {
 }
 function ohDeleteFixedItem(idx) {
   if (!requireManage('overhead')) return;
-  const name = OH_FIXED_CONFIG[idx];
-  if (name === '員工薪資') { showToast('員工薪資不可刪除','error'); return; }
-  if (!confirm(`確定刪除固定支出項目「${name}」？\n所有月份的此項目資料都會移除。`)) return;
-  OH_FIXED_CONFIG.splice(idx, 1);
-  Object.values(OVERHEAD).forEach(data => {
-    if (Array.isArray(data.fixed)) data.fixed.splice(idx, 1);
-    if (Array.isArray(data.fixedNotes)) data.fixedNotes.splice(idx, 1);
-  });
+  showToast('固定支出項目刪除已停用，避免移除歷史資料','error');
+}
+function ohCopyFixedFromPrevMonth() {
+  if (!requireManage('overhead')) return;
+  const month = document.getElementById('oh-filter-month')?.value || new Date().toISOString().slice(0,7);
+  if (!OVERHEAD[month]) ohInitMonth(month);
+  const { prevMonth, prevData } = ohPreviousMonthData(month);
+  if (!prevData) { showToast('找不到上個月份可複製','error'); return; }
+  if (!confirm(`確定要把 ${ohMonthLabel(prevMonth)} 的固定支出金額複製到 ${ohMonthLabel(month)}？\n目前月份固定支出金額會被取代，備註不會複製。`)) return;
+  OVERHEAD[month].fixed = OH_FIXED_CONFIG.map((_,i) => parseInt(prevData.fixed?.[i]) || 0);
+  OVERHEAD[month].fixedNotes = OH_FIXED_CONFIG.map(()=>'');
   renderOverhead();
   saveData();
-  showToast(`已刪除「${name}」`, 'success');
+  showToast('已複製上月固定支出金額 ✓', 'success');
 }
 function ohAddFixedItem(name) {
   name = (name || '').trim();
@@ -11216,7 +11228,7 @@ function submitAddOverhead() {
   const amtRaw= document.getElementById('oh-add-amount').value.trim();
   if (!name)   { showToast('請填寫名稱','error'); return; }
   if (!amtRaw) { showToast('請填寫金額','error'); return; }
-  if (!OVERHEAD[month]) OVERHEAD[month] = { fixed: OH_FIXED_ITEMS.map(()=>0), fixedNotes: OH_FIXED_ITEMS.map(()=>''), variable:[] };
+  if (!OVERHEAD[month]) ohInitMonth(month);
   OVERHEAD[month].variable.push({
     id: ohVarNextId++,
     name, amount: parseInt(amtRaw.replace(/[^0-9]/g,''))||0,
@@ -11591,7 +11603,7 @@ function psComputeData() {
   const rvPaid = RECEIVABLES.filter(receivableIsCollected);
   const pyPaid = PAYABLES.filter(p => p.status === 'paid');
   const expApproved = EXPENSES.filter(e => e.status === 'approved' && e.caseKey !== '固定開銷' && e.postCloseTreatment !== 'company_absorb');
-  const salaryIdx = OH_FIXED_ITEMS.indexOf('員工薪資');
+  const salaryIdx = OH_FIXED_CONFIG.indexOf('員工薪資');
 
   const unsettledCases = CASES.filter(c => c.profitSplit && !c.excludeFromProfitReports && (c.splitRatio || PROFIT_SPLIT_RATIOS[c.profitSplit]) && !c.psSettled).sort(psCaseNameSort);
   const selectedCodes = Array.isArray(PS_SELECTED_CASES) ? PS_SELECTED_CASES : unsettledCases.map(c=>c.code);
