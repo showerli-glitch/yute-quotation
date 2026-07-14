@@ -620,7 +620,8 @@ body.auth-pending .auth-screen{display:flex}
   transition:border-color 0.2s;
 }
 .form-select:focus{outline:none;border-color:var(--accent)}
-.form-select option{background:#1e1e1e}
+[data-theme="dark"] .form-select option{background:#1e1e1e}
+[data-theme="light"] .form-select option{background:#fff;color:#1a1a1a}
 /* Toolbar filter selects — fixed width, won't shrink */
 .search-input{
   background:var(--surface2);
@@ -657,7 +658,8 @@ body.auth-pending .auth-screen{display:flex}
   transition:border-color 0.2s;
 }
 .filter-select:focus{outline:none;border-color:var(--accent)}
-.filter-select option{background:#1e1e1e}
+[data-theme="dark"] .filter-select option{background:#1e1e1e}
+[data-theme="light"] .filter-select option{background:#fff;color:#1a1a1a}
 .sticky-table-wrap{
   overflow-x:auto;
   overflow-y:visible;
