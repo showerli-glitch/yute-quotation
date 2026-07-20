@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.8 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.9 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5382,7 +5382,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.8', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.9', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5442,7 +5442,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.8', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.9', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -10704,7 +10704,9 @@ function expBatchCaseOptions() {
 }
 
 function expIsSelectableCase(c) {
-  if (!c || c.excludeFromProfitReports) return false;
+  if (!c) return false;
+  if (expCanManageAll()) return true;
+  if (c.excludeFromProfitReports) return false;
   const split = String(c.profitSplit || '').trim();
   if (!split || split === '不分潤') return false;
   const text = `${c.code || ''} ${c.name || ''} ${c.clientName || ''} ${c.caseType || ''} ${c.billingMode || ''} ${c.invoiceMode || ''}`;
