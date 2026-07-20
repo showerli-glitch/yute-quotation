@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.11 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.12 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5473,7 +5473,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.11', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.12', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5533,7 +5533,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.11', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.12', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -11726,9 +11726,22 @@ function psSetRatio(code, person, val) {
   const pct = Math.max(0, Math.min(100, parseFloat(val) || 0));
   const cur = { ...psGetSplitRatio(c) };
   cur[person] = pct / 100;
+  c.profitSplit = '自訂';
   c.splitRatio = cur;
   renderProfitShare();
   saveData();
+}
+
+function psOpenProfitParticipantModal() {
+  if (!requireManage('employees', '請先到員工管理開通分潤人員')) return;
+  navTo('employees', document.getElementById('nav-employees'));
+  setTimeout(() => {
+    openEmployeeModal();
+    const profitEl = document.getElementById('emp-f-profitEligible');
+    if (profitEl) profitEl.checked = true;
+    const accessEl = document.getElementById('emp-f-accessRole');
+    if (accessEl && !accessEl.value) accessEl.value = 'none';
+  }, 50);
 }
 
 function psSetProfitMode(code, mode) {
@@ -12253,7 +12266,10 @@ function renderProfitShare() {
     }).join('');
     ratioTable = `
       <div style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-        <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:600">各個案分潤比例設定</div>
+        <div style="padding:10px 14px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="font-size:13px;font-weight:600">各個案分潤比例設定</div>
+          <button class="btn btn-ghost btn-sm" onclick="psOpenProfitParticipantModal()">＋ 新增分潤人員</button>
+        </div>
         <div style="overflow-x:auto"><table style="width:100%;min-width:${420 + participants.length*110}px;border-collapse:collapse">
           <thead><tr style="border-bottom:1px solid var(--border2)">
             <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text3)">個案名稱</th>
@@ -12262,7 +12278,7 @@ function renderProfitShare() {
           </tr></thead>
           <tbody>${ratioRows}</tbody>
         </table></div>
-        <div style="padding:8px 14px;font-size:11px;color:var(--text3)">調整後立即套用並自動儲存，比例合計應為 100%。新增參與者：員工管理 → 新增／編輯員工 → 勾選「可加入個案分潤比例」。</div>
+        <div style="padding:8px 14px;font-size:11px;color:var(--text3)">每個案子獨立設定比例；不參與該案的人填 0%，參與者合計 100%。調整後立即套用並自動儲存，該案會切成自訂比例。新增或編輯分潤人員後，回到淨利潤頁會自動加入比例欄位。</div>
       </div>`;
   }
 
