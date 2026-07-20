@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.15 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.16 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5510,7 +5510,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.15', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.16', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5571,7 +5571,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.15', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.16', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -11369,7 +11369,7 @@ function renderOverhead() {
               onblur="this.style.background='transparent';this.style.border='none';ohUpdateNote('${month}',${i},this.value)"
               onkeydown="if(event.key==='Enter')this.blur()">`}
         </td>
-        <td></td>
+        <td style="padding:4px 4px;text-align:center">${(manage && !isPayroll) ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" title="改名" onclick="ohRenameFixedItem(${i})">✎</button>` : ''}</td>
       </tr>`;
     }).join('');
   }
@@ -11423,6 +11423,24 @@ function ohUpdateNote(month, idx, val) {
 function ohDeleteFixedItem(idx) {
   if (!requireManage('overhead')) return;
   showToast('固定支出項目刪除已停用，避免移除歷史資料','error');
+}
+function ohRenameFixedItem(idx) {
+  if (!requireManage('overhead')) return;
+  const oldName = OH_FIXED_CONFIG[idx];
+  if (oldName === '房租' || oldName === '員工薪資') {
+    showToast('此項目與系統其他模組自動連動，不可改名','error');
+    return;
+  }
+  const newName = prompt('修改項目名稱：', oldName);
+  if (newName === null) return;
+  const trimmed = newName.trim();
+  if (!trimmed) { showToast('名稱不可為空','error'); return; }
+  if (trimmed === oldName) return;
+  if (OH_FIXED_CONFIG.includes(trimmed)) { showToast('已有相同名稱的項目','error'); return; }
+  OH_FIXED_CONFIG[idx] = trimmed;
+  renderOverhead();
+  saveData();
+  showToast(`已將「${oldName}」改名為「${trimmed}」`, 'success');
 }
 function ohCopyFixedFromPrevMonth() {
   if (!requireManage('overhead')) return;
