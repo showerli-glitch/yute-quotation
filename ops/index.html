@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.10 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.11 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1482,7 +1482,7 @@ body.auth-pending .auth-screen{display:flex}
         <div class="kpi-sub" id="rv-stat-pending-count">—</div>
       </div>
       <div class="kpi-card" style="padding:10px 16px">
-        <div class="kpi-label">發票未開立</div>
+        <div class="kpi-label">待開發票</div>
         <div class="kpi-val" id="rv-stat-noinv-count" style="font-size:20px">—</div>
         <div class="kpi-sub">待開發票筆數</div>
       </div>
@@ -5473,7 +5473,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.10', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.11', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
@@ -5533,7 +5533,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.10', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.11', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -9612,7 +9612,7 @@ function renderReceivable() {
         <td class="rv-col-bank" style="padding:10px 14px;text-align:center;font-size:12px">${bankShort(r.bank)}</td>
         <td class="rv-col-invoice-amount" style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${r.invoiceAmt ? '$'+r.invoiceAmt.toLocaleString('zh-TW') : '—'}</td>
         <td class="rv-col-invoice-date" style="padding:10px 14px;text-align:center;font-size:12px;white-space:nowrap">${r.invoiceDate||'<span style="color:var(--text3)">—</span>'}</td>
-        <td class="rv-col-invoice-no" style="padding:10px 14px;text-align:center;font-size:12px;font-family:'DM Mono',monospace">${r.invoiceNo||'<span style="color:var(--warning);font-family:inherit">待開立</span>'}</td>
+        <td class="rv-col-invoice-no" style="padding:10px 14px;text-align:center;font-size:12px;font-family:'DM Mono',monospace">${rvInvoiceNoCell(r)}</td>
         <td class="rv-col-contract" style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${r.contractAmt ? '$'+r.contractAmt.toLocaleString('zh-TW') : '—'}</td>
         <td class="rv-col-progress" style="padding:6px 10px;font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${r.progress||''}">${r.progress||'—'}</td>
         <td class="rv-col-link" style="padding:10px 14px;text-align:center;white-space:nowrap">
@@ -9660,7 +9660,7 @@ function updateReceivableStats(scopeRows = null) {
     ? visibleRows.filter(r => r.collectDate?.startsWith(selYearRv) && receivableIsCollected(r))
     : visibleRows.filter(r => receivableIsCollected(r));
   const pending   = visibleRows.filter(r => r.status==='pending');
-  const noInv     = visibleRows.filter(r => !r.invoiceNo);
+  const noInv     = visibleRows.filter(r => rvNeedsInvoice(r) && !r.invoiceNo);
   const sum = (arr, field) => arr.reduce((s,r) => s+(r[field]||0), 0);
   const rvYearLabel = document.getElementById('rv-stat-year-label');
   if (rvYearLabel) rvYearLabel.textContent = selYearRv ? selYearRv+'年累計入帳' : '全部累計入帳';
@@ -9731,6 +9731,16 @@ function rvUpdateNote(id, val) {
   if (!canManage('receivable')) return;
   const r = RECEIVABLES.find(x => x.id===id);
   if (r) { r.note = val; touchRowMeta(r); saveData(); }
+}
+
+function rvNeedsInvoice(row) {
+  return Number(row?.invoiceAmt || 0) > 0 || !!row?.invoiceDate || !!row?.invoiceNo;
+}
+
+function rvInvoiceNoCell(row) {
+  if (row?.invoiceNo) return row.invoiceNo;
+  if (rvNeedsInvoice(row)) return '<span style="color:var(--warning);font-family:inherit">待開立</span>';
+  return '<span style="color:var(--text3);font-family:inherit">不開立／合併</span>';
 }
 
 function rvFillClientOptions(selectedCode = '') {
