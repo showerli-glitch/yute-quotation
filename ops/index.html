@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.6 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.7 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -9099,7 +9099,7 @@ function confirmApprove() {
   const bank   = document.getElementById('ap-bank').value;
   const date   = document.getElementById('ap-transfer-date').value;
   const vendor = document.getElementById('ap-vendor').value.trim();
-  const amtRaw = document.getElementById('ap-amount').value.replace(/[^0-9]/g,'');
+  const amtRaw = document.getElementById('ap-amount').value.replace(/[^0-9\-]/g,'');
   if (!vendor) { showToast('請填寫受款廠商', 'error'); return; }
   if (!bank)   { showToast('請選擇付款銀行', 'error'); return; }
   if (!date)   { showToast('請填寫預約匯款日', 'error'); return; }
@@ -9376,7 +9376,7 @@ function submitAddPayable() {
   if (!vendor)  { showToast('請填寫受款廠商', 'error'); return; }
   if (!amount)  { showToast('請填寫金額', 'error'); return; }
   if (!summary) { showToast('請填寫摘要', 'error'); return; }
-  const amtNum   = parseInt(amount.replace(/[^0-9]/g,''));
+  const amtNum   = parseInt(amount.replace(/[^0-9\-]/g,''));
   const caseName = caseVal ? (caseEl.selectedOptions[0].text.split(' ').slice(1).join(' ')) : '';
   let affectedCase = shouldKeepCase ? caseVal : '';
 
