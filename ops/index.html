@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.12 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.14 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -2382,6 +2382,21 @@ body.auth-pending .auth-screen{display:flex}
         <div class="form-field form-full">
           <label class="form-label">備註</label>
           <textarea class="form-textarea" id="emp-f-note" placeholder="其他說明" rows="3"></textarea>
+        </div>
+      </div>
+      <!-- 模組細部權限（OWNER 編輯既有員工才顯示） -->
+      <div id="emp-perm-section" style="display:none;margin-top:16px">
+        <div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;padding-top:14px;border-top:1px solid var(--border)">模組細部權限</div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px" id="emp-perm-table">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border)">
+                <th style="text-align:left;padding:5px 8px;font-weight:500;color:var(--text3);font-size:11px;width:140px">模組</th>
+                <th style="text-align:left;padding:5px 8px;font-weight:500;color:var(--text3);font-size:11px">權限等級</th>
+              </tr>
+            </thead>
+            <tbody id="emp-perm-tbody"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -4133,6 +4148,17 @@ function psCaseNameSort(a, b) {
   return String(a?.code || '').localeCompare(String(b?.code || ''));
 }
 
+function normalizeEmployeeEmploymentStatus() {
+  const today = localDateKey();
+  EMPLOYEES.forEach(e => {
+    if (empEffectiveStatus(e, today) !== '已離職') return;
+    e.status = '已離職';
+    e.accessRole = 'none';
+    e.attendanceRequired = false;
+    e.profitEligible = false;
+  });
+}
+
 function normalizeCompanyData() {
   [CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, PAYROLL, CLIENTS, VENDORS, EMPLOYEES, PROFIT_SETTLEMENTS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, AUDIT_LOGS]
     .forEach(tagCompany);
@@ -4140,6 +4166,7 @@ function normalizeCompanyData() {
     if (!('email' in e)) e.email = '';
     if (e.id === 'nc' && !e.email) e.email = 'nc@yutesign.com';
   });
+  normalizeEmployeeEmploymentStatus();
   PROFIT_SETTLEMENTS.forEach(settlement => {
     [settlement.cases, settlement.ohMonths, settlement.persons].forEach(tagCompany);
   });
@@ -4261,6 +4288,16 @@ function defaultEmployeeAccessRole(e) {
 function employeeAccessRole(e) {
   return e?.accessRole || defaultEmployeeAccessRole(e);
 }
+function localDateKey(date = new Date()) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+function empEffectiveStatus(e, today = localDateKey()) {
+  if (!e) return '在職';
+  const endDate = String(e.endDate || '').trim();
+  if (e.status === '已離職' || (endDate && endDate <= today)) return '已離職';
+  return e.status || '在職';
+}
 function requireManage(page, message='您沒有修改此資料的權限') {
   if (canManage(page)) return true;
   showToast(message, 'error');
@@ -4329,7 +4366,7 @@ let EMPLOYEES = [
   {id:'lien', name:'連星羽', role:'設計師', email:'lien@yutesign.com', profitEligible:true, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'獨立作業；薪資視為分潤預支，免打卡'},
   {id:'sun',  name:'孫一宣', role:'行銷行政', email:'sun@yutesign.com', profitEligible:false, attendanceRequired:false, startDate:'', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'既有制度過渡；預計 2026-07 中旬離職，後續外包採分潤制，不納入打卡規範'},
   {id:'lu_yanchen', name:'盧彥辰', role:'設計助理', email:'lu@yutesign.com', accessRole:'design', profitEligible:false, attendanceRequired:true, startDate:'2026-06-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-06-01 到職；設計助理；2026-06-29 正式開通 OPS 登入，模組權限仍以 USER_PERMISSIONS.lu_yanchen 為準'},
-  {id:'chen_hongjun', name:'陳虹君', role:'會計', email:'wendy@yutesign.com', accessRole:'accounting', profitEligible:false, attendanceRequired:true, startDate:'2026-07-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'在職', endDate:'', endReason:'', note:'2026-07-01 到職；會計；提前於 2026-06-29 開通 OPS 登入測試，模組權限仍以 USER_PERMISSIONS.chen_hongjun 為準'},
+  {id:'chen_hongjun', name:'陳虹君', role:'會計', email:'wendy@yutesign.com', accessRole:'none', profitEligible:false, attendanceRequired:false, startDate:'2026-07-01', contact:'', laborInsuranceDate:'', healthInsuranceDate:'', idNumber:'', emergencyContact:'', address:'', status:'已離職', endDate:'2026-07-15', endReason:'離職', note:'2026-07-01 到職；2026-07-15 離職；OPS 登入已停用'},
 ];
 const INIT_EMPLOYEES = JSON.parse(JSON.stringify(EMPLOYEES));
 const CODEX_REQUIRED_EMPLOYEES = INIT_EMPLOYEES
@@ -5288,7 +5325,7 @@ function ensureCodexSeedData() {
   CODEX_REQUIRED_EMPLOYEES.forEach(seed => {
     const row = EMPLOYEES.find(e => e.id === seed.id);
     if (!row) return;
-    ['name','role','email','accessRole','attendanceRequired','startDate','status','note'].forEach(field => {
+    ['name','role','email','accessRole','attendanceRequired','startDate','status','endDate','endReason','note'].forEach(field => {
       if (row[field] === undefined || row[field] === null || row[field] === '') row[field] = seed[field];
     });
   });
@@ -5473,8 +5510,9 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.12', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.13', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
+    USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
     pyNextId, rvNextId, empNextId, tfNextId, attNextId, attLeaveNextId, auditNextId, expNextId: (typeof expNextId !== 'undefined' ? expNextId : 1),
     savedAt: new Date().toISOString()
@@ -5533,7 +5571,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.12', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.13', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -5933,6 +5971,11 @@ function applyDataSnapshot(d) {
   attLeaveNextId = Math.max(Number(attLeaveNextId) || 1, Math.max(0, ...ATTENDANCE_LEAVES.map(r => Number(r.id) || 0)) + 1);
   auditNextId = Math.max(Number(auditNextId) || 1, Math.max(0, ...AUDIT_LOGS.map(r => Number(r.id) || 0)) + 1);
   if (d.expNextId && typeof expNextId !== 'undefined') expNextId = d.expNextId;
+  if (d.USER_PERMISSIONS && typeof d.USER_PERMISSIONS === 'object') {
+    Object.entries(d.USER_PERMISSIONS).forEach(([uid, perms]) => {
+      if (perms && typeof perms === 'object') USER_PERMISSIONS[uid] = { ...USER_PERMISSIONS[uid], ...perms };
+    });
+  }
   normalizeCompanyData();
   return true;
 }
@@ -6024,7 +6067,7 @@ function clearData() {
 function opsAuthUserByEmail(email) {
   const normalized = String(email || '').trim().toLowerCase();
   const emp = EMPLOYEES.find(e =>
-    e.status !== '已離職' &&
+    empEffectiveStatus(e) !== '已離職' &&
     String(e.email || '').trim().toLowerCase() === normalized &&
     employeeAccessRole(e) !== 'none'
   );
@@ -6952,7 +6995,7 @@ function applyRole(user) {
 function initRoleOptions() {
   const container = document.getElementById('role-options');
   const attendanceUsers = EMPLOYEES
-    .filter(e => e.status !== '已離職' && e.attendanceRequired !== false && !USERS.some(u => u.id === e.id))
+    .filter(e => empEffectiveStatus(e) !== '已離職' && e.attendanceRequired !== false && !USERS.some(u => u.id === e.id))
     .map(opsTestUserFromAttendanceEmployee);
   const testUsers = [...USERS, ...attendanceUsers].filter(u => {
     const emp = EMPLOYEES.find(e => e.id === u.id);
@@ -6979,7 +7022,7 @@ function switchRole(id) {
     return;
   }
   const user = USERS.find(u => u.id === id)
-    || (EMPLOYEES.find(e => e.id === id && e.status !== '已離職' && e.attendanceRequired !== false) ? opsTestUserFromAttendanceEmployee(EMPLOYEES.find(e => e.id === id)) : null)
+    || (EMPLOYEES.find(e => e.id === id && empEffectiveStatus(e) !== '已離職' && e.attendanceRequired !== false) ? opsTestUserFromAttendanceEmployee(EMPLOYEES.find(e => e.id === id)) : null)
     || (currentUser?.id === id ? currentUser : null);
   if (!user) return;
   const employee = EMPLOYEES.find(e => e.id === id);
@@ -7933,7 +7976,7 @@ function renderFeedback() {
 
 function attPeople() {
   return EMPLOYEES
-    .filter(e => e.status !== '已離職' && e.attendanceRequired !== false)
+    .filter(e => empEffectiveStatus(e) !== '已離職' && e.attendanceRequired !== false)
     .map(e => ({ id:e.id, name:e.name }));
 }
 
@@ -11494,7 +11537,7 @@ function isCostControlPayment(p) {
 
 function psParticipantList() {
   const owner = { id:'shower', name:'李鎮宇' };
-  const employees = EMPLOYEES.filter(e => e.profitEligible && e.status !== '已離職')
+  const employees = EMPLOYEES.filter(e => e.profitEligible && empEffectiveStatus(e) !== '已離職')
     .map(e => ({ id:e.id, name:e.name }));
   return [owner, ...employees.filter(e => e.id !== owner.id)];
 }
@@ -12984,8 +13027,9 @@ function renderEmployees() {
   const kw = (document.getElementById('emp-search')?.value || '').toLowerCase();
   const statusF = document.getElementById('emp-filter-status')?.value || '';
   let list = EMPLOYEES.filter(e => {
+    const status = empEffectiveStatus(e);
     const matchKw = !kw || `${e.name} ${e.role} ${e.email || ''} ${EMP_ACCESS_ROLES[employeeAccessRole(e)] || ''} ${e.attendanceRequired === false ? '免打卡' : '需打卡'}`.toLowerCase().includes(kw);
-    const matchStatus = !statusF || e.status === statusF;
+    const matchStatus = !statusF || status === statusF;
     return matchKw && matchStatus;
   });
   const tbody = document.getElementById('emp-tbody');
@@ -12994,7 +13038,9 @@ function renderEmployees() {
     tbody.innerHTML = `<tr><td colspan="12" style="padding:32px;text-align:center;color:var(--text3)">無符合條件的員工</td></tr>`;
     return;
   }
-  tbody.innerHTML = list.map(e => `
+  tbody.innerHTML = list.map(e => {
+    const status = empEffectiveStatus(e);
+    return `
     <tr>
       <td style="font-weight:500">${e.name}</td>
       <td style="font-size:12px;color:var(--text2)">${e.role||'—'}</td>
@@ -13005,13 +13051,43 @@ function renderEmployees() {
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text3)">${e.healthInsuranceDate||'—'}</td>
       <td><span class="tag" style="font-size:10px;${employeeAccessRole(e)==='none'?'opacity:.55':''}">${EMP_ACCESS_ROLES[employeeAccessRole(e)] || EMP_ACCESS_ROLES.none}</span></td>
       <td><span class="tag" style="font-size:10px;${e.attendanceRequired===false?'opacity:.55':''}">${e.attendanceRequired === false ? '免打卡' : '需打卡'}</span></td>
-      <td><span class="tag" style="font-size:10px;${e.status==='已離職'?'opacity:.6':''}">${e.status||'在職'}</span></td>
+      <td><span class="tag" style="font-size:10px;${status==='已離職'?'opacity:.6':''}">${status}</span></td>
       <td style="font-size:12px;color:var(--text3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.profitEligible?'<span style="color:var(--accent)">可參與分潤</span> · ':''}${e.note||'—'}</td>
       <td style="text-align:center;white-space:nowrap">
         ${manage ? `<button class="btn btn-ghost btn-sm" onclick="openEmployeeModal('${e.id}')">編輯</button>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>'}
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
+
+const EMP_PERM_MODULES = [
+  {key:'dashboard',   label:'儀表板'},
+  {key:'payreq',      label:'廠商請款'},
+  {key:'payable',     label:'應付帳款'},
+  {key:'receivable',  label:'應收帳款'},
+  {key:'expense',     label:'費用申請'},
+  {key:'overhead',    label:'公司開銷'},
+  {key:'payroll',     label:'薪資管理'},
+  {key:'attendance',  label:'出勤記錄'},
+  {key:'profit',      label:'成本控制'},
+  {key:'profitshare', label:'分潤設定'},
+  {key:'contract',    label:'合約管理'},
+  {key:'quotation',   label:'報價系統'},
+  {key:'feedback',    label:'客戶回饋'},
+  {key:'systemnotes', label:'系統筆記'},
+  {key:'employees',   label:'員工管理'},
+  {key:'clients',     label:'客戶主檔'},
+  {key:'vendors',     label:'廠商主檔'},
+];
+const EMP_PERM_LEVELS = [
+  {value:'manage',               label:'完整管理'},
+  {value:'view_all',             label:'查看全部'},
+  {value:'view_all_apply_self',  label:'查看全部＋申請自己'},
+  {value:'view_self_apply_self', label:'查看自己＋申請自己'},
+  {value:'view_self',            label:'查看自己'},
+  {value:'view_profit_cases',    label:'查看有份量案件'},
+  {value:'none',                 label:'無權限'},
+];
 
 function openEmployeeModal(id) {
   if (!requireManage('employees')) return;
@@ -13022,7 +13098,7 @@ function openEmployeeModal(id) {
   fields.forEach(f => {
     const el = document.getElementById('emp-f-'+f);
     if (!el) return;
-    el.value = e ? (e[f]||(f==='status'?'在職':'')) : (f==='status'?'在職':'');
+    el.value = e ? (f === 'status' ? empEffectiveStatus(e) : (e[f] || '')) : (f==='status'?'在職':'');
   });
   const accessEl = document.getElementById('emp-f-accessRole');
   if (accessEl) {
@@ -13033,6 +13109,31 @@ function openEmployeeModal(id) {
   if (profitEl) profitEl.checked = !!e?.profitEligible;
   const attendanceEl = document.getElementById('emp-f-attendanceRequired');
   if (attendanceEl) attendanceEl.checked = e ? e.attendanceRequired !== false : true;
+  // 權限矩陣（OWNER 編輯既有員工才顯示）
+  const permSection = document.getElementById('emp-perm-section');
+  const permTbody = document.getElementById('emp-perm-tbody');
+  if (permSection && permTbody) {
+    const isOwner = currentUser.roleCode === 'OWNER';
+    const isEdit = !!e;
+    permSection.style.display = (isOwner && isEdit) ? '' : 'none';
+    if (isOwner && isEdit) {
+      const curPerms = USER_PERMISSIONS[e.id] || {};
+      const optHtml = EMP_PERM_LEVELS.map(l => `<option value="${l.value}">${l.label}</option>`).join('');
+      permTbody.innerHTML = EMP_PERM_MODULES.map(m => {
+        const cur = curPerms[m.key] || 'none';
+        return `<tr style="border-bottom:1px solid var(--border2)">
+          <td style="padding:5px 8px;color:var(--text2);font-size:12px;white-space:nowrap">${m.label}</td>
+          <td style="padding:4px 8px">
+            <select class="form-select" id="ep-${m.key}" style="font-size:12px;padding:3px 8px;height:28px">${optHtml}</select>
+          </td>
+        </tr>`;
+      }).join('');
+      EMP_PERM_MODULES.forEach(m => {
+        const sel = document.getElementById('ep-'+m.key);
+        if (sel) sel.value = curPerms[m.key] || 'none';
+      });
+    }
+  }
   openModal('modal-employee');
 }
 
@@ -13061,9 +13162,24 @@ function submitEmployee() {
   }
   const accessEl = document.getElementById('emp-f-accessRole');
   if (currentUser.roleCode === 'OWNER') obj.accessRole = accessEl?.value || 'none';
+  if (empEffectiveStatus(obj) === '已離職') {
+    obj.status = '已離職';
+    obj.accessRole = 'none';
+    obj.attendanceRequired = false;
+    obj.profitEligible = false;
+  }
   if (empEditId) {
     const idx = EMPLOYEES.findIndex(x => x.id === empEditId);
     if (idx >= 0) EMPLOYEES[idx] = { ...EMPLOYEES[idx], ...obj };
+    // 儲存細部權限（OWNER 才有權限矩陣）
+    if (currentUser.roleCode === 'OWNER' && document.getElementById('emp-perm-section')?.style.display !== 'none') {
+      const perms = {};
+      EMP_PERM_MODULES.forEach(m => {
+        const sel = document.getElementById('ep-'+m.key);
+        if (sel) perms[m.key] = sel.value;
+      });
+      USER_PERMISSIONS[empEditId] = perms;
+    }
     showToast('員工資料已更新', 'success');
   } else {
     EMPLOYEES.push({ id: 'emp'+(empNextId++), accessRole:'none', ...obj });
