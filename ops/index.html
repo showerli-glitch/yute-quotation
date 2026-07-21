@@ -1075,8 +1075,8 @@ body.auth-pending .auth-screen{display:flex}
   </div>
 
   <div class="sidebar-scroll">
-    <div class="nav-section">主要功能</div>
-    <div class="nav-item active" onclick="navTo('dashboard',this)">
+    <div class="nav-section" id="nav-sec-main">主要功能</div>
+    <div class="nav-item active" id="nav-dashboard" onclick="navTo('dashboard',this)">
       <span class="nav-icon">◈</span>個案總覽
     </div>
     <div class="nav-item" id="nav-payreq" onclick="navTo('payreq',this)">
@@ -1111,15 +1111,15 @@ body.auth-pending .auth-screen{display:flex}
       <span class="nav-icon">◎</span>淨利潤儀表
     </div>
 
-    <div class="nav-section">工程</div>
-    <div class="nav-item" onclick="navTo('contract',this)">
+    <div class="nav-section" id="nav-sec-engineering">工程</div>
+    <div class="nav-item" id="nav-contract" onclick="navTo('contract',this)">
       <span class="nav-icon">◑</span>合約管理
     </div>
-    <div class="nav-item" onclick="navTo('quotation',this)">
+    <div class="nav-item" id="nav-quotation" onclick="navTo('quotation',this)">
       <span class="nav-icon">◐</span>報價系統
     </div>
 
-    <div class="nav-section">測試</div>
+    <div class="nav-section" id="nav-sec-test">測試</div>
     <div class="nav-item" id="nav-feedback" onclick="navTo('feedback',this)">
       <span class="nav-icon">◌</span>測試回饋
     </div>
@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.16 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.17 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5510,7 +5510,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.16', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.17', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5571,7 +5571,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.16', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.17', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6821,6 +6821,31 @@ const PAGE_TITLES = {
   clients:    ['客戶主檔',      'Client Master'],
   vendors:    ['廠商主檔',      'Vendor Master'],
 };
+const PAGE_NAV_IDS = {
+  dashboard: 'nav-dashboard',
+  payreq: 'nav-payreq',
+  payable: 'nav-payable',
+  receivable: 'nav-receivable',
+  expense: 'nav-expense',
+  overhead: 'nav-overhead',
+  payroll: 'nav-payroll',
+  attendance: 'nav-attendance',
+  profit: 'nav-profit',
+  profitshare: 'nav-profitshare',
+  contract: 'nav-contract',
+  quotation: 'nav-quotation',
+  feedback: 'nav-feedback',
+  systemnotes: 'nav-systemnotes',
+  employees: 'nav-employees',
+  clients: 'nav-clients',
+  vendors: 'nav-vendors',
+};
+function firstAccessiblePage() {
+  return Object.keys(PAGE_TITLES).find(page => canAccess(page)) || 'dashboard';
+}
+function navElForPage(page) {
+  return document.getElementById(PAGE_NAV_IDS[page] || '');
+}
 
 function toggleMobileSidebar(force) {
   const sidebar = document.getElementById('sidebar');
@@ -6933,36 +6958,18 @@ function applyRole(user) {
   document.getElementById('sb-name').textContent = user.name;
   document.getElementById('sb-role').textContent = user.roleCode;
 
-  // Show/hide nav based on permissions
-  const navMap = {
-    'dashboard':  null,
-    'payreq':     'nav-payreq',
-    'payable':    'nav-payable',
-    'receivable': 'nav-receivable',
-    'expense':    'nav-expense',
-    'overhead':   'nav-overhead',
-    'payroll':    'nav-payroll',
-    'attendance': 'nav-attendance',
-    'profit':     'nav-profit',
-    'profitshare':'nav-profitshare',
-    'feedback':   'nav-feedback',
-    'systemnotes':'nav-systemnotes',
-    'employees':  'nav-employees',
-    'clients':    'nav-clients',
-    'vendors':    'nav-vendors',
+  // Show/hide nav based on the effective permission matrix.
+  const setSectionVisible = (id, pages) => {
+    const section = document.getElementById(id);
+    if (section) section.style.display = pages.some(canAccess) ? '' : 'none';
   };
-  const financeSection = document.getElementById('nav-sec-finance');
-  const financePages = ['overhead','profit','profitshare'];
-  const showFinance = financePages.some(p => user.nav.includes(p));
-  financeSection.style.display = showFinance ? '' : 'none';
+  setSectionVisible('nav-sec-main', ['dashboard','payreq','payable','receivable']);
+  setSectionVisible('nav-sec-finance', ['expense','overhead','payroll','attendance','profit','profitshare']);
+  setSectionVisible('nav-sec-engineering', ['contract','quotation']);
+  setSectionVisible('nav-sec-test', ['feedback','systemnotes']);
+  setSectionVisible('nav-sec-master', ['employees','clients','vendors']);
 
-  const masterSection = document.getElementById('nav-sec-master');
-  const masterPages = ['clients','vendors'];
-  const showMaster = masterPages.some(p => user.nav.includes(p));
-  if (masterSection) masterSection.style.display = showMaster ? '' : 'none';
-
-  Object.entries(navMap).forEach(([page, navId]) => {
-    if (!navId) return;
+  Object.entries(PAGE_NAV_IDS).forEach(([page, navId]) => {
     const el = document.getElementById(navId);
     if (el) el.style.display = canAccess(page) ? '' : 'none';
   });
@@ -7036,8 +7043,8 @@ function switchRole(id) {
   initRoleOptions();
   // If current page not permitted, go to first allowed
   if (!canAccess(currentPage)) {
-    const firstPage = user.nav[0] || 'dashboard';
-    const firstNavItem = document.querySelector('.nav-item');
+    const firstPage = firstAccessiblePage();
+    const firstNavItem = navElForPage(firstPage);
     navTo(firstPage, firstNavItem);
   }
   showToast(`已切換至：${user.name}（${user.roleCode}）`, 'success');
