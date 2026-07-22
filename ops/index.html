@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.23 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.24 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5534,7 +5534,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.23', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.24', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5595,7 +5595,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.23', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.24', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6306,8 +6306,21 @@ function opsCloudMapRows(rows) {
   return map;
 }
 
+function opsCloudMapRowsBy(rows, keyFn) {
+  const map = new Map();
+  (rows || []).forEach(row => {
+    const key = keyFn(row);
+    if (key) map.set(key, row);
+  });
+  return map;
+}
+
 function opsCloudNextNumericId(rows) {
   return Math.max(0, ...(rows || []).map(row => Number(row?.id) || 0)) + 1;
+}
+
+function rowHasNonNumericId(row) {
+  return row?.id !== undefined && row?.id !== null && row?.id !== '' && !Number.isFinite(Number(row.id));
 }
 
 function opsCloudMergeAuditLogs(remoteData, localData) {
@@ -6364,6 +6377,179 @@ function opsCloudMergeUserPermissions(baseData, localData, remoteData) {
   });
   if (conflicts.length) return { ok:false, conflicts };
   return { ok:true, data:out };
+}
+
+function opsCloudMergeRowsByKey(baseRows, localRows, remoteRows, options = {}) {
+  const keyFn = options.keyFn || opsCloudRowKey;
+  const baseMap = opsCloudMapRowsBy(baseRows, keyFn);
+  const localMap = opsCloudMapRowsBy(localRows, keyFn);
+  const remoteMap = opsCloudMapRowsBy(remoteRows, keyFn);
+  const mergedRows = (remoteRows || []).map(opsCloudClone);
+  const mergedMap = opsCloudMapRowsBy(mergedRows, keyFn);
+  const conflicts = [];
+  let nextId = Math.max(
+    opsCloudNextNumericId(mergedRows),
+    opsCloudNextNumericId(localRows),
+    Number(options.remoteNextId) || 1,
+    Number(options.localNextId) || 1
+  );
+
+  const putLocalRow = (key, localRow) => {
+    const row = opsCloudClone(localRow);
+    const existing = mergedMap.get(key);
+    if (existing) {
+      const idx = mergedRows.indexOf(existing);
+      if (idx >= 0) mergedRows[idx] = row;
+      mergedMap.set(key, row);
+      return;
+    }
+    if (row.id !== undefined && row.id !== null && mergedRows.some(r => String(r.id) === String(row.id))) {
+      row.id = nextId++;
+    }
+    mergedRows.push(row);
+    mergedMap.set(keyFn(row), row);
+  };
+
+  const allKeys = new Set([...baseMap.keys(), ...localMap.keys()]);
+  allKeys.forEach(key => {
+    const base = baseMap.get(key);
+    const local = localMap.get(key);
+    const remote = remoteMap.get(key);
+    const baseFp = opsCloudRowFingerprint(base);
+    const localFp = opsCloudRowFingerprint(local);
+    const remoteFp = opsCloudRowFingerprint(remote);
+    const localChanged = base ? localFp !== baseFp : !!local;
+    const remoteChanged = base ? remoteFp !== baseFp : !!remote;
+    if (!localChanged) return;
+
+    if (!base && local && remote && remoteFp !== localFp) {
+      if (options.reassignIdOnNewCollision !== true || rowHasNonNumericId(local)) {
+        conflicts.push(key);
+        return;
+      }
+      const row = opsCloudClone(local);
+      row.id = nextId++;
+      mergedRows.push(row);
+      mergedMap.set(keyFn(row), row);
+      return;
+    }
+
+    if (base && !local) {
+      if (remote && remoteChanged) {
+        conflicts.push(key);
+        return;
+      }
+      const existing = mergedMap.get(key);
+      if (existing) {
+        const idx = mergedRows.indexOf(existing);
+        if (idx >= 0) mergedRows.splice(idx, 1);
+        mergedMap.delete(key);
+      }
+      return;
+    }
+
+    if (base && local && remoteChanged && remoteFp !== localFp) {
+      conflicts.push(key);
+      return;
+    }
+    if (local) putLocalRow(key, local);
+  });
+
+  if (conflicts.length) return { ok:false, conflicts };
+  return { ok:true, rows:mergedRows, nextId:Math.max(nextId, opsCloudNextNumericId(mergedRows)) };
+}
+
+function opsCloudChangedOutsideCollection(baseData, localData, allowed) {
+  const keys = new Set([...Object.keys(baseData || {}), ...Object.keys(localData || {})]);
+  for (const key of keys) {
+    if (allowed.has(key)) continue;
+    if (JSON.stringify(baseData?.[key] ?? null) !== JSON.stringify(localData?.[key] ?? null)) return true;
+  }
+  return false;
+}
+
+const OPS_CLOUD_ROW_MERGE_CONFIGS = [
+  { collection:'EXPENSES', nextIdField:'expNextId', label:'費用申請', reassignIdOnNewCollision:true },
+  { collection:'TEST_FEEDBACK', nextIdField:'tfNextId', label:'測試回饋', reassignIdOnNewCollision:true },
+  { collection:'ATTENDANCE_RECORDS', nextIdField:'attNextId', label:'出勤紀錄', reassignIdOnNewCollision:true },
+  { collection:'ATTENDANCE_LEAVES', nextIdField:'attLeaveNextId', label:'請假紀錄', reassignIdOnNewCollision:true },
+  { collection:'CLIENTS', label:'客戶主檔', keyFn: row => row?.code ? `code:${row.code}` : opsCloudRowKey(row) },
+  { collection:'VENDORS', label:'廠商主檔', keyFn: row => row?.code ? `code:${row.code}` : opsCloudRowKey(row) },
+  { collection:'EMPLOYEES', nextIdField:'empNextId', label:'員工主檔', keyFn: row => row?.id ? `id:${row.id}` : '' }
+];
+
+function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) {
+  const allowed = new Set([config.collection,'AUDIT_LOGS','USER_PERMISSIONS','auditNextId','savedAt','appVersion']);
+  if (config.nextIdField) allowed.add(config.nextIdField);
+  if (opsCloudChangedOutsideCollection(baseData, localData, allowed)) return { ok:false, reason:'outside-change' };
+  const mergedPermissions = opsCloudMergeUserPermissions(baseData, localData, remoteData);
+  if (!mergedPermissions.ok) return { ok:false, reason:'user-permission-conflict', conflicts:mergedPermissions.conflicts };
+  const mergedRows = opsCloudMergeRowsByKey(
+    baseData?.[config.collection] || [],
+    localData?.[config.collection] || [],
+    remoteData?.[config.collection] || [],
+    {
+      keyFn: config.keyFn || opsCloudRowKey,
+      localNextId: config.nextIdField ? localData?.[config.nextIdField] : 1,
+      remoteNextId: config.nextIdField ? remoteData?.[config.nextIdField] : 1,
+      reassignIdOnNewCollision: config.reassignIdOnNewCollision === true
+    }
+  );
+  if (!mergedRows.ok) return { ok:false, reason:'row-conflict', conflicts:mergedRows.conflicts };
+  const merged = opsCloudClone(remoteData);
+  merged[config.collection] = mergedRows.rows;
+  merged.USER_PERMISSIONS = mergedPermissions.data;
+  merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
+  if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
+  merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
+  merged.savedAt = new Date().toISOString();
+  merged.appVersion = '1.2.24';
+  return { ok:true, data:merged };
+}
+
+function opsCloudLocalChangedOnlyCollection(baseData, localData, config) {
+  const allowed = new Set([config.collection,'AUDIT_LOGS','USER_PERMISSIONS','auditNextId','savedAt','appVersion']);
+  if (config.nextIdField) allowed.add(config.nextIdField);
+  if (opsCloudChangedOutsideCollection(baseData, localData, allowed)) return false;
+  const baseRows = baseData?.[config.collection] || [];
+  const localRows = localData?.[config.collection] || [];
+  if (JSON.stringify(baseRows) !== JSON.stringify(localRows)) return true;
+  if (config.nextIdField && Number(baseData?.[config.nextIdField] || 1) !== Number(localData?.[config.nextIdField] || 1)) return true;
+  const basePerms = baseData?.USER_PERMISSIONS || {};
+  const localPerms = localData?.USER_PERMISSIONS || {};
+  return JSON.stringify(basePerms) !== JSON.stringify(localPerms);
+}
+
+async function opsCloudTryMergePendingCollection(localSnapshot, config) {
+  if (!opsCloudBaseSnapshot || !localSnapshot) return false;
+  if (!opsCloudLocalChangedOnlyCollection(opsCloudBaseSnapshot, localSnapshot, config)) return false;
+  const snap = await opsCloudRef().get();
+  if (!snap.exists()) return false;
+  const remotePayload = snap.val();
+  const remoteData = remotePayload?.data || remotePayload;
+  const error = validateBackupSnapshot(remoteData);
+  if (error) return false;
+  const merged = opsCloudMergeSingleCollection(opsCloudBaseSnapshot, localSnapshot, remoteData, config);
+  if (!merged.ok) {
+    if (merged.reason === 'row-conflict') {
+      opsCloudLastSummary = `同一筆${config.label}已被其他人更新：${merged.conflicts.length} 筆`;
+    } else if (merged.reason === 'user-permission-conflict') {
+      opsCloudLastSummary = `同一位員工權限已被其他人更新：${merged.conflicts.length} 筆`;
+    }
+    return false;
+  }
+  const payload = await opsCloudSaveNow(merged.data, { force:true });
+  opsApplyCloudPayload(payload, { silent:true });
+  showToast(`已逐筆合併${config.label}並同步雲端`, 'success');
+  return true;
+}
+
+async function opsCloudTryMergePendingOtherRows(localSnapshot) {
+  for (const config of OPS_CLOUD_ROW_MERGE_CONFIGS) {
+    const merged = await opsCloudTryMergePendingCollection(localSnapshot, config);
+    if (merged) return true;
+  }
+  return false;
 }
 
 function opsCloudMergeReceivables(baseData, localData, remoteData) {
@@ -6448,7 +6634,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.23';
+  merged.appVersion = '1.2.24';
   return { ok:true, data:merged };
 }
 
@@ -6567,7 +6753,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.23';
+  merged.appVersion = '1.2.24';
   return { ok:true, data:merged };
 }
 
@@ -6709,6 +6895,9 @@ function opsCloudFlushPendingSave() {
         if (merged) return true;
         return opsCloudTryMergePendingPayables(frozen);
       }).then(merged => {
+        if (merged) return true;
+        return opsCloudTryMergePendingOtherRows(frozen);
+      }).then(merged => {
         if (merged) {
           opsCloudConsecutiveFailures = 0;
           opsCloudPendingSync = false;
@@ -6720,7 +6909,7 @@ function opsCloudFlushPendingSave() {
           showCloudConflictModal();
         }
       }).catch(mergeErr => {
-        console.warn('OPS receivable merge failed:', mergeErr);
+        console.warn('OPS row merge failed:', mergeErr);
         showCloudConflictModal();
       });
     } else {
