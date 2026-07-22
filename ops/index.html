@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.22 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.23 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5534,7 +5534,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.22', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.23', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5595,7 +5595,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.22', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.23', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6329,7 +6329,7 @@ function opsCloudMergeAuditLogs(remoteData, localData) {
 }
 
 function opsCloudChangedOutsideReceivables(baseData, localData) {
-  const allowed = new Set(['RECEIVABLES','AUDIT_LOGS','rvNextId','auditNextId','savedAt','appVersion']);
+  const allowed = new Set(['RECEIVABLES','AUDIT_LOGS','USER_PERMISSIONS','rvNextId','auditNextId','savedAt','appVersion']);
   const keys = new Set([...Object.keys(baseData || {}), ...Object.keys(localData || {})]);
   for (const key of keys) {
     if (allowed.has(key)) continue;
@@ -6338,9 +6338,39 @@ function opsCloudChangedOutsideReceivables(baseData, localData) {
   return false;
 }
 
+function opsCloudMergeUserPermissions(baseData, localData, remoteData) {
+  const basePerms = baseData?.USER_PERMISSIONS || {};
+  const localPerms = localData?.USER_PERMISSIONS || {};
+  const remotePerms = remoteData?.USER_PERMISSIONS || {};
+  const out = opsCloudClone(remotePerms) || {};
+  const conflicts = [];
+  const keys = new Set([...Object.keys(basePerms), ...Object.keys(localPerms)]);
+  keys.forEach(key => {
+    const baseHas = Object.prototype.hasOwnProperty.call(basePerms, key);
+    const localHas = Object.prototype.hasOwnProperty.call(localPerms, key);
+    const remoteHas = Object.prototype.hasOwnProperty.call(remotePerms, key);
+    const baseFp = baseHas ? JSON.stringify(basePerms[key]) : '';
+    const localFp = localHas ? JSON.stringify(localPerms[key]) : '';
+    const remoteFp = remoteHas ? JSON.stringify(remotePerms[key]) : '';
+    const localChanged = localFp !== baseFp;
+    const remoteChanged = remoteFp !== baseFp;
+    if (!localChanged) return;
+    if (remoteChanged && remoteFp !== localFp) {
+      conflicts.push(key);
+      return;
+    }
+    if (localHas) out[key] = opsCloudClone(localPerms[key]);
+    else delete out[key];
+  });
+  if (conflicts.length) return { ok:false, conflicts };
+  return { ok:true, data:out };
+}
+
 function opsCloudMergeReceivables(baseData, localData, remoteData) {
   if (!baseData || !localData || !remoteData) return { ok:false, reason:'missing-base' };
   if (opsCloudChangedOutsideReceivables(baseData, localData)) return { ok:false, reason:'outside-receivable-change' };
+  const mergedPermissions = opsCloudMergeUserPermissions(baseData, localData, remoteData);
+  if (!mergedPermissions.ok) return { ok:false, reason:'user-permission-conflict', conflicts:mergedPermissions.conflicts };
   const baseRows = baseData.RECEIVABLES || [];
   const localRows = localData.RECEIVABLES || [];
   const remoteRows = remoteData.RECEIVABLES || [];
@@ -6413,11 +6443,12 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
 
   const merged = opsCloudClone(remoteData);
   merged.RECEIVABLES = mergedRows;
+  merged.USER_PERMISSIONS = mergedPermissions.data;
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.22';
+  merged.appVersion = '1.2.23';
   return { ok:true, data:merged };
 }
 
@@ -6433,6 +6464,8 @@ async function opsCloudTryMergePendingReceivables(localSnapshot) {
   if (!merged.ok) {
     if (merged.reason === 'row-conflict') {
       opsCloudLastSummary = `同一筆應收帳款已被其他人更新：${merged.conflicts.length} 筆`;
+    } else if (merged.reason === 'user-permission-conflict') {
+      opsCloudLastSummary = `同一位員工權限已被其他人更新：${merged.conflicts.length} 筆`;
     }
     return false;
   }
@@ -6443,7 +6476,7 @@ async function opsCloudTryMergePendingReceivables(localSnapshot) {
 }
 
 function opsCloudChangedOutsidePayables(baseData, localData) {
-  const allowed = new Set(['PAYABLES','AUDIT_LOGS','pyNextId','auditNextId','savedAt','appVersion']);
+  const allowed = new Set(['PAYABLES','AUDIT_LOGS','USER_PERMISSIONS','pyNextId','auditNextId','savedAt','appVersion']);
   const keys = new Set([...Object.keys(baseData || {}), ...Object.keys(localData || {})]);
   for (const key of keys) {
     if (allowed.has(key)) continue;
@@ -6455,6 +6488,8 @@ function opsCloudChangedOutsidePayables(baseData, localData) {
 function opsCloudMergePayables(baseData, localData, remoteData) {
   if (!baseData || !localData || !remoteData) return { ok:false, reason:'missing-base' };
   if (opsCloudChangedOutsidePayables(baseData, localData)) return { ok:false, reason:'outside-payable-change' };
+  const mergedPermissions = opsCloudMergeUserPermissions(baseData, localData, remoteData);
+  if (!mergedPermissions.ok) return { ok:false, reason:'user-permission-conflict', conflicts:mergedPermissions.conflicts };
   const baseRows = baseData.PAYABLES || [];
   const localRows = localData.PAYABLES || [];
   const remoteRows = remoteData.PAYABLES || [];
@@ -6527,11 +6562,12 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
 
   const merged = opsCloudClone(remoteData);
   merged.PAYABLES = mergedRows;
+  merged.USER_PERMISSIONS = mergedPermissions.data;
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.22';
+  merged.appVersion = '1.2.23';
   return { ok:true, data:merged };
 }
 
@@ -6547,6 +6583,8 @@ async function opsCloudTryMergePendingPayables(localSnapshot) {
   if (!merged.ok) {
     if (merged.reason === 'row-conflict') {
       opsCloudLastSummary = `同一筆應付帳款已被其他人更新：${merged.conflicts.length} 筆`;
+    } else if (merged.reason === 'user-permission-conflict') {
+      opsCloudLastSummary = `同一位員工權限已被其他人更新：${merged.conflicts.length} 筆`;
     }
     return false;
   }
