@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.18 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.19 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4252,18 +4252,19 @@ function canSeeRestrictedCase(c) { return !c?.excludeFromProfitReports || canSee
 function ensureLuYanchenOpsAccess() {
   const emp = EMPLOYEES.find(e => e.id === 'lu_yanchen');
   if (!emp || empEffectiveStatus(emp) === '已離職') return;
-  emp.email = String(emp.email || '').trim().toLowerCase() || 'lu@yutesign.com';
-  emp.accessRole = 'design';
-  emp.attendanceRequired = true;
-  emp.profitEligible = false;
+  const marker = '2026-07-21 OPS 登入開通確認';
   const note = String(emp.note || '');
-  if (!note.includes('2026-07-21 OPS 登入開通確認')) {
-    emp.note = `${note}${note ? '；' : ''}2026-07-21 OPS 登入開通確認`;
+  if (!note.includes(marker)) {
+    emp.email = String(emp.email || '').trim().toLowerCase() || 'lu@yutesign.com';
+    if (!emp.accessRole || emp.accessRole === 'none') emp.accessRole = 'design';
+    emp.attendanceRequired = true;
+    emp.profitEligible = false;
+    emp.note = `${note}${note ? '；' : ''}${marker}`;
   }
   const current = USER_PERMISSIONS.lu_yanchen || {};
   USER_PERMISSIONS.lu_yanchen = { ...current };
   Object.entries(LU_YANCHEN_OPS_PERMISSIONS).forEach(([page, level]) => {
-    if (!USER_PERMISSIONS.lu_yanchen[page] || USER_PERMISSIONS.lu_yanchen[page] === 'none') {
+    if (!Object.prototype.hasOwnProperty.call(USER_PERMISSIONS.lu_yanchen, page)) {
       USER_PERMISSIONS.lu_yanchen[page] = level;
     }
   });
@@ -5532,7 +5533,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.18', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.19', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5593,7 +5594,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.18', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.19', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
