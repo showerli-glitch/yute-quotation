@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.19 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.20 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3703,6 +3703,7 @@ let opsCloudSaveTimer = null;
 let opsCloudLastSavedAt = '';
 let opsCloudLastSavedBy = '';
 let opsCloudLastSummary = '';
+let opsCloudBaseSnapshot = null;
 let opsCloudConflict = false;
 let opsCloudPendingSync = false;
 let opsCloudPendingSnapshot = null;
@@ -5533,7 +5534,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.19', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.20', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5594,7 +5595,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.19', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.20', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6279,6 +6280,168 @@ function opsCloudPayloadSavedAt(payload) {
   return meta.savedAt || data?.savedAt || '';
 }
 
+function opsCloudClone(value) {
+  return JSON.parse(JSON.stringify(value || null));
+}
+
+function opsCloudRowKey(row) {
+  if (!row || typeof row !== 'object') return '';
+  if (row.id !== undefined && row.id !== null && row.id !== '') return `id:${row.id}`;
+  if (row.sourceKey) return `source:${row.sourceKey}`;
+  return '';
+}
+
+function opsCloudRowFingerprint(row) {
+  if (!row || typeof row !== 'object') return '';
+  const clean = opsCloudClone(row);
+  return JSON.stringify(clean);
+}
+
+function opsCloudMapRows(rows) {
+  const map = new Map();
+  (rows || []).forEach(row => {
+    const key = opsCloudRowKey(row);
+    if (key) map.set(key, row);
+  });
+  return map;
+}
+
+function opsCloudNextNumericId(rows) {
+  return Math.max(0, ...(rows || []).map(row => Number(row?.id) || 0)) + 1;
+}
+
+function opsCloudMergeAuditLogs(remoteData, localData) {
+  const out = [...(remoteData.AUDIT_LOGS || [])];
+  const seenFp = new Set(out.map(row => opsCloudRowFingerprint(row)));
+  let nextId = opsCloudNextNumericId(out);
+  (localData.AUDIT_LOGS || []).forEach(row => {
+    const fp = opsCloudRowFingerprint(row);
+    if (seenFp.has(fp)) return;
+    const next = opsCloudClone(row);
+    if (next.id !== undefined && next.id !== null && out.some(r => String(r.id) === String(next.id))) {
+      next.id = nextId++;
+    }
+    out.unshift(next);
+    seenFp.add(opsCloudRowFingerprint(next));
+  });
+  out.sort((a,b) => opsSnapshotTimeMs(b?.at) - opsSnapshotTimeMs(a?.at));
+  return out.slice(0, 1000);
+}
+
+function opsCloudChangedOutsideReceivables(baseData, localData) {
+  const allowed = new Set(['RECEIVABLES','AUDIT_LOGS','rvNextId','auditNextId','savedAt','appVersion']);
+  const keys = new Set([...Object.keys(baseData || {}), ...Object.keys(localData || {})]);
+  for (const key of keys) {
+    if (allowed.has(key)) continue;
+    if (JSON.stringify(baseData?.[key] ?? null) !== JSON.stringify(localData?.[key] ?? null)) return true;
+  }
+  return false;
+}
+
+function opsCloudMergeReceivables(baseData, localData, remoteData) {
+  if (!baseData || !localData || !remoteData) return { ok:false, reason:'missing-base' };
+  if (opsCloudChangedOutsideReceivables(baseData, localData)) return { ok:false, reason:'outside-receivable-change' };
+  const baseRows = baseData.RECEIVABLES || [];
+  const localRows = localData.RECEIVABLES || [];
+  const remoteRows = remoteData.RECEIVABLES || [];
+  const baseMap = opsCloudMapRows(baseRows);
+  const localMap = opsCloudMapRows(localRows);
+  const remoteMap = opsCloudMapRows(remoteRows);
+  const mergedRows = remoteRows.map(opsCloudClone);
+  const mergedMap = opsCloudMapRows(mergedRows);
+  const conflicts = [];
+  let nextId = Math.max(opsCloudNextNumericId(mergedRows), opsCloudNextNumericId(localRows), Number(remoteData.rvNextId) || 1, Number(localData.rvNextId) || 1);
+
+  const putLocalRow = (key, localRow) => {
+    const row = opsCloudClone(localRow);
+    const existing = mergedMap.get(key);
+    if (existing) {
+      const idx = mergedRows.indexOf(existing);
+      if (idx >= 0) mergedRows[idx] = row;
+      mergedMap.set(key, row);
+      return;
+    }
+    if (row.id !== undefined && row.id !== null && mergedRows.some(r => String(r.id) === String(row.id))) {
+      row.id = nextId++;
+    }
+    mergedRows.push(row);
+    mergedMap.set(opsCloudRowKey(row), row);
+  };
+
+  const allKeys = new Set([...baseMap.keys(), ...localMap.keys()]);
+  allKeys.forEach(key => {
+    const base = baseMap.get(key);
+    const local = localMap.get(key);
+    const remote = remoteMap.get(key);
+    const baseFp = opsCloudRowFingerprint(base);
+    const localFp = opsCloudRowFingerprint(local);
+    const remoteFp = opsCloudRowFingerprint(remote);
+    const localChanged = base ? localFp !== baseFp : !!local;
+    const remoteChanged = base ? remoteFp !== baseFp : !!remote;
+    if (!localChanged) return;
+
+    if (!base && local && remote && remoteFp !== localFp) {
+      const row = opsCloudClone(local);
+      row.id = nextId++;
+      mergedRows.push(row);
+      mergedMap.set(opsCloudRowKey(row), row);
+      return;
+    }
+
+    if (base && !local) {
+      if (remote && remoteChanged) {
+        conflicts.push(key);
+        return;
+      }
+      const existing = mergedMap.get(key);
+      if (existing) {
+        const idx = mergedRows.indexOf(existing);
+        if (idx >= 0) mergedRows.splice(idx, 1);
+        mergedMap.delete(key);
+      }
+      return;
+    }
+
+    if (base && local && remoteChanged && remoteFp !== localFp) {
+      conflicts.push(key);
+      return;
+    }
+    if (local) putLocalRow(key, local);
+  });
+
+  if (conflicts.length) return { ok:false, reason:'row-conflict', conflicts };
+
+  const merged = opsCloudClone(remoteData);
+  merged.RECEIVABLES = mergedRows;
+  merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
+  merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
+  merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
+  merged.savedAt = new Date().toISOString();
+  merged.appVersion = '1.2.20';
+  return { ok:true, data:merged };
+}
+
+async function opsCloudTryMergePendingReceivables(localSnapshot) {
+  if (!opsCloudBaseSnapshot || !localSnapshot) return false;
+  const snap = await opsCloudRef().get();
+  if (!snap.exists()) return false;
+  const remotePayload = snap.val();
+  const remoteData = remotePayload?.data || remotePayload;
+  const error = validateBackupSnapshot(remoteData);
+  if (error) return false;
+  const merged = opsCloudMergeReceivables(opsCloudBaseSnapshot, localSnapshot, remoteData);
+  if (!merged.ok) {
+    if (merged.reason === 'row-conflict') {
+      opsCloudLastSummary = `同一筆應收帳款已被其他人更新：${merged.conflicts.length} 筆`;
+    }
+    return false;
+  }
+  const payload = await opsCloudSaveNow(merged.data, { force:true });
+  opsApplyCloudPayload(payload, { silent:true });
+  showToast('已逐筆合併應收帳款並同步雲端', 'success');
+  return true;
+}
+
 async function opsCloudAssertNoRemoteConflict(options = {}) {
   if (options.force || !OPS_AUTH_ENFORCED || !opsCloudReady || opsApplyingRemote) return true;
   const snap = await opsCloudRef().get();
@@ -6307,8 +6470,9 @@ async function opsCloudSaveNow(snapshot, options = {}) {
   opsCloudLastSavedAt = payload.meta.savedAt;
   opsCloudLastSavedBy = payload.meta.savedBy;
   opsCloudLastSummary = `${formatDateTimeTW(payload.meta.savedAt)}｜${opsSnapshotSummary(payload.data)}`;
+  opsCloudBaseSnapshot = opsCloudClone(payload.data);
   updateDataStatus(payload.data);
-  return true;
+  return payload;
 }
 
 function showCloudConflictModal() {
@@ -6389,7 +6553,21 @@ function opsCloudFlushPendingSave() {
     updateDataStatus(frozen);
     setSaveIndicator('error');
     if (String(e?.message || '').includes('OPS_CLOUD_CONFLICT')) {
-      showCloudConflictModal();
+      opsCloudTryMergePendingReceivables(frozen).then(merged => {
+        if (merged) {
+          opsCloudConsecutiveFailures = 0;
+          opsCloudPendingSync = false;
+          opsCloudPendingSnapshot = null;
+          opsCloudPendingSince = null;
+          hideSyncStuckModalIfShown();
+          setSaveIndicator('synced');
+        } else {
+          showCloudConflictModal();
+        }
+      }).catch(mergeErr => {
+        console.warn('OPS receivable merge failed:', mergeErr);
+        showCloudConflictModal();
+      });
     } else {
       showToast(opsCloudErrorMessage(e, '雲端同步'), 'error');
     }
@@ -6449,6 +6627,7 @@ function opsApplyCloudPayload(payload, options = {}) {
     opsCloudLastSavedAt = meta.savedAt || data.savedAt || '';
     opsCloudLastSavedBy = meta.savedBy || '';
     opsCloudLastSummary = `${formatDateTimeTW(opsCloudLastSavedAt)}｜${opsSnapshotSummary(data)}`;
+    opsCloudBaseSnapshot = opsCloudClone(data);
     renderAfterDataSettles('cloud-apply');
     updateDataStatus(data);
     if (!options.silent) {
@@ -6472,6 +6651,7 @@ async function opsCloudCheckNow() {
       opsCloudReady = false;
       opsCloudLastSavedAt = '';
       opsCloudLastSavedBy = '';
+      opsCloudBaseSnapshot = null;
       opsCloudLastSummary = 'Firebase 尚無資料';
       updateDataStatus();
       showToast('Firebase 尚無 OPS 快照，可按「上傳本機快照」建立', 'warning');
@@ -6504,6 +6684,7 @@ async function opsCloudCheckNow() {
     opsCloudLastSavedAt = remoteSavedAt;
     opsCloudLastSavedBy = meta.savedBy || '';
     opsCloudLastSummary = `${formatDateTimeTW(opsCloudLastSavedAt)}｜${opsSnapshotSummary(data)}`;
+    opsCloudBaseSnapshot = opsCloudClone(data);
     updateDataStatus(data);
     showToast('雲端快照檢查完成', 'success');
     return true;
