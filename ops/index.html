@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.24 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.25 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1689,6 +1689,7 @@ body.auth-pending .auth-screen{display:flex}
           <option value="2025-11">2025年11月</option>
           <option value="2025-10">2025年10月</option>
         </select>
+        <button class="btn btn-ghost btn-sm" id="btn-oh-add-month" style="font-size:11px;padding:5px 10px;display:none" onclick="ohPromptAddMonth()">＋ 新增月份</button>
       </div>
     </div>
     <!-- Stats -->
@@ -5534,7 +5535,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.24', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.25', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5595,7 +5596,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.24', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.25', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6503,7 +6504,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.24';
+  merged.appVersion = '1.2.25';
   return { ok:true, data:merged };
 }
 
@@ -6634,7 +6635,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.24';
+  merged.appVersion = '1.2.25';
   return { ok:true, data:merged };
 }
 
@@ -6753,7 +6754,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.24';
+  merged.appVersion = '1.2.25';
   return { ok:true, data:merged };
 }
 
@@ -11866,6 +11867,18 @@ function ohAddMonthsAround(months, anchor, monthsBack = 8) {
   }
 }
 
+function ohAddFutureMonths(months, anchor, monthsForward = 3) {
+  const m = String(anchor || '').match(/^(\d{4})-(\d{2})$/);
+  if (!m) return;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, 1);
+  for (let i = 1; i <= monthsForward; i++) {
+    d.setMonth(d.getMonth() + 1);
+    const y = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    months.add(`${y}-${mm}`);
+  }
+}
+
 function ohRenderMonthOptions(preferredMonth) {
   const sel = document.getElementById('oh-filter-month');
   if (!sel) return;
@@ -11875,7 +11888,9 @@ function ohRenderMonthOptions(preferredMonth) {
   EXPENSES.forEach(row => { if (prIsValidMonth(row.month)) months.add(row.month); });
   PAYROLL_MONTHS.forEach(month => { if (prIsValidMonth(month)) months.add(month); });
   ohAddMonthsAround(months, new Date().toISOString().slice(0,7), 8);
+  ohAddFutureMonths(months, new Date().toISOString().slice(0,7), 3);
   ohAddMonthsAround(months, current, 3);
+  ohAddFutureMonths(months, current, 1);
   const sorted = [...months].sort((a,b) => b.localeCompare(a));
   sel.innerHTML = sorted.map(month => `<option value="${month}">${ohMonthLabel(month)}</option>`).join('');
   if (sorted.includes(current)) sel.value = current;
@@ -11963,6 +11978,8 @@ function renderOverhead() {
   if (btnAddFixed) btnAddFixed.style.display = manage ? '' : 'none';
   const btnCopyPrev = document.getElementById('btn-oh-copy-prev');
   if (btnCopyPrev) btnCopyPrev.style.display = manage ? '' : 'none';
+  const btnAddMonth = document.getElementById('btn-oh-add-month');
+  if (btnAddMonth) btnAddMonth.style.display = manage ? '' : 'none';
 
   // Stats
   const fixedSum = data.fixed.reduce((s,v)=>s+(parseInt(v)||0),0);
@@ -12043,6 +12060,23 @@ function ohPromptAddFixed() {
   if (name === null) return;
   ohAddFixedItem(name);
 }
+
+function ohPromptAddMonth() {
+  if (!requireManage('overhead')) return;
+  const current = document.getElementById('oh-filter-month')?.value || new Date().toISOString().slice(0,7);
+  const month = (prompt('請輸入要新增的月份（格式 YYYY-MM）：', current) || '').trim();
+  if (!month) return;
+  if (!prIsValidMonth(month)) {
+    showToast('月份格式需為 YYYY-MM，例如 2026-08', 'error');
+    return;
+  }
+  if (!OVERHEAD[month]) ohInitMonth(month);
+  ohRenderMonthOptions(month);
+  renderOverhead();
+  saveData();
+  showToast(`已新增 ${ohMonthLabel(month)} 公司開銷月份`, 'success');
+}
+
 function ohDeleteVar(month, id) {
   if (!requireManage('overhead')) return;
   if (!OVERHEAD[month]) return;
