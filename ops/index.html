@@ -1160,7 +1160,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.27 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.28 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5578,7 +5578,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.27', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.28', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5639,7 +5639,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.27', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.28', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6503,6 +6503,54 @@ function opsCloudMergeRowsByKey(baseRows, localRows, remoteRows, options = {}) {
   return { ok:true, rows:mergedRows, nextId:Math.max(nextId, opsCloudNextNumericId(mergedRows)) };
 }
 
+function opsCloudMergeObjectByKey(baseObj = {}, localObj = {}, remoteObj = {}) {
+  const out = opsCloudClone(remoteObj) || {};
+  const conflicts = [];
+  const keys = new Set([...Object.keys(baseObj || {}), ...Object.keys(localObj || {})]);
+  keys.forEach(key => {
+    const baseHas = Object.prototype.hasOwnProperty.call(baseObj, key);
+    const localHas = Object.prototype.hasOwnProperty.call(localObj, key);
+    const remoteHas = Object.prototype.hasOwnProperty.call(remoteObj, key);
+    const baseFp = baseHas ? JSON.stringify(baseObj[key]) : '';
+    const localFp = localHas ? JSON.stringify(localObj[key]) : '';
+    const remoteFp = remoteHas ? JSON.stringify(remoteObj[key]) : '';
+    const localChanged = localFp !== baseFp;
+    const remoteChanged = remoteFp !== baseFp;
+    if (!localChanged) return;
+    if (remoteChanged && remoteFp !== localFp) {
+      conflicts.push(key);
+      return;
+    }
+    if (localHas) out[key] = opsCloudClone(localObj[key]);
+    else delete out[key];
+  });
+  return conflicts.length ? { ok:false, conflicts } : { ok:true, data:out };
+}
+
+function opsCloudMergePayrollExtras(merged, baseData, localData, remoteData, mergedRows) {
+  const accounts = opsCloudMergeObjectByKey(
+    baseData?.PAYROLL_EMPLOYEE_ACCOUNTS || {},
+    localData?.PAYROLL_EMPLOYEE_ACCOUNTS || {},
+    remoteData?.PAYROLL_EMPLOYEE_ACCOUNTS || {}
+  );
+  if (!accounts.ok) return { ok:false, reason:'payroll-account-conflict', conflicts:accounts.conflicts };
+  const deletedMonths = [...new Set([
+    ...(remoteData?.PAYROLL_DELETED_MONTHS || []),
+    ...(localData?.PAYROLL_DELETED_MONTHS || [])
+  ].filter(prIsValidMonth))].sort((a,b) => b.localeCompare(a));
+  const deletedSet = new Set(deletedMonths);
+  const months = new Set([
+    ...(remoteData?.PAYROLL_MONTHS || []),
+    ...(localData?.PAYROLL_MONTHS || []),
+    ...(mergedRows || []).map(r => r?.month)
+  ].filter(prIsValidMonth));
+  deletedSet.forEach(month => months.delete(month));
+  merged.PAYROLL_EMPLOYEE_ACCOUNTS = accounts.data;
+  merged.PAYROLL_DELETED_MONTHS = deletedMonths;
+  merged.PAYROLL_MONTHS = [...months].sort((a,b) => b.localeCompare(a));
+  return { ok:true };
+}
+
 function opsCloudChangedOutsideCollection(baseData, localData, allowed) {
   const keys = new Set([...Object.keys(baseData || {}), ...Object.keys(localData || {})]);
   for (const key of keys) {
@@ -6519,12 +6567,16 @@ const OPS_CLOUD_ROW_MERGE_CONFIGS = [
   { collection:'ATTENDANCE_LEAVES', nextIdField:'attLeaveNextId', label:'請假紀錄', reassignIdOnNewCollision:true },
   { collection:'CLIENTS', label:'客戶主檔', keyFn: row => row?.code ? `code:${row.code}` : opsCloudRowKey(row) },
   { collection:'VENDORS', label:'廠商主檔', keyFn: row => row?.code ? `code:${row.code}` : opsCloudRowKey(row) },
-  { collection:'EMPLOYEES', nextIdField:'empNextId', label:'員工主檔', keyFn: row => row?.id ? `id:${row.id}` : '' }
+  { collection:'EMPLOYEES', nextIdField:'empNextId', label:'員工主檔', keyFn: row => row?.id ? `id:${row.id}` : '' },
+  { collection:'COMPANY_ALLOCATIONS', label:'公司分攤資料', keyFn: row => row?.caseKey ? `case:${row.caseKey}` : opsCloudRowKey(row) },
+  { collection:'TAX_LIABILITIES', label:'稅務負債資料', keyFn: row => row?.sourceKey ? `source:${row.sourceKey}` : opsCloudRowKey(row) },
+  { collection:'PAYROLL', nextIdField:'prNextId', label:'薪資資料', keyFn: row => row?.person && row?.month ? `person:${row.person}|month:${row.month}` : opsCloudRowKey(row), extraFields:['PAYROLL_MONTHS','PAYROLL_DELETED_MONTHS','PAYROLL_EMPLOYEE_ACCOUNTS'], mergeExtra:opsCloudMergePayrollExtras }
 ];
 
 function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) {
   const allowed = new Set([config.collection,'AUDIT_LOGS','USER_PERMISSIONS','auditNextId','savedAt','appVersion']);
   if (config.nextIdField) allowed.add(config.nextIdField);
+  (config.extraFields || []).forEach(field => allowed.add(field));
   if (opsCloudChangedOutsideCollection(baseData, localData, allowed)) return { ok:false, reason:'outside-change' };
   const mergedPermissions = opsCloudMergeUserPermissions(baseData, localData, remoteData);
   if (!mergedPermissions.ok) return { ok:false, reason:'user-permission-conflict', conflicts:mergedPermissions.conflicts };
@@ -6542,23 +6594,29 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (!mergedRows.ok) return { ok:false, reason:'row-conflict', conflicts:mergedRows.conflicts };
   const merged = opsCloudClone(remoteData);
   merged[config.collection] = mergedRows.rows;
+  if (typeof config.mergeExtra === 'function') {
+    const extra = config.mergeExtra(merged, baseData, localData, remoteData, mergedRows.rows);
+    if (!extra.ok) return extra;
+  }
   merged.USER_PERMISSIONS = mergedPermissions.data;
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.27';
+  merged.appVersion = '1.2.28';
   return { ok:true, data:merged };
 }
 
 function opsCloudLocalChangedOnlyCollection(baseData, localData, config) {
   const allowed = new Set([config.collection,'AUDIT_LOGS','USER_PERMISSIONS','auditNextId','savedAt','appVersion']);
   if (config.nextIdField) allowed.add(config.nextIdField);
+  (config.extraFields || []).forEach(field => allowed.add(field));
   if (opsCloudChangedOutsideCollection(baseData, localData, allowed)) return false;
   const baseRows = baseData?.[config.collection] || [];
   const localRows = localData?.[config.collection] || [];
   if (JSON.stringify(baseRows) !== JSON.stringify(localRows)) return true;
   if (config.nextIdField && Number(baseData?.[config.nextIdField] || 1) !== Number(localData?.[config.nextIdField] || 1)) return true;
+  if ((config.extraFields || []).some(field => JSON.stringify(baseData?.[field] ?? null) !== JSON.stringify(localData?.[field] ?? null))) return true;
   const basePerms = baseData?.USER_PERMISSIONS || {};
   const localPerms = localData?.USER_PERMISSIONS || {};
   return JSON.stringify(basePerms) !== JSON.stringify(localPerms);
@@ -6575,11 +6633,13 @@ async function opsCloudTryMergePendingCollection(localSnapshot, config) {
   if (error) return false;
   const merged = opsCloudMergeSingleCollection(opsCloudBaseSnapshot, localSnapshot, remoteData, config);
   if (!merged.ok) {
-    if (merged.reason === 'row-conflict') {
-      opsCloudLastSummary = `同一筆${config.label}已被其他人更新：${merged.conflicts.length} 筆`;
-    } else if (merged.reason === 'user-permission-conflict') {
-      opsCloudLastSummary = `同一位員工權限已被其他人更新：${merged.conflicts.length} 筆`;
-    }
+	    if (merged.reason === 'row-conflict') {
+	      opsCloudLastSummary = `同一筆${config.label}已被其他人更新：${merged.conflicts.length} 筆`;
+	    } else if (merged.reason === 'user-permission-conflict') {
+	      opsCloudLastSummary = `同一位員工權限已被其他人更新：${merged.conflicts.length} 筆`;
+	    } else if (merged.reason === 'payroll-account-conflict') {
+	      opsCloudLastSummary = `同一位員工薪資帳戶已被其他人更新：${merged.conflicts.length} 筆`;
+	    }
     return false;
   }
   const payload = await opsCloudSaveNow(merged.data, { force:true });
@@ -6594,6 +6654,107 @@ async function opsCloudTryMergePendingOtherRows(localSnapshot) {
     if (merged) return true;
   }
   return false;
+}
+
+function opsCloudChangedOutsideOverhead(baseData, localData) {
+  const allowed = new Set(['OVERHEAD','OH_FIXED_CONFIG','AUDIT_LOGS','USER_PERMISSIONS','auditNextId','savedAt','appVersion']);
+  return opsCloudChangedOutsideCollection(baseData, localData, allowed);
+}
+
+function opsCloudLocalChangedOnlyOverhead(baseData, localData) {
+  if (!baseData || !localData) return false;
+  if (opsCloudChangedOutsideOverhead(baseData, localData)) return false;
+  return JSON.stringify(baseData.OVERHEAD || {}) !== JSON.stringify(localData.OVERHEAD || {})
+    || JSON.stringify(baseData.OH_FIXED_CONFIG || []) !== JSON.stringify(localData.OH_FIXED_CONFIG || [])
+    || JSON.stringify(baseData.USER_PERMISSIONS || {}) !== JSON.stringify(localData.USER_PERMISSIONS || {});
+}
+
+function opsCloudMergeOverhead(baseData, localData, remoteData) {
+  if (!baseData || !localData || !remoteData) return { ok:false, reason:'missing-base' };
+  if (opsCloudChangedOutsideOverhead(baseData, localData)) return { ok:false, reason:'outside-overhead-change' };
+  const mergedPermissions = opsCloudMergeUserPermissions(baseData, localData, remoteData);
+  if (!mergedPermissions.ok) return { ok:false, reason:'user-permission-conflict', conflicts:mergedPermissions.conflicts };
+
+  const baseConfig = JSON.stringify(baseData.OH_FIXED_CONFIG || []);
+  const localConfig = JSON.stringify(localData.OH_FIXED_CONFIG || []);
+  const remoteConfig = JSON.stringify(remoteData.OH_FIXED_CONFIG || []);
+  const localConfigChanged = localConfig !== baseConfig;
+  const remoteConfigChanged = remoteConfig !== baseConfig;
+  if (localConfigChanged && remoteConfigChanged && localConfig !== remoteConfig) {
+    return { ok:false, reason:'overhead-config-conflict', conflicts:['OH_FIXED_CONFIG'] };
+  }
+
+  const baseOverhead = baseData.OVERHEAD || {};
+  const localOverhead = localData.OVERHEAD || {};
+  const remoteOverhead = remoteData.OVERHEAD || {};
+  const mergedOverhead = opsCloudClone(remoteOverhead) || {};
+  const conflicts = [];
+  const keys = new Set([...Object.keys(baseOverhead), ...Object.keys(localOverhead)]);
+  keys.forEach(month => {
+    const baseHas = Object.prototype.hasOwnProperty.call(baseOverhead, month);
+    const localHas = Object.prototype.hasOwnProperty.call(localOverhead, month);
+    const remoteHas = Object.prototype.hasOwnProperty.call(remoteOverhead, month);
+    const baseFp = baseHas ? JSON.stringify(baseOverhead[month]) : '';
+    const localFp = localHas ? JSON.stringify(localOverhead[month]) : '';
+    const remoteFp = remoteHas ? JSON.stringify(remoteOverhead[month]) : '';
+    const localChanged = localFp !== baseFp;
+    const remoteChanged = remoteFp !== baseFp;
+    if (!localChanged) return;
+    if (!baseHas && localHas && remoteHas && remoteFp !== localFp) {
+      conflicts.push(month);
+      return;
+    }
+    if (baseHas && !localHas) {
+      if (remoteHas && remoteChanged) {
+        conflicts.push(month);
+        return;
+      }
+      delete mergedOverhead[month];
+      return;
+    }
+    if (baseHas && localHas && remoteChanged && remoteFp !== localFp) {
+      conflicts.push(month);
+      return;
+    }
+    if (localHas) mergedOverhead[month] = opsCloudClone(localOverhead[month]);
+  });
+  if (conflicts.length) return { ok:false, reason:'overhead-month-conflict', conflicts };
+
+  const merged = opsCloudClone(remoteData);
+  merged.OVERHEAD = mergedOverhead;
+  if (localConfigChanged) merged.OH_FIXED_CONFIG = opsCloudClone(localData.OH_FIXED_CONFIG || []);
+  merged.USER_PERMISSIONS = mergedPermissions.data;
+  merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
+  merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
+  merged.savedAt = new Date().toISOString();
+  merged.appVersion = '1.2.28';
+  return { ok:true, data:merged };
+}
+
+async function opsCloudTryMergePendingOverhead(localSnapshot) {
+  if (!opsCloudBaseSnapshot || !localSnapshot) return false;
+  if (!opsCloudLocalChangedOnlyOverhead(opsCloudBaseSnapshot, localSnapshot)) return false;
+  const snap = await opsCloudRef().get();
+  if (!snap.exists()) return false;
+  const remotePayload = snap.val();
+  const remoteData = remotePayload?.data || remotePayload;
+  const error = validateBackupSnapshot(remoteData);
+  if (error) return false;
+  const merged = opsCloudMergeOverhead(opsCloudBaseSnapshot, localSnapshot, remoteData);
+  if (!merged.ok) {
+    if (merged.reason === 'overhead-month-conflict') {
+      opsCloudLastSummary = `同一月份公司開銷已被其他人更新：${merged.conflicts.join('、')}`;
+    } else if (merged.reason === 'overhead-config-conflict') {
+      opsCloudLastSummary = '公司開銷固定支出欄位設定已被其他人更新';
+    } else if (merged.reason === 'user-permission-conflict') {
+      opsCloudLastSummary = `同一位員工權限已被其他人更新：${merged.conflicts.length} 筆`;
+    }
+    return false;
+  }
+  const payload = await opsCloudSaveNow(merged.data, { force:true });
+  opsApplyCloudPayload(payload, { silent:true });
+  showToast('已逐月合併公司開銷並同步雲端', 'success');
+  return true;
 }
 
 function opsCloudMergeReceivables(baseData, localData, remoteData) {
@@ -6678,7 +6839,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.27';
+  merged.appVersion = '1.2.28';
   return { ok:true, data:merged };
 }
 
@@ -6797,7 +6958,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.27';
+  merged.appVersion = '1.2.28';
   return { ok:true, data:merged };
 }
 
@@ -6941,6 +7102,9 @@ function opsCloudFlushPendingSave() {
       }).then(merged => {
         if (merged) return true;
         return opsCloudTryMergePendingOtherRows(frozen);
+      }).then(merged => {
+        if (merged) return true;
+        return opsCloudTryMergePendingOverhead(frozen);
       }).then(merged => {
         if (merged) {
           opsCloudConsecutiveFailures = 0;
