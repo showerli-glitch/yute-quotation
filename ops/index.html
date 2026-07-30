@@ -3,7 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Yutesign OPS - Codex Review Build</title>
+<title>Yutesign OPS - 內測系統</title>
+<meta name="description" content="Yutesign OPS 管理系統內測版。已開通的宇德員工可使用公司 Google 帳號登入；未開通或已離職停用帳號不可登入。">
+<meta property="og:title" content="Yutesign OPS - 內測系統">
+<meta property="og:description" content="已開通的宇德員工可使用公司 Google 帳號登入 OPS 內測系統。">
+<meta property="og:type" content="website">
 <link rel="icon" type="image/svg+xml" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.svg?v=202606221952">
 <link rel="icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.ico?v=202606221952" sizes="any">
 <link rel="icon" type="image/png" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221952">
@@ -1047,12 +1051,12 @@ body.auth-pending .auth-screen{display:flex}
     <div class="auth-mark">Yutesign OPS</div>
     <div class="auth-title">管理系統內測版</div>
     <div class="auth-desc">
-      這個版本先開放李鎮宇與 Ning 共同測試。後續可由員工主檔 Email 搭配系統權限逐步開通。
+      這個版本已改為依員工主檔 Email 與系統權限開通。已開通帳號可使用公司 Google 帳號登入。
     </div>
     <button class="btn btn-primary" id="ops-login-btn" onclick="opsStartGoogleLogin()" style="width:100%;justify-content:center">使用 Google 帳號登入</button>
     <div class="auth-error" id="ops-auth-error"></div>
     <div class="auth-allow">
-      內測帳號：李鎮宇、Ning；未在員工主檔開通的帳號仍不可登入。<br>
+      目前已開通：李鎮宇、Ning、盧彥辰；未在員工主檔開通或已離職停用的帳號不可登入。<br>
       本機 file:// 開發模式會自動略過登入。
     </div>
   </div>
@@ -1160,7 +1164,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.28 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.29 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5578,7 +5582,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.28', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.29', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5639,7 +5643,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.28', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.29', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6603,7 +6607,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.28';
+  merged.appVersion = '1.2.29';
   return { ok:true, data:merged };
 }
 
@@ -6727,7 +6731,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.28';
+  merged.appVersion = '1.2.29';
   return { ok:true, data:merged };
 }
 
@@ -6839,7 +6843,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.28';
+  merged.appVersion = '1.2.29';
   return { ok:true, data:merged };
 }
 
@@ -6958,7 +6962,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.28';
+  merged.appVersion = '1.2.29';
   return { ok:true, data:merged };
 }
 
