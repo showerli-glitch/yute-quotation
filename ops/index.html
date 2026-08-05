@@ -1164,7 +1164,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.30 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.31 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3080,6 +3080,9 @@ body.auth-pending .auth-screen{display:flex}
         <div class="form-field">
           <label class="form-label">金額</label>
           <input class="form-input" id="ap-add-amount" placeholder="例：420,000" type="text">
+        </div>
+        <div class="form-field form-full" id="ap-locked-payment-hint" style="display:none;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);font-size:12px;color:var(--text3)">
+          系統結算款可分段付款：輸入本次付款金額並改為已付款；若小於待付款，系統會新增一筆已付款紀錄並保留原單餘額。
         </div>
         <div class="form-field form-full">
           <label class="form-label">摘要</label>
@@ -5582,7 +5585,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.30', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.31', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5643,7 +5646,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.30', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.31', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6607,7 +6610,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.30';
+  merged.appVersion = '1.2.31';
   return { ok:true, data:merged };
 }
 
@@ -6731,7 +6734,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.30';
+  merged.appVersion = '1.2.31';
   return { ok:true, data:merged };
 }
 
@@ -6843,7 +6846,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.30';
+  merged.appVersion = '1.2.31';
   return { ok:true, data:merged };
 }
 
@@ -6962,7 +6965,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.30';
+  merged.appVersion = '1.2.31';
   return { ok:true, data:merged };
 }
 
@@ -9873,7 +9876,7 @@ function renderPayable() {
   const fromDate = document.getElementById('py-date-from')?.value || '';
   const toDate = document.getElementById('py-date-to')?.value || '';
   const sortMode = document.getElementById('py-sort')?.value || 'date-desc';
-  const payableDate = p => p.doneDate || p.transferDate || p.wantDate || p.ticket || '';
+  const payableDate = p => p.doneDate || p.transferDate || p.wantDate || p.ticket || (p.settlementId ? (PROFIT_SETTLEMENTS.find(s => s.id === p.settlementId)?.date || '') : '');
   const baseRows = PAYABLES.filter(p => {
     if (pyTab_current !== 'all' && p.status !== pyTab_current) return false;
     if (p.case && !userCanViewCaseFinancials(p.case, 'payable')) return false;
@@ -10159,9 +10162,13 @@ function openAddPayableModal() {
   document.getElementById('ap-edit-id').value = '';
   document.getElementById('ap-modal-title').textContent = '手動新增應付帳款';
   document.getElementById('ap-submit-btn').textContent  = '新增';
+  const lockedHint = document.getElementById('ap-locked-payment-hint');
+  if (lockedHint) lockedHint.style.display = 'none';
   ['ap-add-vendor','ap-add-amount','ap-add-summary','ap-add-payment-type','ap-add-profit-person','ap-add-person'].forEach(fieldId => {
     const el = document.getElementById(fieldId); if (el) el.disabled = false;
   });
+  const amountEl = document.getElementById('ap-add-amount');
+  if (amountEl) amountEl.placeholder = '例：420,000';
   // 清空欄位
   ['ap-add-vendor','ap-add-amount','ap-add-summary','ap-add-date','ap-add-transfer-date','ap-add-done-date','ap-add-ticket'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
@@ -10222,11 +10229,18 @@ function openEditPayableModal(id) {
   setRadio('rg-ap-rec', p.receipt || '有');
   fillActiveUserNameSelect('ap-add-person', p.person || currentUser.name, { includeInactive:true });
   const personEl = document.getElementById('ap-add-person'); if (personEl) personEl.value = p.person || '';
-  const lockedIds = ['ap-add-vendor','ap-add-amount','ap-add-summary','ap-add-payment-type','ap-add-profit-person','ap-add-person'];
+  const lockedIds = ['ap-add-vendor','ap-add-summary','ap-add-payment-type','ap-add-profit-person','ap-add-person'];
   lockedIds.forEach(fieldId => {
     const el = document.getElementById(fieldId);
     if (el) el.disabled = !!p.systemLocked;
   });
+  const amountEl = document.getElementById('ap-add-amount');
+  if (amountEl) {
+    amountEl.disabled = false;
+    amountEl.placeholder = p.systemLocked ? '本次付款金額；少於待付款會保留餘額' : '例：420,000';
+  }
+  const lockedHint = document.getElementById('ap-locked-payment-hint');
+  if (lockedHint) lockedHint.style.display = p.systemLocked ? '' : 'none';
   document.querySelectorAll('#ap-profit-case-list input').forEach(el => { el.disabled = !!p.systemLocked; });
   if (p.systemLocked) document.getElementById('ap-modal-title').textContent = '編輯結算款付款資訊';
   openModal('modal-add-payable');
@@ -10286,6 +10300,108 @@ function deletePayableConfirm(id) {
   showToast('已刪除 ✓', 'warning');
 }
 
+function buildProfitSettlementPayable(settlement, personRow) {
+  const amount = Math.round(Number(personRow?.unpaid) || 0);
+  if (!settlement || !personRow || amount <= 0) return null;
+  const caseCodes = (settlement.cases || []).map(c => c.code).filter(Boolean);
+  return {
+    id: pyNextId++,
+    sourceKey: `profit-settlement-${settlement.id}-${personRow.person}`,
+    settlementId: settlement.id,
+    systemLocked: true,
+    psSettled: true,
+    case:'', caseName:'',
+    vendor:personRow.name,
+    summary:`分潤結算 #${settlement.id}未領款`,
+    amount,
+    wantDate:settlement.date || '', transferDate:'', doneDate:'', ticket:'', bank:'',
+    invoice:'無', receipt:'無', person:currentUser.name,
+    profitPerson:personRow.person, paymentType:'profit_settlement',
+    profitCaseCodes:caseCodes, status:'approved',
+    note:`${settlement.date || ''} 系統依分潤結算自動建立`
+  };
+}
+
+function psEnsureSettlementPayables(id) {
+  if (!requireManage('profitshare')) return;
+  const settlement = PROFIT_SETTLEMENTS.find(s => s.id === id);
+  if (!settlement) return;
+  const generatedIds = new Set(settlement.generatedPayableIds || []);
+  const existingGenerated = PAYABLES
+    .filter(p => (generatedIds.has(p.id) || (p.settlementId === settlement.id && p.paymentType === 'profit_settlement')) && p.status !== 'rejected');
+  existingGenerated.forEach(p => generatedIds.add(p.id));
+  const existingPeople = new Set(existingGenerated.map(p => p.profitPerson || p.vendor));
+  const rows = (settlement.persons || [])
+    .filter(p => (Number(p.unpaid) || 0) > 0.5)
+    .filter(p => !existingPeople.has(p.person) && !existingPeople.has(p.name));
+  if (!rows.length) { showToast('這次結算沒有缺漏的待付分潤款', 'warning'); return; }
+  const beforeSummary = auditSummary();
+  const created = rows.map(row => buildProfitSettlementPayable(settlement, row)).filter(Boolean);
+  created.forEach(row => touchRowMeta(row, true));
+  PAYABLES.push(...created);
+  settlement.generatedPayableIds = [...generatedIds, ...created.map(row => row.id)];
+  recordAuditLog('create', 'profitSettlementPayables', id, beforeSummary, auditSummary(), {
+    riskLevel:'high',
+    targetLabel:`補產生分潤結算 #${id} 應付`,
+    diff:[{ field:'generatedPayables', beforeValue:generatedIds.size, afterValue:settlement.generatedPayableIds.length }]
+  });
+  renderProfitShare(); renderPayable(); renderDashboard();
+  saveData();
+  showToast(`已補產生 ${created.length} 筆待付分潤款 ✓`, 'success');
+}
+
+function payPartialSystemLockedPayable(p, amtNum, info) {
+  const currentAmount = Math.round(Number(p.amount) || 0);
+  const payAmount = Math.round(Number(amtNum) || 0);
+  if (payAmount <= 0) { showToast('請填寫本次付款金額', 'error'); return { ok:false }; }
+  if (payAmount > currentAmount) { showToast('本次付款金額不可大於待付款餘額', 'error'); return { ok:false }; }
+  const payDate = info.doneDate || info.transferDate || info.date || new Date().toISOString().slice(0,10);
+  if (payAmount < currentAmount) {
+    const paidRow = {
+      ...p,
+      id: pyNextId++,
+      sourceKey: `${p.sourceKey || `profit-settlement-${p.settlementId || 'manual'}-${p.profitPerson || p.vendor}`}-pay-${Date.now()}`,
+      parentPayableId: p.id,
+      amount: payAmount,
+      wantDate: info.date || p.wantDate || '',
+      bank: info.bank,
+      transferDate: info.transferDate || payDate,
+      doneDate: payDate,
+      ticket: info.ticket,
+      status:'paid',
+      psSettled:true,
+      note: `${p.note || ''}${p.note ? '；' : ''}分段付款 ${payDate} ${payAmount.toLocaleString('zh-TW')}`
+    };
+    touchRowMeta(paidRow, true);
+    PAYABLES.push(paidRow);
+    p.amount = currentAmount - payAmount;
+    p.wantDate = info.date || p.wantDate || '';
+    p.bank = info.bank;
+    p.transferDate = '';
+    p.doneDate = '';
+    p.ticket = '';
+    p.status = 'approved';
+    p.psSettled = true;
+    const settlement = PROFIT_SETTLEMENTS.find(s => s.id === p.settlementId);
+    if (settlement) {
+      settlement.generatedPayableIds = settlement.generatedPayableIds || [];
+      if (!settlement.generatedPayableIds.includes(paidRow.id)) settlement.generatedPayableIds.push(paidRow.id);
+    }
+    return { ok:true, partial:true, remaining:p.amount };
+  }
+  Object.assign(p, {
+    amount: currentAmount,
+    wantDate: info.date || p.wantDate || '',
+    bank: info.bank,
+    status:'paid',
+    transferDate: info.transferDate || payDate,
+    doneDate: payDate,
+    ticket: info.ticket,
+    psSettled:true
+  });
+  return { ok:true, partial:false, remaining:0 };
+}
+
 function submitAddPayable() {
   if (!requireManage('payable', '您沒有修改應付帳款的權限')) return;
   const editId  = document.getElementById('ap-edit-id').value;
@@ -10322,13 +10438,21 @@ function submitAddPayable() {
     if (p) {
       affectedCase = shouldKeepCase ? caseVal : p.case || '';
       if (p.systemLocked) {
-        Object.assign(p, { wantDate:date, bank, status, transferDate, doneDate, ticket });
-        if (status === 'paid' && !p.doneDate) {
-          p.transferDate = transferDate || date || p.transferDate || new Date().toISOString().slice(0,10);
-          p.doneDate = p.transferDate;
-        } else if (status !== 'paid') {
+        if (isNaN(amtNum)) { showToast('金額格式不正確', 'error'); return; }
+        let payResult = { ok:true };
+        if (status === 'paid') {
+          payResult = payPartialSystemLockedPayable(p, amtNum, { date, transferDate, doneDate, ticket, bank });
+          if (!payResult.ok) return;
+        } else {
+          Object.assign(p, { wantDate:date, bank, status, transferDate, doneDate, ticket, psSettled:true });
           p.doneDate = '';
         }
+        touchRowMeta(p);
+        closeModal('modal-add-payable');
+        refreshAccountingLinkedViews(affectedCase);
+        saveData();
+        showToast(payResult.partial ? `已記錄分段付款，待付餘額 ${fmt(payResult.remaining)}` : '已更新結算款付款資訊 ✓', 'success');
+        return;
       } else {
         if (shouldKeepCase && caseVal && !isNaN(amtNum) && !confirmDuplicatePayable({ caseCode:caseVal, amount:amtNum, excludeId:p.id })) return;
         Object.assign(p, { case:shouldKeepCase?caseVal:'', caseName:shouldKeepCase?caseName:'', vendor, summary, paymentType, profitPerson, profitCaseCodes,
@@ -12506,20 +12630,10 @@ function psRunSettlement() {
     });
   });
   const generatedPayables = result.rows.filter(r => r.unpaid > 0.5).map(r => ({
-    id: pyNextId++,
-    sourceKey: `profit-settlement-${settlementId}-${r.person}`,
-    settlementId,
-    systemLocked: true,
-    case:'', caseName:'',
-    vendor:r.name,
-    summary:`分潤結算 #${settlementId}未領款`,
-    amount:Math.round(r.unpaid),
-    wantDate:'', transferDate:'', doneDate:'', ticket:'', bank:'',
-    invoice:'無', receipt:'無', person:currentUser.name,
-    profitPerson:r.person, paymentType:'profit_settlement',
-    profitCaseCodes:caseCodes.slice(), status:'approved',
-    note:`${settlementDate} 系統依分潤結算自動建立`
-  }));
+    ...buildProfitSettlementPayable({ id:settlementId, date:settlementDate, cases:caseCodes.map(code => ({ code })) }, r),
+    profitCaseCodes:caseCodes.slice()
+  })).filter(Boolean);
+  generatedPayables.forEach(row => touchRowMeta(row, true));
   PAYABLES.push(...generatedPayables);
   PROFIT_SETTLEMENTS.push({
     id: settlementId,
@@ -13189,8 +13303,10 @@ function renderProfitShare() {
   let historyHtml = '';
   if (PROFIT_SETTLEMENTS.length) {
     const rowsH = PROFIT_SETTLEMENTS.slice().reverse().map(s => {
-      const generated = PAYABLES.filter(p => (s.generatedPayableIds || []).includes(p.id));
+      const generated = PAYABLES.filter(p => (s.generatedPayableIds || []).includes(p.id) || (p.settlementId === s.id && p.paymentType === 'profit_settlement'));
       const hasPaid = generated.some(p => p.status === 'paid');
+      const generatedPeople = new Set(generated.filter(p => p.status !== 'rejected').map(p => p.profitPerson || p.vendor));
+      const missingPayables = (s.persons || []).filter(p => (Number(p.unpaid) || 0) > 0.5 && !generatedPeople.has(p.person) && !generatedPeople.has(p.name));
       const personSummary = (s.persons || []).map(p => {
         const unpaid = Number(p.unpaid) || 0;
         const color = unpaid > 0.5 ? 'var(--warning)' : unpaid < -0.5 ? 'var(--error)' : 'var(--text3)';
@@ -13200,6 +13316,9 @@ function renderProfitShare() {
       const generatedSummary = generated.length
         ? generated.map(p => `<div style="white-space:nowrap"><b>${p.vendor}</b>：<span style="font-family:'DM Mono',monospace">${fmt(p.amount)}</span><span style="color:var(--text3)"> ${p.status === 'paid' ? '已付款' : p.status === 'approved' ? '待付款' : '待審核'}</span></div>`).join('')
         : '<span style="color:var(--text3)">未產生待付款</span>';
+      const ensureBtn = missingPayables.length && canManage('profitshare')
+        ? `<button class="btn btn-primary btn-sm" style="margin-bottom:6px" onclick="psEnsureSettlementPayables(${s.id})">補產生應付</button>`
+        : '';
       return `
       <tr style="border-bottom:1px solid var(--border)">
         <td style="padding:8px 14px;font-size:12px">${s.date}</td>
@@ -13208,7 +13327,7 @@ function renderProfitShare() {
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--success)">${fmt(s.grandNet)}</td>
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--error)">${fmt(s.grandTax)}</td>
         <td style="padding:8px 14px;font-size:11px;line-height:1.65">${personSummary}</td>
-        <td style="padding:8px 14px;font-size:11px;line-height:1.65">${generatedSummary}</td>
+        <td style="padding:8px 14px;font-size:11px;line-height:1.65">${ensureBtn}${generatedSummary}</td>
         <td style="padding:8px 14px;text-align:center;white-space:nowrap">
           ${hasPaid ? '<span style="font-size:11px;color:var(--text3)">已付款，不可撤銷</span>' : `<button class="btn btn-ghost btn-sm" onclick="psUndoSettlement(${s.id})">撤銷結算</button>`}
         </td>
