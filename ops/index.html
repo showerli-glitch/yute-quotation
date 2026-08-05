@@ -1164,7 +1164,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.29 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.30 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5582,7 +5582,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.29', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.30', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5643,7 +5643,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.29', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.30', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6607,7 +6607,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.29';
+  merged.appVersion = '1.2.30';
   return { ok:true, data:merged };
 }
 
@@ -6731,7 +6731,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.29';
+  merged.appVersion = '1.2.30';
   return { ok:true, data:merged };
 }
 
@@ -6843,7 +6843,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.29';
+  merged.appVersion = '1.2.30';
   return { ok:true, data:merged };
 }
 
@@ -6962,7 +6962,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.29';
+  merged.appVersion = '1.2.30';
   return { ok:true, data:merged };
 }
 
@@ -13191,6 +13191,15 @@ function renderProfitShare() {
     const rowsH = PROFIT_SETTLEMENTS.slice().reverse().map(s => {
       const generated = PAYABLES.filter(p => (s.generatedPayableIds || []).includes(p.id));
       const hasPaid = generated.some(p => p.status === 'paid');
+      const personSummary = (s.persons || []).map(p => {
+        const unpaid = Number(p.unpaid) || 0;
+        const color = unpaid > 0.5 ? 'var(--warning)' : unpaid < -0.5 ? 'var(--error)' : 'var(--text3)';
+        const state = unpaid > 0.5 ? '待建立/付款' : unpaid < -0.5 ? '後續抵扣' : '已結清';
+        return `<div style="white-space:nowrap"><b>${p.name}</b>：<span style="font-family:'DM Mono',monospace;color:${color}">${fmt(unpaid)}</span><span style="color:var(--text3)"> ${state}</span></div>`;
+      }).join('') || '<span style="color:var(--text3)">—</span>';
+      const generatedSummary = generated.length
+        ? generated.map(p => `<div style="white-space:nowrap"><b>${p.vendor}</b>：<span style="font-family:'DM Mono',monospace">${fmt(p.amount)}</span><span style="color:var(--text3)"> ${p.status === 'paid' ? '已付款' : p.status === 'approved' ? '待付款' : '待審核'}</span></div>`).join('')
+        : '<span style="color:var(--text3)">未產生待付款</span>';
       return `
       <tr style="border-bottom:1px solid var(--border)">
         <td style="padding:8px 14px;font-size:12px">${s.date}</td>
@@ -13198,6 +13207,8 @@ function renderProfitShare() {
         <td style="padding:8px 14px;font-size:12px">${s.ohMonths.map(m=>m.month).join('、') || '—'}</td>
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--success)">${fmt(s.grandNet)}</td>
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--error)">${fmt(s.grandTax)}</td>
+        <td style="padding:8px 14px;font-size:11px;line-height:1.65">${personSummary}</td>
+        <td style="padding:8px 14px;font-size:11px;line-height:1.65">${generatedSummary}</td>
         <td style="padding:8px 14px;text-align:center;white-space:nowrap">
           ${hasPaid ? '<span style="font-size:11px;color:var(--text3)">已付款，不可撤銷</span>' : `<button class="btn btn-ghost btn-sm" onclick="psUndoSettlement(${s.id})">撤銷結算</button>`}
         </td>
@@ -13206,17 +13217,21 @@ function renderProfitShare() {
     historyHtml = `
       <div style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:600">結算歷史</div>
-        <table style="width:100%;border-collapse:collapse">
+        <div style="overflow-x:auto">
+        <table style="width:100%;min-width:1180px;border-collapse:collapse">
           <thead><tr style="border-bottom:1px solid var(--border2)">
             <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text3)">結算日期</th>
             <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text3)">納入個案</th>
             <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text3)">納入開銷月份</th>
             <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">個案淨利合計</th>
             <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">預留營業所得稅</th>
+            <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text3)">人員結算</th>
+            <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text3)">產生應付</th>
             <th style="padding:8px 14px;text-align:center;font-size:11px;color:var(--text3)">操作</th>
           </tr></thead>
           <tbody>${rowsH}</tbody>
         </table>
+        </div>
       </div>`;
   }
 
