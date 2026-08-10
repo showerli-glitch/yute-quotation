@@ -1164,7 +1164,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.31 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.32 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1751,6 +1751,7 @@ body.auth-pending .auth-screen{display:flex}
         </select>
         <button class="btn btn-ghost btn-sm" id="btn-payroll-add-month" onclick="prAddMonth()">+ 新增月份</button>
         <button class="btn btn-ghost btn-sm" id="btn-payroll-delete-month" onclick="prDeleteMonth()" title="刪除目前選取的月份">🗑 刪除月份</button>
+        <button class="btn btn-ghost btn-sm" id="btn-owner-withdrawal" onclick="openOwnerWithdrawalModal()">＋ 股東／分潤提領</button>
         <button class="btn btn-primary btn-sm" id="btn-payroll-edit" onclick="openEditPayroll()">編輯薪資單</button>
       </div>
     </div>
@@ -1792,6 +1793,7 @@ body.auth-pending .auth-screen{display:flex}
         <div class="stat-item"><div class="stat-label">發薪日</div><div class="stat-value" id="pr-pay-date" style="font-size:16px">—</div></div>
       </div>
       <div id="pr-note-display" style="margin-top:10px;font-size:12px;color:var(--text3)"></div>
+      <div id="owner-withdrawal-panel" style="margin-top:20px"></div>
     </div>
   </div>
 
@@ -3053,6 +3055,7 @@ body.auth-pending .auth-screen{display:flex}
             <option value="profit_advance">分潤預領</option>
             <option value="engineering_bonus">工程獎金</option>
             <option value="profit_settlement">分潤結清款</option>
+            <option value="shareholder_distribution">股東盈餘分配</option>
             <option value="family_pass_through">親友成本轉付</option>
             <option value="private_loan">私人借支／支票借用</option>
             <option value="overhead_link">固定開銷付款連結</option>
@@ -3484,6 +3487,62 @@ body.auth-pending .auth-screen{display:flex}
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-overhead')">取消</button>
       <button class="btn btn-primary" onclick="submitAddOverhead()">新增</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ MODAL: OWNER / PROFIT WITHDRAWAL ════════ -->
+<div class="modal-overlay" id="modal-owner-withdrawal" onclick="if(event.target===this)closeModal('modal-owner-withdrawal')">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-hd">
+      <div class="modal-title">新增股東／分潤提領</div>
+      <button class="modal-close" onclick="closeModal('modal-owner-withdrawal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-label">提領人</label>
+          <select class="form-select" id="ow-person"></select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">提領類型</label>
+          <select class="form-select" id="ow-type">
+            <option value="fixed_profit_advance">固定分潤預領</option>
+            <option value="ad_hoc_profit_advance">臨時分潤預領</option>
+            <option value="shareholder_distribution">股東盈餘分配</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">提領日期</label>
+          <input class="form-input" id="ow-date" type="date">
+        </div>
+        <div class="form-field">
+          <label class="form-label">金額</label>
+          <input class="form-input" id="ow-amount" type="text" placeholder="例：70,000">
+        </div>
+        <div class="form-field">
+          <label class="form-label">付款帳戶</label>
+          <input class="form-input" id="ow-bank" type="text" placeholder="例：國泰、瑞興">
+        </div>
+        <div class="form-field">
+          <label class="form-label">狀態</label>
+          <select class="form-select" id="ow-status">
+            <option value="paid">已付款</option>
+            <option value="approved">待付款</option>
+          </select>
+        </div>
+        <div class="form-field form-full">
+          <label class="form-label">歸屬期間／備註</label>
+          <input class="form-input" id="ow-note" type="text" placeholder="例：2026-08 固定提領、年底盈餘分配">
+        </div>
+      </div>
+      <div style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);font-size:12px;color:var(--text3);line-height:1.5">
+        固定／臨時分潤預領會在淨利潤結算時抵扣；股東盈餘分配會保留為獨立提領，不進公司開銷、員工薪資或專案分潤抵扣。
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-owner-withdrawal')">取消</button>
+      <button class="btn btn-primary" onclick="submitOwnerWithdrawal()">新增提領</button>
     </div>
   </div>
 </div>
@@ -5585,7 +5644,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.31', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.32', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5646,7 +5705,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.31', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.32', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6610,7 +6669,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.31';
+  merged.appVersion = '1.2.32';
   return { ok:true, data:merged };
 }
 
@@ -6734,7 +6793,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.31';
+  merged.appVersion = '1.2.32';
   return { ok:true, data:merged };
 }
 
@@ -6846,7 +6905,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.31';
+  merged.appVersion = '1.2.32';
   return { ok:true, data:merged };
 }
 
@@ -6965,7 +7024,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.31';
+  merged.appVersion = '1.2.32';
   return { ok:true, data:merged };
 }
 
@@ -7747,6 +7806,7 @@ function applyRole(user) {
     'btn-new-overhead': canManage('overhead'),
     'btn-payroll-add-month': canManage('payroll'),
     'btn-payroll-delete-month': canManage('payroll'),
+    'btn-owner-withdrawal': canManage('payroll'),
     'btn-payroll-edit': canManage('payroll'),
     'btn-new-employee': canManage('employees'),
     'btn-new-client': canManage('clients'),
@@ -12492,6 +12552,7 @@ const PROFIT_PAYMENT_TYPES = {
   profit_settlement:'分潤結清款',
 };
 const SPECIAL_PAYMENT_TYPES = {
+  shareholder_distribution:'股東盈餘分配',
   family_pass_through:'親友成本轉付',
   private_loan:'私人借支／支票借用',
   overhead_link:'固定開銷付款連結',
@@ -13513,6 +13574,151 @@ function prSelectEmp(el, person) {
   renderPayroll();
 }
 
+function ownerWithdrawalTypeLabel(type) {
+  return {
+    fixed_profit_advance:'固定分潤預領',
+    ad_hoc_profit_advance:'臨時分潤預領',
+    shareholder_distribution:'股東盈餘分配',
+  }[type] || '分潤提領';
+}
+
+function ownerWithdrawalPayableType(type) {
+  return type === 'shareholder_distribution' ? 'shareholder_distribution' : 'profit_advance';
+}
+
+function ownerWithdrawalDate(row) {
+  return row.doneDate || row.transferDate || row.wantDate || '';
+}
+
+function ownerWithdrawalRows(month = '') {
+  return PAYABLES.filter(row => {
+    if (!row.ownerWithdrawalType) return false;
+    if (month && ownerWithdrawalDate(row).slice(0,7) !== month) return false;
+    return true;
+  }).sort((a,b) => ownerWithdrawalDate(b).localeCompare(ownerWithdrawalDate(a)) || (b.id||0) - (a.id||0));
+}
+
+function renderOwnerWithdrawalPanel() {
+  const box = document.getElementById('owner-withdrawal-panel');
+  if (!box) return;
+  const month = document.getElementById('pr-filter-month')?.value || '';
+  const rows = ownerWithdrawalRows(month);
+  const paid = rows.filter(r => r.status === 'paid');
+  const pending = rows.filter(r => r.status !== 'paid');
+  const sum = list => list.reduce((s,r) => s + (Number(r.amount) || 0), 0);
+  const statusLabel = { approved:'待付款', pending:'待審核', paid:'已付款' };
+  const body = rows.length ? rows.map(row => `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 12px;font-size:12px">${ownerWithdrawalDate(row) || '—'}</td>
+      <td style="padding:8px 12px;font-size:12px;font-weight:600">${row.vendor || psPersonName(row.profitPerson)}</td>
+      <td style="padding:8px 12px;font-size:12px">${ownerWithdrawalTypeLabel(row.ownerWithdrawalType)}</td>
+      <td style="padding:8px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:600">$${(row.amount||0).toLocaleString('zh-TW')}</td>
+      <td style="padding:8px 12px;font-size:12px">${row.bank || '—'}</td>
+      <td style="padding:8px 12px;text-align:center"><span class="tag ${row.status === 'paid' ? 'tag-done' : 'tag-active'}">${statusLabel[row.status] || row.status || '—'}</span></td>
+      <td style="padding:8px 12px;font-size:11px;color:var(--text3);line-height:1.45">${row.note || ''}</td>
+    </tr>`).join('') : `<tr><td colspan="7" style="padding:24px;text-align:center;color:var(--text3);font-size:12px">本月尚無股東／分潤提領紀錄</td></tr>`;
+  box.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="padding:12px 16px;background:var(--surface2);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:13px;font-weight:700">股東／分潤提領</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${month || '目前月份'}：已付款 $${sum(paid).toLocaleString('zh-TW')}／待付款 $${sum(pending).toLocaleString('zh-TW')}</div>
+        </div>
+        ${canManage('payroll') ? '<button class="btn btn-ghost btn-sm" onclick="openOwnerWithdrawalModal()">＋ 新增提領</button>' : ''}
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;min-width:780px;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid var(--border2)">
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text3)">日期</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text3)">提領人</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text3)">類型</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--text3)">金額</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text3)">帳戶</th>
+            <th style="padding:8px 12px;text-align:center;font-size:11px;color:var(--text3)">狀態</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text3)">備註</th>
+          </tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function openOwnerWithdrawalModal() {
+  if (!requireManage('payroll', '您沒有新增股東／分潤提領的權限')) return;
+  const personEl = document.getElementById('ow-person');
+  if (personEl) {
+    const people = psParticipantList();
+    personEl.innerHTML = people.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    personEl.value = 'shower';
+  }
+  const month = document.getElementById('pr-filter-month')?.value || '';
+  const today = new Date().toISOString().slice(0,10);
+  const dateEl = document.getElementById('ow-date');
+  if (dateEl) dateEl.value = month ? `${month}-${today.slice(8,10)}` : today;
+  const typeEl = document.getElementById('ow-type'); if (typeEl) typeEl.value = 'fixed_profit_advance';
+  const statusEl = document.getElementById('ow-status'); if (statusEl) statusEl.value = 'paid';
+  ['ow-amount','ow-bank','ow-note'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  openModal('modal-owner-withdrawal');
+}
+
+function submitOwnerWithdrawal() {
+  if (!requireManage('payroll', '您沒有新增股東／分潤提領的權限')) return;
+  const person = document.getElementById('ow-person')?.value || 'shower';
+  const type = document.getElementById('ow-type')?.value || 'fixed_profit_advance';
+  const date = document.getElementById('ow-date')?.value || '';
+  const amountRaw = document.getElementById('ow-amount')?.value || '';
+  const amount = parseInt(amountRaw.replace(/[^0-9-]/g,''), 10) || 0;
+  const bank = document.getElementById('ow-bank')?.value.trim() || '';
+  const status = document.getElementById('ow-status')?.value || 'paid';
+  const note = document.getElementById('ow-note')?.value.trim() || '';
+  if (!date) { showToast('請填寫提領日期', 'error'); return; }
+  if (amount <= 0) { showToast('請填寫提領金額', 'error'); return; }
+  const personName = psPersonName(person);
+  const label = ownerWithdrawalTypeLabel(type);
+  const paymentType = ownerWithdrawalPayableType(type);
+  const row = {
+    id: pyNextId++,
+    sourceKey:`owner-withdrawal-${person}-${type}-${date}-${Date.now()}`,
+    case:'', caseName:'',
+    vendor:personName,
+    summary:label,
+    amount,
+    wantDate:date,
+    transferDate:status === 'paid' ? date : '',
+    doneDate:status === 'paid' ? date : '',
+    ticket:'',
+    bank,
+    invoice:'無',
+    receipt:'無',
+    person:currentUser.name,
+    paymentType,
+    profitPerson: paymentType === 'profit_advance' ? person : '',
+    profitCaseCodes:[],
+    ownerWithdrawalType:type,
+    shareholderPerson:person,
+    status,
+    note: note || `${date} ${label}`
+  };
+  touchRowMeta(row, true);
+  const beforeSummary = auditSummary();
+  PAYABLES.push(row);
+  recordAuditLog('create', 'ownerWithdrawal', row.id, beforeSummary, auditSummary(), {
+    riskLevel:'high',
+    targetLabel:`${personName}／${label}`,
+    diff:[
+      { field:'amount', beforeValue:null, afterValue:amount },
+      { field:'paymentType', beforeValue:null, afterValue:paymentType },
+      { field:'status', beforeValue:null, afterValue:status }
+    ]
+  });
+  closeModal('modal-owner-withdrawal');
+  renderOwnerWithdrawalPanel();
+  renderPayable();
+  renderProfitShare();
+  saveData();
+  showToast('股東／分潤提領已新增 ✓', 'success');
+}
+
 function prGetConfig(person) {
   const emp = EMPLOYEES.find(e => e.id === person) || USERS.find(u => u.id === person);
   const fallback = {
@@ -13603,6 +13809,7 @@ function renderPayroll() {
   set('pr-pay-date',  rec?.payDate || '—');
   const noteEl = document.getElementById('pr-note-display');
   if (noteEl) noteEl.innerHTML = rec?.note ? `備註：${rec.note}` : '';
+  renderOwnerWithdrawalPanel();
 }
 
 function openEditPayroll() {
