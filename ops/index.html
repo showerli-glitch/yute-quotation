@@ -1164,7 +1164,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.32 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.33 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4201,6 +4201,65 @@ function normalizeProfitPayables() {
     lienFinal.amount = 7634;
     lienFinal.note = '2026-05-20 依家裡正確版公司開銷校正結清；尾款 7,634';
   }
+  applyProfitAdvanceSettlementOffsets();
+}
+
+function profitPaymentDate(row) {
+  return row?.doneDate || row?.transferDate || row?.wantDate || '';
+}
+
+function isSettlementOffsetAdvance(row) {
+  return row?.status === 'paid' &&
+    row.paymentType === 'profit_advance' &&
+    ['fixed_profit_advance','ad_hoc_profit_advance'].includes(row.ownerWithdrawalType) &&
+    !!row.profitPerson;
+}
+
+function applyProfitAdvanceSettlementOffsets() {
+  const advances = PAYABLES
+    .filter(isSettlementOffsetAdvance)
+    .sort((a,b) => profitPaymentDate(a).localeCompare(profitPaymentDate(b)) || (a.id||0) - (b.id||0));
+  advances.forEach(advance => {
+    const alreadyApplied = Math.max(0, Number(advance.profitSettlementOffsetAmount) || 0);
+    let remaining = Math.max(0, (Number(advance.amount) || 0) - alreadyApplied);
+    if (remaining <= 0.5) {
+      advance.psSettled = true;
+      return;
+    }
+    const targets = PAYABLES
+      .filter(row => row.paymentType === 'profit_settlement' &&
+        row.systemLocked &&
+        row.profitPerson === advance.profitPerson &&
+        row.status !== 'paid' &&
+        (Number(row.amount) || 0) > 0)
+      .sort((a,b) => profitPaymentDate(a).localeCompare(profitPaymentDate(b)) || (a.id||0) - (b.id||0));
+    targets.forEach(target => {
+      if (remaining <= 0.5) return;
+      const currentAmount = Math.max(0, Number(target.amount) || 0);
+      if (!currentAmount) return;
+      if (!target.originalSettlementAmount) target.originalSettlementAmount = currentAmount;
+      const applied = Math.min(remaining, currentAmount);
+      target.amount = Math.round(currentAmount - applied);
+      target.settlementOffsetAmount = Math.round((Number(target.settlementOffsetAmount) || 0) + applied);
+      const ids = new Set(advance.offsetSettlementPayableIds || []);
+      ids.add(target.id);
+      advance.offsetSettlementPayableIds = [...ids];
+      advance.profitSettlementOffsetAmount = Math.round((Number(advance.profitSettlementOffsetAmount) || 0) + applied);
+      remaining -= applied;
+      const marker = `已由${profitPaymentDate(advance) || '分潤預領'} ${Math.round(applied).toLocaleString('zh-TW')} 沖抵`;
+      if (!String(target.note || '').includes(marker)) target.note = `${target.note || ''}${target.note ? '；' : ''}${marker}`;
+      if (target.amount <= 0.5) {
+        target.amount = 0;
+        target.status = 'paid';
+        target.doneDate = target.doneDate || profitPaymentDate(advance);
+        target.transferDate = target.transferDate || profitPaymentDate(advance);
+        if (!String(target.note || '').includes('已由分潤預領全額沖抵')) target.note = `${target.note || ''}；已由分潤預領全額沖抵`;
+      }
+    });
+    if ((Number(advance.profitSettlementOffsetAmount) || 0) >= (Number(advance.amount) || 0) - 0.5) {
+      advance.psSettled = true;
+    }
+  });
 }
 
 function psCaseNameSort(a, b) {
@@ -5644,7 +5703,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.32', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.33', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5705,7 +5764,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.32', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.33', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6669,7 +6728,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.32';
+  merged.appVersion = '1.2.33';
   return { ok:true, data:merged };
 }
 
@@ -6793,7 +6852,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.32';
+  merged.appVersion = '1.2.33';
   return { ok:true, data:merged };
 }
 
@@ -6905,7 +6964,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.32';
+  merged.appVersion = '1.2.33';
   return { ok:true, data:merged };
 }
 
@@ -7024,7 +7083,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.32';
+  merged.appVersion = '1.2.33';
   return { ok:true, data:merged };
 }
 
@@ -9875,6 +9934,13 @@ function searchAmountText(value) {
   ].join(' ');
 }
 
+function canViewPayableRow(p) {
+  if (p.case) return userCanViewCaseFinancials(p.case, 'payable');
+  const level = permissionLevel('payable');
+  if (['manage','view_all'].includes(level)) return true;
+  return isProfitPaymentType(p.paymentType) && p.profitPerson === currentUser.id;
+}
+
 function duplicateAmountWarning(rows, { caseCode, amount, excludeId, label, describe }) {
   const amt = Number(amount) || 0;
   if (!caseCode || !amt) return true;
@@ -9939,8 +10005,7 @@ function renderPayable() {
   const payableDate = p => p.doneDate || p.transferDate || p.wantDate || p.ticket || (p.settlementId ? (PROFIT_SETTLEMENTS.find(s => s.id === p.settlementId)?.date || '') : '');
   const baseRows = PAYABLES.filter(p => {
     if (pyTab_current !== 'all' && p.status !== pyTab_current) return false;
-    if (p.case && !userCanViewCaseFinancials(p.case, 'payable')) return false;
-    if (!p.case && !['manage','view_all'].includes(permissionLevel('payable'))) return false;
+    if (!canViewPayableRow(p)) return false;
     if (filterCase && p.case !== filterCase) return false;
     if (filterYear && !payableDate(p).startsWith(filterYear)) return false;
     if (!inDateRange(payableDate(p), fromDate, toDate)) return false;
@@ -9955,8 +10020,7 @@ function renderPayable() {
     return true;
   });
   const statsRows = PAYABLES.filter(p => {
-    if (p.case && !userCanViewCaseFinancials(p.case, 'payable')) return false;
-    if (!p.case && !['manage','view_all'].includes(permissionLevel('payable'))) return false;
+    if (!canViewPayableRow(p)) return false;
     if (filterCase && p.case !== filterCase) return false;
     if (filterYear && !payableDate(p).startsWith(filterYear)) return false;
     if (!inDateRange(payableDate(p), fromDate, toDate)) return false;
@@ -10157,6 +10221,7 @@ function markPaid(id) {
   p.doneDate = today;
   touchRowMeta(p);
   pySyncRentToOverhead(p);
+  normalizeProfitPayables();
   recordAuditLog('markPaid', 'payable', p.id, before, p, {
     riskLevel:'high',
     targetLabel:`${p.vendor || '受款人未填'}／${p.summary || '付款項目未填'}`,
@@ -12854,7 +12919,17 @@ function psPersonPaidTotal(person, monthKeys) {
 }
 
 function psUnsettledProfitPayables(person = '') {
-  return PAYABLES.filter(r => r.status === 'paid' && !r.psSettled && PROFIT_PAYMENT_TYPES[r.paymentType] && (!person || r.profitPerson === person));
+  return PAYABLES
+    .filter(r => r.status === 'paid' && PROFIT_PAYMENT_TYPES[r.paymentType] && (!person || r.profitPerson === person))
+    .map(r => {
+      const amount = Number(r.amount) || 0;
+      const offset = Number(r.profitSettlementOffsetAmount) || 0;
+      const remaining = Math.max(0, amount - offset);
+      if (remaining <= 0.5) return null;
+      if (r.psSettled && remaining <= 0.5) return null;
+      return remaining === amount ? r : { ...r, amount: remaining };
+    })
+    .filter(Boolean);
 }
 
 function psPayrollBreakdown(monthKeys) {
@@ -13160,7 +13235,52 @@ function renderProfitShare() {
         </table>
       </div>`;
 
-    container.innerHTML = myModePanel + myCaseTable + personTable + payoutTable + `
+    const mySettlementPayables = PAYABLES
+      .filter(p => p.paymentType === 'profit_settlement' && p.profitPerson === currentUser.id && p.systemLocked)
+      .sort((a,b) => String(b.wantDate||b.transferDate||b.doneDate||'').localeCompare(String(a.wantDate||a.transferDate||a.doneDate||'')));
+    const mySettlementRows = mySettlementPayables.map(p => {
+      const original = Number(p.originalSettlementAmount) || (Number(p.amount) || 0) + (Number(p.settlementOffsetAmount) || 0);
+      const offset = Number(p.settlementOffsetAmount) || 0;
+      const remaining = Number(p.amount) || 0;
+      const caseNames = (p.profitCaseCodes || []).map(code => CASES.find(c => c.code === code)?.name || code).join('、') || p.caseName || '結算款';
+      const statusText = p.status === 'paid' ? (remaining > 0 ? '已付款' : '已結清') : '待領';
+      return `
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 12px;font-size:12px;white-space:normal;line-height:1.45">${p.wantDate||p.transferDate||p.doneDate||'—'}</td>
+          <td style="padding:8px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:${remaining ? 'var(--warning)' : 'var(--success)'}">${fmt(remaining)}</td>
+          <td style="padding:8px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${offset ? fmt(offset) : '—'}</td>
+          <td style="padding:8px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--text3)">${fmt(original)}</td>
+          <td style="padding:8px 12px;font-size:11px;color:var(--text2);white-space:normal;line-height:1.55">${esc(caseNames)}</td>
+          <td style="padding:8px 12px;text-align:center;font-size:12px"><span class="tag ${remaining ? 'tag-active' : 'tag-done'}">${statusText}</span></td>
+        </tr>`;
+    }).join('');
+    const mySettlementTable = `
+      <div style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:600">分潤結算待領（來自結算後應付帳款）</div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;min-width:860px;table-layout:fixed;border-collapse:collapse">
+            <colgroup>
+              <col style="width:92px">
+              <col style="width:120px">
+              <col style="width:120px">
+              <col style="width:120px">
+              <col>
+              <col style="width:92px">
+            </colgroup>
+            <thead><tr style="border-bottom:1px solid var(--border2)">
+              <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--text3)">結算日</th>
+              <th style="padding:7px 12px;text-align:right;font-size:11px;color:var(--text3)">目前待領</th>
+              <th style="padding:7px 12px;text-align:right;font-size:11px;color:var(--text3)">已沖抵</th>
+              <th style="padding:7px 12px;text-align:right;font-size:11px;color:var(--text3)">原結算額</th>
+              <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--text3)">關聯個案</th>
+              <th style="padding:7px 12px;text-align:center;font-size:11px;color:var(--text3)">狀態</th>
+            </tr></thead>
+            <tbody>${mySettlementRows || `<tr><td colspan="6" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">尚無已產生的分潤結算待領款</td></tr>`}</tbody>
+          </table>
+        </div>
+      </div>`;
+
+    container.innerHTML = myModePanel + myCaseTable + personTable + mySettlementTable + payoutTable + `
       <div style="margin-top:10px;font-size:11px;color:var(--text3)">
         ※ 分潤／承擔＝稅後個案淨利（毛利扣除公司開銷分攤與預留營業所得稅）× 您在該案的分潤比例；負數代表需由後續分潤抵扣。
       </div>`;
@@ -13702,6 +13822,7 @@ function submitOwnerWithdrawal() {
   touchRowMeta(row, true);
   const beforeSummary = auditSummary();
   PAYABLES.push(row);
+  normalizeProfitPayables();
   recordAuditLog('create', 'ownerWithdrawal', row.id, beforeSummary, auditSummary(), {
     riskLevel:'high',
     targetLabel:`${personName}／${label}`,
