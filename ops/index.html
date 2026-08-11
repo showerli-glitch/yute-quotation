@@ -1169,7 +1169,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.35 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.36 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1754,13 +1754,22 @@ body.auth-pending .auth-screen{display:flex}
           <option value="2025-11">2025年11月</option>
           <option value="2025-10">2025年10月</option>
         </select>
-        <button class="btn btn-ghost btn-sm" id="btn-payroll-add-month" onclick="prAddMonth()">+ 新增月份</button>
+        <button class="btn btn-ghost btn-sm" id="btn-payroll-add-month" onclick="openPayrollMonthModal()">+ 新增月份</button>
         <button class="btn btn-ghost btn-sm" id="btn-payroll-delete-month" onclick="prDeleteMonth()" title="刪除目前選取的月份">🗑 刪除月份</button>
         <button class="btn btn-ghost btn-sm" id="btn-owner-withdrawal" onclick="openOwnerWithdrawalModal()">＋ 股東／分潤提領</button>
         <button class="btn btn-primary btn-sm" id="btn-payroll-edit" onclick="openEditPayroll()">編輯薪資單</button>
       </div>
     </div>
     <div style="padding:20px;overflow-y:auto;height:calc(100vh - 100px)">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="font-size:13px;font-weight:700;margin-right:auto">連續月份檢視</div>
+        <label style="font-size:11px;color:var(--text3)">起月</label>
+        <select class="filter-select" id="pr-range-from" onchange="renderPayrollRangeOverview()" style="height:32px;min-width:118px"></select>
+        <label style="font-size:11px;color:var(--text3)">迄月</label>
+        <select class="filter-select" id="pr-range-to" onchange="renderPayrollRangeOverview()" style="height:32px;min-width:118px"></select>
+        <div id="pr-range-summary" style="font-size:12px;color:var(--text2);margin-left:8px"></div>
+      </div>
+      <div id="pr-range-overview" style="margin-bottom:16px"></div>
       <!-- Employee Info Bar -->
       <div id="pr-emp-info" style="display:flex;align-items:center;gap:16px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:20px"></div>
       <!-- Three-column payroll card -->
@@ -3497,13 +3506,33 @@ body.auth-pending .auth-screen{display:flex}
 </div>
 
 <!-- ════════ MODAL: OWNER / PROFIT WITHDRAWAL ════════ -->
+<div class="modal-overlay" id="modal-payroll-month" onclick="if(event.target===this)closeModal('modal-payroll-month')">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-hd">
+      <div class="modal-title">新增薪資月份</div>
+      <button class="modal-close" onclick="closeModal('modal-payroll-month')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-field">
+        <label class="form-label">月份</label>
+        <input class="form-input" id="pr-new-month" type="month">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-payroll-month')">取消</button>
+      <button class="btn btn-primary" onclick="submitPayrollMonth()">新增月份</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-owner-withdrawal" onclick="if(event.target===this)closeModal('modal-owner-withdrawal')">
   <div class="modal" style="max-width:640px">
     <div class="modal-hd">
-      <div class="modal-title">新增股東／分潤提領</div>
+      <div class="modal-title" id="ow-modal-title">新增股東／分潤提領</div>
       <button class="modal-close" onclick="closeModal('modal-owner-withdrawal')">✕</button>
     </div>
     <div class="modal-body">
+      <input type="hidden" id="ow-edit-id" value="">
       <div class="form-grid">
         <div class="form-field">
           <label class="form-label">提領人</label>
@@ -3547,7 +3576,7 @@ body.auth-pending .auth-screen{display:flex}
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-owner-withdrawal')">取消</button>
-      <button class="btn btn-primary" onclick="submitOwnerWithdrawal()">新增提領</button>
+      <button class="btn btn-primary" id="ow-submit-btn" onclick="submitOwnerWithdrawal()">新增提領</button>
     </div>
   </div>
 </div>
@@ -4206,6 +4235,7 @@ function normalizeProfitPayables() {
     lienFinal.amount = 7634;
     lienFinal.note = '2026-05-20 依家裡正確版公司開銷校正結清；尾款 7,634';
   }
+  resetProfitSettlementOffsets();
   applyProfitAdvanceSettlementOffsets();
 }
 
@@ -4217,6 +4247,31 @@ function profitOffsetPerson(row) {
   if (!row) return '';
   if (row.paymentType === 'shareholder_distribution') return row.profitPerson || row.shareholderPerson || '';
   return row.profitPerson || '';
+}
+
+function resetProfitSettlementOffsets() {
+  PAYABLES.forEach(row => {
+    if (row.paymentType !== 'profit_settlement' || !row.settlementOffsetAmount) return;
+    const original = Number(row.originalSettlementAmount) || (Number(row.amount) || 0) + (Number(row.settlementOffsetAmount) || 0);
+    row.originalSettlementAmount = original;
+    row.amount = Math.round(original);
+    row.settlementOffsetAmount = 0;
+    if (row.status === 'paid' && String(row.note || '').includes('已由分潤預領全額沖抵')) {
+      row.status = 'approved';
+      row.doneDate = '';
+      row.transferDate = '';
+    }
+    row.note = String(row.note || '')
+      .replace(/；?已由[^；]*?沖抵/g, '')
+      .replace(/；?已由分潤預領全額沖抵/g, '')
+      .replace(/^；|；$/g, '');
+  });
+  PAYABLES.forEach(row => {
+    if (!row.ownerWithdrawalType) return;
+    row.profitSettlementOffsetAmount = 0;
+    row.offsetSettlementPayableIds = [];
+    if (row.psSettled && ['profit_advance','shareholder_distribution'].includes(row.paymentType)) row.psSettled = false;
+  });
 }
 
 function isSettlementOffsetAdvance(row) {
@@ -5718,7 +5773,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.35', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.36', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5779,7 +5834,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.35', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.36', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6743,7 +6798,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.35';
+  merged.appVersion = '1.2.36';
   return { ok:true, data:merged };
 }
 
@@ -6867,7 +6922,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.35';
+  merged.appVersion = '1.2.36';
   return { ok:true, data:merged };
 }
 
@@ -6979,7 +7034,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.35';
+  merged.appVersion = '1.2.36';
   return { ok:true, data:merged };
 }
 
@@ -7098,7 +7153,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.35';
+  merged.appVersion = '1.2.36';
   return { ok:true, data:merged };
 }
 
@@ -13647,22 +13702,43 @@ function prRenderMonthOptions(preferredMonth) {
   }).join('');
   if (months.includes(current)) sel.value = current;
   else if (months.length) sel.value = months[0];
+  prRenderRangeMonthOptions();
 }
 
-function prAddMonth() {
+function prRenderRangeMonthOptions() {
+  const fromEl = document.getElementById('pr-range-from');
+  const toEl = document.getElementById('pr-range-to');
+  if (!fromEl || !toEl) return;
+  const months = [...new Set(PAYROLL_MONTHS.filter(prIsValidMonth))].sort((a,b) => b.localeCompare(a));
+  const optionHtml = months.map(month => {
+    const [year, num] = month.split('-');
+    return `<option value="${month}">${year}年${Number(num)}月</option>`;
+  }).join('');
+  const prevFrom = fromEl.value;
+  const prevTo = toEl.value;
+  fromEl.innerHTML = optionHtml;
+  toEl.innerHTML = optionHtml;
+  fromEl.value = months.includes(prevFrom) ? prevFrom : (months[5] || months[months.length - 1] || months[0] || '');
+  toEl.value = months.includes(prevTo) ? prevTo : (months[0] || '');
+}
+
+function openPayrollMonthModal() {
   if (!requireManage('payroll')) return;
   const sel = document.getElementById('pr-filter-month');
   if (!sel) return;
-  const input = prompt('請輸入要新增的月份（格式 YYYY-MM）', '');
-  if (!input) return;
-  const m = input.trim().match(/^(\d{4})-(\d{1,2})$/);
-  if (!m) { alert('格式錯誤，請輸入 YYYY-MM，例如 2026-05'); return; }
-  const monthNum = Number(m[2]);
-  if (monthNum < 1 || monthNum > 12) { alert('月份必須介於 1 到 12'); return; }
-  const month = `${m[1]}-${String(m[2]).padStart(2,'0')}`;
+  const input = document.getElementById('pr-new-month');
+  if (input) input.value = sel.value || localDateKey().slice(0,7);
+  openModal('modal-payroll-month');
+}
+
+function submitPayrollMonth() {
+  if (!requireManage('payroll')) return;
+  const month = document.getElementById('pr-new-month')?.value || '';
+  if (!prIsValidMonth(month)) { showToast('請選擇正確月份', 'error'); return; }
   if (PAYROLL_MONTHS.includes(month)) { alert('此月份已存在'); prRenderMonthOptions(month); renderPayroll(); return; }
   PAYROLL_MONTHS.push(month);
   prRenderMonthOptions(month);
+  closeModal('modal-payroll-month');
   renderPayroll();
   saveData();
   showToast('月份已新增 ✓','success');
@@ -13688,7 +13764,9 @@ function prDeleteMonth() {
 }
 
 function prSelectableUsers() {
-  return activeSystemUsers().filter(u => u.id !== 'shower' && (PR_CONFIG[u.id] || employeeById(u.id)));
+  const people = activeSystemUsers().filter(u => u.id !== 'shower' && (PR_CONFIG[u.id] || employeeById(u.id)));
+  if (canManage('payroll')) people.unshift({id:'shower', name:'李鎮宇', role:'股東／分潤提領'});
+  return people;
 }
 
 function prRenderEmployeeTabs() {
@@ -13709,7 +13787,7 @@ function prRenderEmployeeTabs() {
 
 function prSelectEmp(el, person) {
   if (!canManage('payroll') && person !== currentUser.id) { showToast('您只能查看自己的薪資', 'error'); return; }
-  if (!isActiveEmployeeId(person)) { showToast('此員工已離職，薪資選單已停用', 'warning'); prRenderEmployeeTabs(); return; }
+  if (person !== 'shower' && !isActiveEmployeeId(person)) { showToast('此員工已離職，薪資選單已停用', 'warning'); prRenderEmployeeTabs(); return; }
   document.querySelectorAll('.pr-emp-tab').forEach(b => { b.classList.remove('btn-primary','active'); b.classList.add('btn-ghost'); });
   el.classList.remove('btn-ghost'); el.classList.add('btn-primary','active');
   prCurrentEmp = person;
@@ -13740,6 +13818,91 @@ function ownerWithdrawalRows(month = '') {
   }).sort((a,b) => ownerWithdrawalDate(b).localeCompare(ownerWithdrawalDate(a)) || (b.id||0) - (a.id||0));
 }
 
+function prMonthsInRange(fromMonth, toMonth) {
+  const months = [...new Set(PAYROLL_MONTHS.filter(prIsValidMonth))].sort();
+  if (!months.length) return [];
+  let from = fromMonth || months[0];
+  let to = toMonth || months[months.length - 1];
+  if (from > to) [from, to] = [to, from];
+  return months.filter(month => month >= from && month <= to);
+}
+
+function prRecordNet(rec) {
+  if (!rec) return 0;
+  const custom = (rec.customItems || []).reduce((s,it) => s + (Number(it.amount) || 0), 0);
+  const a = (rec.baseSalary||0)+(rec.phoneAllowance||0)+(rec.fullAttendanceBonus||0)+(rec.dutyAllowance||0)+(rec.performanceBonus||0)+(rec.mealAllowance||0);
+  const b = (rec.overtimePay||0)+(rec.expenseReimbursement||0)+(rec.yearEndBonus||0)+(rec.engineeringBonus||0)+custom;
+  const c = (rec.laborInsurance||0)+(rec.healthInsurance||0)+(rec.voluntaryPension||0)+(rec.leaveDeduction||0);
+  return a + b - c - (rec.advancePaid || 0);
+}
+
+function renderPayrollRangeOverview() {
+  const box = document.getElementById('pr-range-overview');
+  if (!box) return;
+  prRenderRangeMonthOptions();
+  const from = document.getElementById('pr-range-from')?.value || '';
+  const to = document.getElementById('pr-range-to')?.value || '';
+  const months = prMonthsInRange(from, to);
+  const monthSet = new Set(months);
+  const people = prSelectableUsers();
+  const canSeeAll = canManage('payroll') || permissionLevel('payroll') !== 'view_self';
+  const visiblePeople = canSeeAll ? people : people.filter(p => p.id === currentUser.id);
+  const payrollRows = visiblePeople.map(person => {
+    const records = PAYROLL.filter(r => r.person === person.id && monthSet.has(r.month));
+    const net = records.reduce((s,r) => s + prRecordNet(r), 0);
+    return { person, count:records.length, net };
+  }).filter(row => row.count || row.net);
+  const withdrawalRows = ownerWithdrawalRows().filter(row => monthSet.has(ownerWithdrawalDate(row).slice(0,7)));
+  const withdrawalTotal = withdrawalRows.reduce((s,row) => s + (Number(row.amount) || 0), 0);
+  const payrollTotal = payrollRows.reduce((s,row) => s + row.net, 0);
+  const fmt = n => '$' + Math.round(Number(n)||0).toLocaleString('zh-TW');
+  const summary = document.getElementById('pr-range-summary');
+  if (summary) summary.textContent = months.length ? `${months[0]} ～ ${months[months.length - 1]}｜薪資 ${fmt(payrollTotal)}｜提領 ${fmt(withdrawalTotal)}` : '尚無月份';
+  const payrollBody = payrollRows.length ? payrollRows.map(row => `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 12px;font-size:12px;font-weight:600">${row.person.name}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:12px;color:var(--text2)">${row.count} 個月</td>
+      <td style="padding:8px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700">${fmt(row.net)}</td>
+    </tr>`).join('') : `<tr><td colspan="3" style="padding:16px;text-align:center;font-size:12px;color:var(--text3)">區間內沒有薪資紀錄</td></tr>`;
+  const withdrawalBody = withdrawalRows.length ? withdrawalRows.map(row => `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 12px;font-size:12px">${ownerWithdrawalDate(row) || '—'}</td>
+      <td style="padding:8px 12px;font-size:12px;font-weight:600">${row.vendor || psPersonName(profitOffsetPerson(row))}</td>
+      <td style="padding:8px 12px;font-size:12px">${ownerWithdrawalTypeLabel(row.ownerWithdrawalType)}</td>
+      <td style="padding:8px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700">${fmt(row.amount)}</td>
+      <td style="padding:8px 12px;text-align:center"><span class="tag ${row.status === 'paid' ? 'tag-done' : 'tag-active'}">${row.status === 'paid' ? '已付款' : '待付款'}</span></td>
+    </tr>`).join('') : `<tr><td colspan="5" style="padding:16px;text-align:center;font-size:12px;color:var(--text3)">區間內沒有股東／分潤提領紀錄</td></tr>`;
+  box.innerHTML = `
+    <div style="display:grid;grid-template-columns:minmax(280px,0.8fr) minmax(420px,1.2fr);gap:14px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:700">薪資區間彙總</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid var(--border2)">
+            <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--text3)">人員</th>
+            <th style="padding:7px 12px;text-align:center;font-size:11px;color:var(--text3)">月份數</th>
+            <th style="padding:7px 12px;text-align:right;font-size:11px;color:var(--text3)">實領合計</th>
+          </tr></thead>
+          <tbody>${payrollBody}</tbody>
+        </table>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:700">股東／分潤提領區間明細</div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;min-width:620px;border-collapse:collapse">
+            <thead><tr style="border-bottom:1px solid var(--border2)">
+              <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--text3)">日期</th>
+              <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--text3)">提領人</th>
+              <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--text3)">類型</th>
+              <th style="padding:7px 12px;text-align:right;font-size:11px;color:var(--text3)">金額</th>
+              <th style="padding:7px 12px;text-align:center;font-size:11px;color:var(--text3)">狀態</th>
+            </tr></thead>
+            <tbody>${withdrawalBody}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderOwnerWithdrawalPanel() {
   const box = document.getElementById('owner-withdrawal-panel');
   if (!box) return;
@@ -13758,7 +13921,11 @@ function renderOwnerWithdrawalPanel() {
       <td style="padding:8px 12px;font-size:12px">${row.bank || '—'}</td>
       <td style="padding:8px 12px;text-align:center"><span class="tag ${row.status === 'paid' ? 'tag-done' : 'tag-active'}">${statusLabel[row.status] || row.status || '—'}</span></td>
       <td style="padding:8px 12px;font-size:11px;color:var(--text3);line-height:1.45">${row.note || ''}</td>
-    </tr>`).join('') : `<tr><td colspan="7" style="padding:24px;text-align:center;color:var(--text3);font-size:12px">本月尚無股東／分潤提領紀錄</td></tr>`;
+      <td style="padding:8px 12px;text-align:center;white-space:nowrap">
+        ${canManage('payroll') ? `<button class="btn btn-ghost btn-sm" style="padding:3px 7px;font-size:11px" onclick="openOwnerWithdrawalModal(${row.id})">修改</button>
+        <button class="btn btn-ghost btn-sm" style="padding:3px 7px;font-size:11px;color:var(--error)" onclick="deleteOwnerWithdrawal(${row.id})">刪除</button>` : ''}
+      </td>
+    </tr>`).join('') : `<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text3);font-size:12px">本月尚無股東／分潤提領紀錄</td></tr>`;
   box.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
       <div style="padding:12px 16px;background:var(--surface2);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -13769,7 +13936,7 @@ function renderOwnerWithdrawalPanel() {
         ${canManage('payroll') ? '<button class="btn btn-ghost btn-sm" onclick="openOwnerWithdrawalModal()">＋ 新增提領</button>' : ''}
       </div>
       <div style="overflow-x:auto">
-        <table style="width:100%;min-width:780px;border-collapse:collapse">
+        <table style="width:100%;min-width:900px;border-collapse:collapse">
           <thead><tr style="border-bottom:1px solid var(--border2)">
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text3)">日期</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text3)">提領人</th>
@@ -13778,6 +13945,7 @@ function renderOwnerWithdrawalPanel() {
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text3)">帳戶</th>
             <th style="padding:8px 12px;text-align:center;font-size:11px;color:var(--text3)">狀態</th>
             <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text3)">備註</th>
+            <th style="padding:8px 12px;text-align:center;font-size:11px;color:var(--text3)">操作</th>
           </tr></thead>
           <tbody>${body}</tbody>
         </table>
@@ -13785,21 +13953,30 @@ function renderOwnerWithdrawalPanel() {
     </div>`;
 }
 
-function openOwnerWithdrawalModal() {
-  if (!requireManage('payroll', '您沒有新增股東／分潤提領的權限')) return;
+function openOwnerWithdrawalModal(id = null) {
+  if (!requireManage('payroll', '您沒有新增或編輯股東／分潤提領的權限')) return;
+  const row = id ? PAYABLES.find(r => r.id === id && r.ownerWithdrawalType) : null;
+  const title = document.getElementById('ow-modal-title');
+  const submitBtn = document.getElementById('ow-submit-btn');
+  const editEl = document.getElementById('ow-edit-id');
+  if (title) title.textContent = row ? '編輯股東／分潤提領' : '新增股東／分潤提領';
+  if (submitBtn) submitBtn.textContent = row ? '儲存修改' : '新增提領';
+  if (editEl) editEl.value = row?.id || '';
   const personEl = document.getElementById('ow-person');
   if (personEl) {
     const people = psParticipantList();
     personEl.innerHTML = people.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-    personEl.value = 'shower';
+    personEl.value = profitOffsetPerson(row) || 'shower';
   }
   const month = document.getElementById('pr-filter-month')?.value || '';
   const today = new Date().toISOString().slice(0,10);
   const dateEl = document.getElementById('ow-date');
-  if (dateEl) dateEl.value = month ? `${month}-${today.slice(8,10)}` : today;
-  const typeEl = document.getElementById('ow-type'); if (typeEl) typeEl.value = 'fixed_profit_advance';
-  const statusEl = document.getElementById('ow-status'); if (statusEl) statusEl.value = 'paid';
-  ['ow-amount','ow-bank','ow-note'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  if (dateEl) dateEl.value = ownerWithdrawalDate(row) || (month ? `${month}-${today.slice(8,10)}` : today);
+  const typeEl = document.getElementById('ow-type'); if (typeEl) typeEl.value = row?.ownerWithdrawalType || 'fixed_profit_advance';
+  const statusEl = document.getElementById('ow-status'); if (statusEl) statusEl.value = row?.status || 'paid';
+  const amountEl = document.getElementById('ow-amount'); if (amountEl) amountEl.value = row?.amount ? row.amount.toLocaleString('zh-TW') : '';
+  const bankEl = document.getElementById('ow-bank'); if (bankEl) bankEl.value = row?.bank || '';
+  const noteEl = document.getElementById('ow-note'); if (noteEl) noteEl.value = row?.note || '';
   openModal('modal-owner-withdrawal');
 }
 
@@ -13818,9 +13995,13 @@ function submitOwnerWithdrawal() {
   const personName = psPersonName(person);
   const label = ownerWithdrawalTypeLabel(type);
   const paymentType = ownerWithdrawalPayableType(type);
+  const editId = Number(document.getElementById('ow-edit-id')?.value || 0);
+  const existing = editId ? PAYABLES.find(r => r.id === editId && r.ownerWithdrawalType) : null;
+  const before = existing ? auditClone(existing) : null;
+  const beforeSummary = existing ? null : auditSummary();
   const row = {
-    id: pyNextId++,
-    sourceKey:`owner-withdrawal-${person}-${type}-${date}-${Date.now()}`,
+    id: existing?.id || pyNextId++,
+    sourceKey: existing?.sourceKey || `owner-withdrawal-${person}-${type}-${date}-${Date.now()}`,
     case:'', caseName:'',
     vendor:personName,
     summary:label,
@@ -13841,11 +14022,11 @@ function submitOwnerWithdrawal() {
     status,
     note: note || `${date} ${label}`
   };
-  touchRowMeta(row, true);
-  const beforeSummary = auditSummary();
-  PAYABLES.push(row);
+  touchRowMeta(row, !existing);
+  if (existing) Object.assign(existing, row);
+  else PAYABLES.push(row);
   normalizeProfitPayables();
-  recordAuditLog('create', 'ownerWithdrawal', row.id, beforeSummary, auditSummary(), {
+  recordAuditLog(existing ? 'update' : 'create', 'ownerWithdrawal', row.id, existing ? before : beforeSummary, existing ? row : auditSummary(), {
     riskLevel:'high',
     targetLabel:`${personName}／${label}`,
     diff:[
@@ -13856,10 +14037,32 @@ function submitOwnerWithdrawal() {
   });
   closeModal('modal-owner-withdrawal');
   renderOwnerWithdrawalPanel();
+  renderPayrollRangeOverview();
   renderPayable();
   renderProfitShare();
   saveData();
-  showToast('股東／分潤提領已新增 ✓', 'success');
+  showToast(existing ? '股東／分潤提領已更新 ✓' : '股東／分潤提領已新增 ✓', 'success');
+}
+
+function deleteOwnerWithdrawal(id) {
+  if (!requireManage('payroll', '您沒有刪除股東／分潤提領的權限')) return;
+  const idx = PAYABLES.findIndex(r => r.id === id && r.ownerWithdrawalType);
+  if (idx < 0) return;
+  const row = PAYABLES[idx];
+  if (!confirm(`確定刪除「${row.vendor || ''}／${ownerWithdrawalTypeLabel(row.ownerWithdrawalType)}／$${(row.amount||0).toLocaleString('zh-TW')}」？`)) return;
+  const before = auditClone(row);
+  PAYABLES.splice(idx, 1);
+  normalizeProfitPayables();
+  recordAuditLog('delete', 'ownerWithdrawal', id, before, null, {
+    riskLevel:'high',
+    targetLabel:`${row.vendor || '提領人未填'}／${ownerWithdrawalTypeLabel(row.ownerWithdrawalType)}`
+  });
+  renderOwnerWithdrawalPanel();
+  renderPayrollRangeOverview();
+  renderPayable();
+  renderProfitShare();
+  saveData();
+  showToast('股東／分潤提領已刪除 ✓', 'success');
 }
 
 function prGetConfig(person) {
@@ -13894,6 +14097,12 @@ function renderPayroll() {
   const month = document.getElementById('pr-filter-month')?.value || '2026-03';
   const cfg   = prGetConfig(prCurrentEmp);
   const rec = PAYROLL.find(r => r.person===prCurrentEmp && r.month===month);
+  const editBtn = document.getElementById('btn-payroll-edit');
+  if (editBtn) {
+    editBtn.disabled = prCurrentEmp === 'shower';
+    editBtn.textContent = prCurrentEmp === 'shower' ? '股東提領由下方新增' : '編輯薪資單';
+    editBtn.title = prCurrentEmp === 'shower' ? '李鎮宇不列員工薪資，請用股東／分潤提領紀錄管理' : '';
+  }
 
   // Emp info bar
   const infoEl = document.getElementById('pr-emp-info');
@@ -13952,6 +14161,7 @@ function renderPayroll() {
   set('pr-pay-date',  rec?.payDate || '—');
   const noteEl = document.getElementById('pr-note-display');
   if (noteEl) noteEl.innerHTML = rec?.note ? `備註：${rec.note}` : '';
+  renderPayrollRangeOverview();
   renderOwnerWithdrawalPanel();
 }
 
