@@ -1169,7 +1169,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.37 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.38 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5775,7 +5775,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.37', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.38', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5836,7 +5836,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.37', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.38', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6800,7 +6800,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.37';
+  merged.appVersion = '1.2.38';
   return { ok:true, data:merged };
 }
 
@@ -6924,7 +6924,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.37';
+  merged.appVersion = '1.2.38';
   return { ok:true, data:merged };
 }
 
@@ -7036,7 +7036,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.37';
+  merged.appVersion = '1.2.38';
   return { ok:true, data:merged };
 }
 
@@ -7155,7 +7155,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.37';
+  merged.appVersion = '1.2.38';
   return { ok:true, data:merged };
 }
 
@@ -7829,6 +7829,61 @@ window.addEventListener('resize', () => {
   if (window.innerWidth > 768) closeMobileSidebar();
 });
 
+function currentMonthKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function currentYearKey() {
+  return currentMonthKey().slice(0, 4);
+}
+
+function monthDateRange(month = currentMonthKey()) {
+  const match = String(month || '').match(/^(\d{4})-(\d{2})$/);
+  if (!match) return { start:'', end:'' };
+  const year = Number(match[1]);
+  const monthNum = Number(match[2]);
+  const lastDay = new Date(year, monthNum, 0).getDate();
+  return {
+    start: `${year}-${String(monthNum).padStart(2, '0')}-01`,
+    end: `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  };
+}
+
+function setControlValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el.tagName === 'SELECT' && value && !Array.from(el.options).some(option => option.value === value)) {
+    el.add(new Option(value, value));
+  }
+  el.value = value;
+}
+
+function applyDefaultPeriodForPage(page) {
+  const month = currentMonthKey();
+  if (page === 'expense') {
+    setControlValue('exp-filter-month', month);
+  }
+  if (page === 'attendance') {
+    setControlValue('att-filter-month', month);
+  }
+  if (page === 'overhead') {
+    ohRenderMonthOptions(month);
+  }
+  if (page === 'payroll') {
+    prRenderMonthOptions(month);
+    setControlValue('pr-range-from', month);
+    setControlValue('pr-range-to', month);
+  }
+  if (page === 'payable' || page === 'receivable') {
+    const prefix = page === 'payable' ? 'py' : 'rv';
+    const range = monthDateRange(month);
+    setControlValue(`${prefix}-filter-year`, currentYearKey());
+    setControlValue(`${prefix}-date-from`, range.start);
+    setControlValue(`${prefix}-date-to`, range.end);
+  }
+}
+
 function navTo(page, el) {
   // Permission check
   if (!canAccess(page)) {
@@ -7845,6 +7900,7 @@ function navTo(page, el) {
   document.getElementById('topbar-title').textContent = t[0];
   document.getElementById('topbar-sub').textContent = t[1];
   currentPage = page;
+  applyDefaultPeriodForPage(page);
   if (page === 'profit')     { renderProfit(); requestAnimationFrame(resizeTableWrap); }
   if (page === 'profitshare') renderProfitShare();
   if (page === 'attendance') renderAttendance();
@@ -8954,7 +9010,7 @@ function attVisiblePerson() {
 }
 
 function attMonthValue() {
-  return document.getElementById('att-filter-month')?.value || new Date().toISOString().slice(0,7);
+  return document.getElementById('att-filter-month')?.value || currentMonthKey();
 }
 
 function attToday() {
@@ -8994,14 +9050,14 @@ function attFillPersonOptions() {
 function attFillMonthOptions() {
   const sel = document.getElementById('att-filter-month');
   if (!sel) return;
-  const cur = sel.value || new Date().toISOString().slice(0,7);
+  const cur = sel.value || currentMonthKey();
   const monthSet = new Set([
     cur,
     ...PAYROLL_MONTHS,
     ...ATTENDANCE_RECORDS.map(r => String(r.date || '').slice(0,7)).filter(prIsValidMonth),
     ...ATTENDANCE_LEAVES.map(r => String(r.date || '').slice(0,7)).filter(prIsValidMonth),
   ]);
-  ohAddFutureMonths(monthSet, new Date().toISOString().slice(0,7), 3);
+  ohAddFutureMonths(monthSet, currentMonthKey(), 3);
   ohAddFutureMonths(monthSet, cur, 1);
   const months = [...monthSet].filter(prIsValidMonth).sort((a,b)=>b.localeCompare(a));
   sel.innerHTML = months.map(month => {
@@ -10795,8 +10851,8 @@ function updateReceivableStats(scopeRows = null) {
     set('rv-stat-noinv-count', '—');
     return;
   }
-  const thisMonth = new Date().toISOString().slice(0,7);
-  const thisYear  = new Date().toISOString().slice(0,4);
+  const thisMonth = currentMonthKey();
+  const thisYear  = currentYearKey();
   const selYearRv = document.getElementById('rv-filter-year')?.value || '';
   const visibleRows = scopeRows || RECEIVABLES.filter(r => userCanViewCaseFinancials(r.case, 'receivable'));
   const monthRows = visibleRows.filter(r => r.collectDate?.startsWith(thisMonth) && receivableIsCollected(r));
@@ -11945,7 +12001,7 @@ function expenseRowActions(r) {
 }
 
 function updateExpenseStats(rowsForStats) {
-  const thisMonth = new Date().toISOString().slice(0,7);
+  const thisMonth = currentMonthKey();
   const selectedMonth = document.getElementById('exp-filter-month')?.value || '';
   const month = selectedMonth || thisMonth;
   const mRows = Array.isArray(rowsForStats)
@@ -12313,7 +12369,7 @@ function expBatchInit() {
   if (tbody) tbody.innerHTML = '';
   expRefreshBatchCaseDatalist();
   const mEl = document.getElementById('exp-batch-month');
-  if (mEl) mEl.value = new Date().toISOString().slice(0,7);
+  if (mEl) mEl.value = currentMonthKey();
   expRefreshBatchPersonOptions(currentUser.id);
   const personEl = document.getElementById('exp-batch-person');
   if (personEl) {
@@ -12442,13 +12498,13 @@ function ohAddFutureMonths(months, anchor, monthsForward = 3) {
 function ohRenderMonthOptions(preferredMonth) {
   const sel = document.getElementById('oh-filter-month');
   if (!sel) return;
-  const current = preferredMonth || sel.value || new Date().toISOString().slice(0,7);
+  const current = preferredMonth || sel.value || currentMonthKey();
   const months = new Set();
   Object.keys(OVERHEAD || {}).forEach(month => { if (prIsValidMonth(month)) months.add(month); });
   EXPENSES.forEach(row => { if (prIsValidMonth(row.month)) months.add(row.month); });
   PAYROLL_MONTHS.forEach(month => { if (prIsValidMonth(month)) months.add(month); });
-  ohAddMonthsAround(months, new Date().toISOString().slice(0,7), 8);
-  ohAddFutureMonths(months, new Date().toISOString().slice(0,7), 3);
+  ohAddMonthsAround(months, currentMonthKey(), 8);
+  ohAddFutureMonths(months, currentMonthKey(), 3);
   ohAddMonthsAround(months, current, 3);
   ohAddFutureMonths(months, current, 1);
   const sorted = [...months].sort((a,b) => b.localeCompare(a));
@@ -12475,7 +12531,7 @@ function ohPreviousMonthData(month) {
 function renderOverhead() {
   const manage = canManage('overhead');
   ohRenderMonthOptions();
-  const month = document.getElementById('oh-filter-month')?.value || new Date().toISOString().slice(0,7);
+  const month = document.getElementById('oh-filter-month')?.value || currentMonthKey();
   if (!OVERHEAD[month]) ohInitMonth(month);
   const data = OVERHEAD[month];
   // 確保陣列長度與設定同步
@@ -12590,7 +12646,7 @@ function ohRenameFixedItem(idx) {
 }
 function ohCopyFixedFromPrevMonth() {
   if (!requireManage('overhead')) return;
-  const month = document.getElementById('oh-filter-month')?.value || new Date().toISOString().slice(0,7);
+  const month = document.getElementById('oh-filter-month')?.value || currentMonthKey();
   if (!OVERHEAD[month]) ohInitMonth(month);
   const { prevMonth, prevData } = ohPreviousMonthData(month);
   if (!prevData) { showToast('找不到上個月份可複製','error'); return; }
@@ -12623,7 +12679,7 @@ function ohPromptAddFixed() {
 
 function ohPromptAddMonth() {
   if (!requireManage('overhead')) return;
-  const current = document.getElementById('oh-filter-month')?.value || new Date().toISOString().slice(0,7);
+  const current = document.getElementById('oh-filter-month')?.value || currentMonthKey();
   const month = (prompt('請輸入要新增的月份（格式 YYYY-MM）：', current) || '').trim();
   if (!month) return;
   if (!prIsValidMonth(month)) {
@@ -12647,7 +12703,7 @@ function ohDeleteVar(month, id) {
 }
 function submitAddOverhead() {
   if (!requireManage('overhead')) return;
-  const month = document.getElementById('oh-filter-month')?.value || new Date().toISOString().slice(0,7);
+  const month = document.getElementById('oh-filter-month')?.value || currentMonthKey();
   const name  = document.getElementById('oh-add-name').value.trim();
   const amtRaw= document.getElementById('oh-add-amount').value.trim();
   if (!name)   { showToast('請填寫名稱','error'); return; }
@@ -13694,8 +13750,10 @@ function prIsValidMonth(month) {
 function prRenderMonthOptions(preferredMonth) {
   const sel = document.getElementById('pr-filter-month');
   if (!sel) return;
-  const current = preferredMonth || sel.value;
-  const months = [...new Set(PAYROLL_MONTHS.filter(prIsValidMonth))].sort((a,b) => b.localeCompare(a));
+  const current = preferredMonth || sel.value || currentMonthKey();
+  const monthSet = new Set(PAYROLL_MONTHS.filter(prIsValidMonth));
+  if (prIsValidMonth(current)) monthSet.add(current);
+  const months = [...monthSet].sort((a,b) => b.localeCompare(a));
   PAYROLL_MONTHS.length = 0;
   PAYROLL_MONTHS.push(...months);
   sel.innerHTML = months.map(month => {
