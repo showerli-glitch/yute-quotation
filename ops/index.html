@@ -1169,7 +1169,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.38 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.39 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5775,7 +5775,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.38', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.39', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5836,7 +5836,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.38', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.39', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6800,7 +6800,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.38';
+  merged.appVersion = '1.2.39';
   return { ok:true, data:merged };
 }
 
@@ -6924,7 +6924,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.38';
+  merged.appVersion = '1.2.39';
   return { ok:true, data:merged };
 }
 
@@ -7036,7 +7036,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.38';
+  merged.appVersion = '1.2.39';
   return { ok:true, data:merged };
 }
 
@@ -7155,7 +7155,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.38';
+  merged.appVersion = '1.2.39';
   return { ok:true, data:merged };
 }
 
@@ -8079,14 +8079,7 @@ function dcToggleCaseDropdown() {
     const container = document.getElementById('case-filter-checkboxes');
     if (container) {
       const visibleCases = CASES.filter(c => userCanViewCaseFinancials(c.code, 'dashboard') || userCanViewCaseFinancials(c.code, 'profit'));
-      container.innerHTML = visibleCases.map(c => {
-        const chk = dcSelCases === null || dcSelCases.has(c.code);
-        return `<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;cursor:pointer;font-size:12px;border-radius:4px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-          <input type="checkbox" value="${c.code}" ${chk ? 'checked' : ''} onchange="dcCaseCheckChange()">
-          <span style="font-family:'DM Mono',monospace;color:var(--accent);font-size:10px;min-width:110px">${c.code}</span>
-          <span style="flex:1">${c.name}${c.status==='結案'?' <span style=\'color:var(--text3)\'>(已結案)</span>':''}</span>
-        </label>`;
-      }).join('');
+      container.innerHTML = buildCaseCheckboxGroups(visibleCases, c => dcSelCases === null || dcSelCases.has(c.code), 'dcCaseCheckChange()');
       const allCb = document.getElementById('case-filter-all');
       if (allCb) allCb.checked = dcSelCases === null;
     }
@@ -8132,22 +8125,53 @@ function isClosedCase(code) {
   return CASES.find(c => c.code === code)?.status === '結案';
 }
 
-function buildCaseOptions(placeholder='── 選擇個案名稱 ──', includeOverhead=false, activeOnly=false, currentCode='', filterFn=null) {
-  let html = `<option value="">${placeholder}</option>`;
+function groupedCases(cases) {
+  const rows = (Array.isArray(cases) ? cases : []).filter(Boolean);
+  return {
+    open: rows.filter(c => c.status !== '結案'),
+    closed: rows.filter(c => c.status === '結案')
+  };
+}
+
+function caseOptionLabel(c) {
+  return `${c.code} ${c.name || ''}`.trim();
+}
+
+function caseOptionHtml(c) {
+  return `<option value="${c.code}">${caseOptionLabel(c)}</option>`;
+}
+
+function buildGroupedCaseOptionsFromRows(cases, placeholder='', includeOverhead=false) {
+  let html = placeholder ? `<option value="">${placeholder}</option>` : '';
   if (includeOverhead) html += `<option value="固定開銷">固定開銷</option>`;
+  const { open, closed } = groupedCases(cases);
+  if (open.length) html += '<optgroup label="進行中／未結案個案">' + open.map(caseOptionHtml).join('') + '</optgroup>';
+  if (closed.length) html += '<optgroup label="已結案個案">' + closed.map(caseOptionHtml).join('') + '</optgroup>';
+  return html;
+}
+
+function buildCaseOptions(placeholder='── 選擇個案名稱 ──', includeOverhead=false, activeOnly=false, currentCode='', filterFn=null) {
   const allowed = CASES.filter(c => !filterFn || filterFn(c));
-  const available = allowed.filter(c => !activeOnly || c.status !== '結案' || c.code === currentCode);
-  const closed = activeOnly ? allowed.filter(c => c.status === '結案' && c.code !== currentCode) : [];
-  if (available.length) {
-    html += available.map(c => `<option value="${c.code}">${c.code} ${c.name}</option>`).join('');
-  } else if (activeOnly) {
+  let html = buildGroupedCaseOptionsFromRows(allowed, placeholder, includeOverhead);
+  if (!groupedCases(allowed).open.length && activeOnly) {
     html += '<option value="" disabled>目前沒有進行中個案</option>';
   }
-  if (closed.length) {
-    html += '<optgroup label="已結案（不可新增）">' + closed
-      .map(c => `<option value="${c.code}" disabled>${c.code} ${c.name}</option>`).join('') + '</optgroup>';
-  }
   return html;
+}
+
+function caseGroupLabel(label) {
+  return `<div style="flex-basis:100%;padding:6px 6px 3px;margin-top:4px;font-size:10px;color:var(--text3);border-top:1px solid var(--border)">${label}</div>`;
+}
+
+function buildCaseCheckboxGroups(cases, selectedFn, onchange, options = {}) {
+  const { open, closed } = groupedCases(cases);
+  const row = c => `<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;cursor:pointer;font-size:12px;border-radius:4px${options.flexItem ? ';min-width:210px' : ''}" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+    <input type="checkbox" value="${c.code}" ${selectedFn(c) ? 'checked' : ''} onchange="${onchange}">
+    <span style="font-family:'DM Mono',monospace;color:var(--accent);font-size:10px;min-width:110px">${c.code}</span>
+    <span style="flex:1">${c.name}${c.status==='結案'?' <span style="color:var(--text3)">（已結案）</span>':''}</span>
+  </label>`;
+  const section = (label, rows) => rows.length ? caseGroupLabel(label) + rows.map(row).join('') : '';
+  return section('進行中／未結案個案', open) + section('已結案個案', closed);
 }
 
 // ── 刷新所有頁面的案件下拉 ──
@@ -10259,8 +10283,7 @@ function updatePayableStats(scopeRows = null) {
   const caseFilter = document.getElementById('py-filter-case');
   if (caseFilter) {
     const curVal = caseFilter.value;
-    caseFilter.innerHTML = '<option value="">── 全部個案 ──</option>' +
-      CASES.filter(c => userCanViewCaseFinancials(c.code, 'payable')).map(c => `<option value="${c.code}">${c.code} ${c.name||''}</option>`).join('');
+    caseFilter.innerHTML = buildCaseOptions('── 全部個案 ──', false, false, curVal, c => userCanViewCaseFinancials(c.code, 'payable'));
     caseFilter.value = curVal;
   }
   const badge = document.getElementById('py-badge-pending');
@@ -10523,10 +10546,8 @@ function apTogglePaymentType(selectedCodes = null) {
       const current = Array.isArray(selectedCodes)
         ? selectedCodes
         : [...list.querySelectorAll('input:checked')].map(x => x.value);
-      list.innerHTML = CASES.filter(c => c.status === '結案' || current.includes(c.code)).map(c => `
-        <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px">
-          <input type="checkbox" value="${c.code}" ${current.includes(c.code)?'checked':''}> ${c.name}
-        </label>`).join('');
+      const profitCases = CASES.filter(c => c.status === '結案' || current.includes(c.code));
+      list.innerHTML = buildCaseCheckboxGroups(profitCases, c => current.includes(c.code), '', { flexItem:true });
     }
   }
 }
@@ -11258,14 +11279,7 @@ function pfToggleCaseDropdown() {
     // Rebuild checkboxes
     const container = document.getElementById('pf-case-checkboxes');
     if (container) {
-      container.innerHTML = CASES.map(c => {
-        const chk = pfSelCases.size === 0 || pfSelCases.has(c.code);
-        return `<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;cursor:pointer;font-size:12px;border-radius:4px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-          <input type="checkbox" value="${c.code}" ${chk ? 'checked' : ''} onchange="pfCaseCheckChange()">
-          <span style="font-family:'DM Mono',monospace;color:var(--accent);font-size:10px;min-width:110px">${c.code}</span>
-          <span style="flex:1">${c.name}</span>
-        </label>`;
-      }).join('');
+      container.innerHTML = buildCaseCheckboxGroups(CASES, c => pfSelCases.size === 0 || pfSelCases.has(c.code), 'pfCaseCheckChange()');
       const allCb = document.getElementById('pf-case-all');
       if (allCb) allCb.checked = pfSelCases.size === 0;
     }
@@ -11352,7 +11366,7 @@ function renderProfit() {
   const detailSelect = document.getElementById('pf-detail-case');
   if (detailSelect) {
     const current = detailSelect.value;
-    detailSelect.innerHTML = caseRows.map(c => `<option value="${c.code}">${c.name}｜${c.code}</option>`).join('');
+    detailSelect.innerHTML = buildGroupedCaseOptionsFromRows(caseRows);
     if (caseRows.some(c => c.code === current)) detailSelect.value = current;
     else if (caseRows[0]) detailSelect.value = caseRows[0].code;
   }
