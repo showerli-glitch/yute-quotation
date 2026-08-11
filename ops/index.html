@@ -540,7 +540,7 @@ body.auth-pending .auth-screen{display:flex}
 #py-table-wrap.hide-bank .col-bank{display:none}
 .person-col{white-space:nowrap;min-width:64px}
 #page-receivable .rv-table{
-  min-width:1580px;
+  min-width:1500px;
   table-layout:fixed;
 }
 #page-receivable .rv-table .rv-col-no{width:48px}
@@ -554,21 +554,26 @@ body.auth-pending .auth-screen{display:flex}
 #page-receivable .rv-table .rv-col-invoice-date{width:104px}
 #page-receivable .rv-table .rv-col-invoice-no{width:92px}
 #page-receivable .rv-table .rv-col-contract{width:118px}
-#page-receivable .rv-table .rv-col-progress{width:86px}
-#page-receivable .rv-table .rv-col-link{width:76px}
-#page-receivable .rv-table .rv-col-note{width:98px}
+#page-receivable .rv-table .rv-col-progress{width:56px}
+#page-receivable .rv-table .rv-col-link{width:68px}
+#page-receivable .rv-table .rv-col-note{width:64px}
 #page-receivable .rv-table .rv-col-status{width:86px}
 #page-receivable .rv-table .rv-col-actions{width:98px}
 #page-receivable .rv-table th,
 #page-receivable .rv-table td{
   box-sizing:border-box;
 }
+#page-receivable .rv-table th,
+#page-receivable .rv-table td{
+  padding-left:8px!important;
+  padding-right:8px!important;
+}
 #page-receivable .rv-table .rv-col-invoice-no,
 #page-receivable .rv-table .rv-col-progress,
 #page-receivable .rv-table .rv-col-link,
 #page-receivable .rv-table .rv-col-note{
-  padding-left:8px!important;
-  padding-right:8px!important;
+  padding-left:5px!important;
+  padding-right:5px!important;
 }
 
 /* Tags */
@@ -1164,7 +1169,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.34 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.35 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5713,7 +5718,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.34', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.35', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5774,7 +5779,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.34', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.35', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6738,7 +6743,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.34';
+  merged.appVersion = '1.2.35';
   return { ok:true, data:merged };
 }
 
@@ -6862,7 +6867,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.34';
+  merged.appVersion = '1.2.35';
   return { ok:true, data:merged };
 }
 
@@ -6974,7 +6979,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.34';
+  merged.appVersion = '1.2.35';
   return { ok:true, data:merged };
 }
 
@@ -7093,7 +7098,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.34';
+  merged.appVersion = '1.2.35';
   return { ok:true, data:merged };
 }
 
@@ -10704,7 +10709,7 @@ function renderReceivable() {
         </td>
         <td class="rv-col-note" style="padding:6px 10px">
           <input type="text" value="${r.note||''}" placeholder="備註…"
-            style="background:transparent;border:none;outline:none;width:100%;font-size:12px;color:var(--text2);padding:4px 6px;border-radius:4px"
+            style="background:transparent;border:none;outline:none;width:100%;font-size:12px;color:var(--text2);padding:3px 2px;border-radius:4px;overflow:hidden;text-overflow:ellipsis"
             onfocus="this.style.background='var(--surface2)';this.style.border='1px solid var(--border)'"
             onblur="this.style.background='transparent';this.style.border='none';rvUpdateNote(${r.id},this.value)"
             onkeydown="if(event.key==='Enter')this.blur()">
