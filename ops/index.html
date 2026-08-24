@@ -1169,7 +1169,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.42 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.43 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5774,7 +5774,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.42', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.43', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5835,7 +5835,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.42', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.43', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6428,6 +6428,7 @@ function renderAfterDataSettles(reason = '') {
       return;
     }
   } catch(e) {}
+  if (activateRequestedPageFromUrl()) return;
   setTimeout(renderCurrentPage, 150);
   setTimeout(renderCurrentPage, 500);
 }
@@ -6802,7 +6803,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.42';
+  merged.appVersion = '1.2.43';
   return { ok:true, data:merged };
 }
 
@@ -6926,7 +6927,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.42';
+  merged.appVersion = '1.2.43';
   return { ok:true, data:merged };
 }
 
@@ -7038,7 +7039,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.42';
+  merged.appVersion = '1.2.43';
   return { ok:true, data:merged };
 }
 
@@ -7157,7 +7158,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.42';
+  merged.appVersion = '1.2.43';
   return { ok:true, data:merged };
 }
 
@@ -7795,6 +7796,35 @@ const PAGE_NAV_IDS = {
   clients: 'nav-clients',
   vendors: 'nav-vendors',
 };
+
+function requestedPageFromUrl() {
+  const aliases = {
+    attendance: 'attendance',
+    checkin: 'attendance',
+    clock: 'attendance',
+    punch: 'attendance',
+    gps: 'attendance',
+    payroll: 'payroll',
+    receivable: 'receivable',
+    payable: 'payable',
+    expense: 'expense',
+    overhead: 'overhead',
+    dashboard: 'dashboard',
+  };
+  const params = new URLSearchParams(window.location.search || '');
+  const raw = params.get('p') || params.get('page') || String(window.location.hash || '').replace(/^#\/?/, '');
+  const key = String(raw || '').trim().toLowerCase();
+  return aliases[key] || (PAGE_TITLES[key] ? key : '');
+}
+
+function activateRequestedPageFromUrl() {
+  const requested = requestedPageFromUrl();
+  if (!requested || requested === currentPage) return false;
+  if (!canAccess(requested)) return false;
+  navTo(requested, navElForPage(requested));
+  return true;
+}
+
 function firstAccessiblePage() {
   return Object.keys(PAGE_TITLES).find(page => canAccess(page)) || 'dashboard';
 }
@@ -9040,7 +9070,7 @@ function attMonthValue() {
 }
 
 function attToday() {
-  return new Date().toISOString().slice(0,10);
+  return localDateKey();
 }
 
 function attMinutes(time) {
@@ -9287,7 +9317,7 @@ function attGpsPunch(type) {
   if (!person) { showToast('請先選擇打卡人員', 'error'); return; }
   if (!attGpsResult.ok || !attGpsPosition) { showToast(attGpsResult.reason || '定位未通過，無法打卡', 'error'); return; }
   const now = new Date();
-  const date = now.toISOString().slice(0,10);
+  const date = localDateKey(now);
   const time = now.toLocaleTimeString('zh-TW', { hour12:false }).slice(0,5);
   const target = attGpsResult.target || attGpsTarget();
   let row = ATTENDANCE_RECORDS.find(r => r.person === person && r.date === date && r.source === 'gps');

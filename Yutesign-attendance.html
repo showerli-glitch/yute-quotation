@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yutesign OPS 出勤入口</title>
+<meta http-equiv="refresh" content="1; url=https://showerli-glitch.github.io/yute-quotation/ops/index.html?p=attendance">
+<style>
+  :root {
+    --bg: #f4f1eb;
+    --surface: #fffdf9;
+    --border: #ded5c8;
+    --accent: #a67535;
+    --text: #2d2721;
+    --muted: #74685d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", "Segoe UI", sans-serif;
+    padding: 24px;
+  }
+  main {
+    width: min(420px, 100%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    box-shadow: 0 18px 50px rgba(70, 50, 28, 0.12);
+  }
+  .label {
+    font-size: 12px;
+    letter-spacing: .18em;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: 24px;
+    margin: 0 0 10px;
+    letter-spacing: 0;
+  }
+  p {
+    color: var(--muted);
+    line-height: 1.7;
+    margin: 0 0 18px;
+    font-size: 14px;
+  }
+  a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="label">YUTESIGN OPS</div>
+  <h1>出勤打卡已整合到 OPS</h1>
+  <p>這個舊出勤頁不再儲存打卡資料。系統會自動轉到 OPS 出勤管理，請用公司 Google 帳號登入後打卡。</p>
+  <a id="ops-link" href="https://showerli-glitch.github.io/yute-quotation/ops/index.html?p=attendance">前往 OPS 出勤管理</a>
+</main>
+<script>
+  (function () {
+    const path = window.location.pathname || '';
+    const isLocal = window.location.protocol === 'file:';
+    const target = isLocal
+      ? 'Yutesign_OPS_v2.html?p=attendance'
+      : (path.includes('/yute-quotation/')
+        ? '/yute-quotation/ops/index.html?p=attendance'
+        : 'https://showerli-glitch.github.io/yute-quotation/ops/index.html?p=attendance');
+    const link = document.getElementById('ops-link');
+    if (link) link.href = target;
+    window.setTimeout(() => { window.location.href = target; }, 600);
+  })();
+</script>
+</body>
+</html>
