@@ -1169,7 +1169,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.44 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.45 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5774,7 +5774,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.44', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.45', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5835,7 +5835,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.44', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.45', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6803,7 +6803,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.44';
+  merged.appVersion = '1.2.45';
   return { ok:true, data:merged };
 }
 
@@ -6927,7 +6927,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.44';
+  merged.appVersion = '1.2.45';
   return { ok:true, data:merged };
 }
 
@@ -7039,7 +7039,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.44';
+  merged.appVersion = '1.2.45';
   return { ok:true, data:merged };
 }
 
@@ -7158,7 +7158,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.44';
+  merged.appVersion = '1.2.45';
   return { ok:true, data:merged };
 }
 
@@ -14267,6 +14267,10 @@ function renderPayroll() {
   const month = document.getElementById('pr-filter-month')?.value || '2026-03';
   const cfg   = prGetConfig(prCurrentEmp);
   const rec = PAYROLL.find(r => r.person===prCurrentEmp && r.month===month);
+  const previousRec = rec ? null : PAYROLL
+    .filter(r => r.person === prCurrentEmp && r.month < month)
+    .sort((a,b) => b.month.localeCompare(a.month))[0];
+  const recurring = rec || previousRec || cfg;
   const editBtn = document.getElementById('btn-payroll-edit');
   if (editBtn) {
     editBtn.style.display = canManage('payroll') && prCurrentEmp !== 'shower' ? '' : 'none';
@@ -14286,21 +14290,27 @@ function renderPayroll() {
       </div>
       <div style="text-align:right">
         <div style="font-size:11px;color:var(--text3)">底薪</div>
-        <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent)">$${(rec?.baseSalary ?? cfg.baseSalary).toLocaleString('zh-TW')}</div>
+        <div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent)">$${(recurring?.baseSalary ?? cfg.baseSalary).toLocaleString('zh-TW')}</div>
+        ${!rec && previousRec ? `<div style="font-size:10px;color:var(--warning);margin-top:2px">承接 ${previousRec.month}，當月尚未儲存</div>` : ''}
       </div>`;
   }
 
-  const a = rec ? {
-    底薪:         rec.baseSalary,
-    油資電話津貼:  rec.phoneAllowance,
-    全勤獎金:     rec.fullAttendanceBonus,
-    職務津貼:     rec.dutyAllowance,
-    績效獎金:     rec.performanceBonus,
-    誤餐費:       rec.mealAllowance,
-  } : {底薪:cfg.baseSalary,油資電話津貼:cfg.phoneAllowance,全勤獎金:cfg.fullAttendanceBonus,職務津貼:cfg.dutyAllowance,績效獎金:cfg.performanceBonus,誤餐費:cfg.mealAllowance};
+  const a = {
+    底薪:         recurring?.baseSalary || 0,
+    油資電話津貼:  recurring?.phoneAllowance || 0,
+    全勤獎金:     recurring?.fullAttendanceBonus || 0,
+    職務津貼:     recurring?.dutyAllowance || 0,
+    績效獎金:     recurring?.performanceBonus || 0,
+    誤餐費:       recurring?.mealAllowance || 0,
+  };
   const b = rec ? {加班費:rec.overtimePay,費用墊支:rec.expenseReimbursement,年終獎金:rec.yearEndBonus,工程獎金:rec.engineeringBonus} : {加班費:0,費用墊支:0,年終獎金:0,工程獎金:0};
   (rec?.customItems||[]).forEach(it => { b[it.name||'其他項目'] = it.amount||0; });
-  const c = rec ? {勞保費:rec.laborInsurance,健保費:rec.healthInsurance,自願提撥退休金:rec.voluntaryPension,請假扣款:rec.leaveDeduction} : {勞保費:cfg.laborInsurance,健保費:cfg.healthInsurance,自願提撥退休金:0,請假扣款:0};
+  const c = {
+    勞保費: recurring?.laborInsurance || 0,
+    健保費: recurring?.healthInsurance || 0,
+    自願提撥退休金: rec?.voluntaryPension || 0,
+    請假扣款: rec?.leaveDeduction || 0,
+  };
   const leaveNote = rec?.leaveNote || '';
   const engBonusNote = rec?.engineeringBonusNote || '';
 
@@ -14331,7 +14341,11 @@ function renderPayroll() {
   set('pr-transfer',  '$'+(net-advance).toLocaleString('zh-TW'));
   set('pr-pay-date',  rec?.payDate || '—');
   const noteEl = document.getElementById('pr-note-display');
-  if (noteEl) noteEl.innerHTML = rec?.note ? `備註：${rec.note}` : '';
+  if (noteEl) noteEl.innerHTML = rec?.note
+    ? `備註：${rec.note}`
+    : previousRec
+      ? `本月尚未建立正式薪資；固定薪資與保險暫時承接 ${previousRec.month}，變動項目待出勤草稿與人工覆核。`
+      : '';
   renderPayrollRangeOverview();
   renderOwnerWithdrawalPanel();
 }
