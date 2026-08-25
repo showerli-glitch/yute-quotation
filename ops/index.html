@@ -1169,7 +1169,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.43 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.44 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1824,7 +1824,7 @@ body.auth-pending .auth-screen{display:flex}
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="attAddLeave()">＋ 請假</button>
         <button class="btn btn-ghost btn-sm" onclick="attAddRecord()">＋ 打卡紀錄</button>
-        <button class="btn btn-primary btn-sm" onclick="attApplyDraftToPayroll()">產生／寫入薪資草稿</button>
+        <button class="btn btn-primary btn-sm" id="btn-attendance-payroll-draft" onclick="attApplyDraftToPayroll()">產生／寫入薪資草稿</button>
       </div>
     </div>
     <div class="att-page-body">
@@ -5774,7 +5774,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.43', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.44', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5835,7 +5835,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.43', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.44', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6803,7 +6803,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.43';
+  merged.appVersion = '1.2.44';
   return { ok:true, data:merged };
 }
 
@@ -6927,7 +6927,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.43';
+  merged.appVersion = '1.2.44';
   return { ok:true, data:merged };
 }
 
@@ -7039,7 +7039,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.43';
+  merged.appVersion = '1.2.44';
   return { ok:true, data:merged };
 }
 
@@ -7158,7 +7158,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.43';
+  merged.appVersion = '1.2.44';
   return { ok:true, data:merged };
 }
 
@@ -8018,6 +8018,9 @@ function applyRole(user) {
   const visibility = {
     'btn-export-backup': canManage('dashboard'),
     'btn-import-backup': canManage('dashboard'),
+    'btn-paste-expense-patch': canManage('dashboard'),
+    'btn-cloud-check': canManage('dashboard'),
+    'btn-cloud-push': canManage('dashboard'),
     'btn-clear-data': canManage('dashboard'),
     'btn-new-case': canManage('dashboard'),
     'btn-new-payreq': canApplySelf('payreq'),
@@ -8026,6 +8029,7 @@ function applyRole(user) {
     'btn-payroll-add-month': canManage('payroll'),
     'btn-payroll-delete-month': canManage('payroll'),
     'btn-payroll-edit': canManage('payroll'),
+    'btn-attendance-payroll-draft': canManage('attendance'),
     'btn-new-employee': canManage('employees'),
     'btn-new-client': canManage('clients'),
     'btn-new-vendor': canManage('vendors'),
@@ -9088,6 +9092,25 @@ function attMoney(v) {
   return '$' + Math.round(v || 0).toLocaleString('zh-TW');
 }
 
+function attExpectedWorkdays(month) {
+  const match = String(month || '').match(/^(\d{4})-(\d{2})$/);
+  if (!match) return 0;
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const todayParts = attToday().split('-').map(Number);
+  const today = new Date(todayParts[0], todayParts[1] - 1, todayParts[2]);
+  const start = new Date(year, monthIndex, 1);
+  const endOfMonth = new Date(year, monthIndex + 1, 0);
+  if (start > today) return 0;
+  const end = endOfMonth < today ? endOfMonth : today;
+  let count = 0;
+  for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+    const day = date.getDay();
+    if (day !== 0 && day !== 6) count += 1;
+  }
+  return count;
+}
+
 function attFillPersonOptions() {
   const people = attPeople();
   const opts = people.length
@@ -9526,7 +9549,9 @@ function attComputeDraft(person, month) {
   const fullAttendancePenalty = graceUsed > ATTENDANCE_SETTINGS.monthlyGraceMinutes ? ATTENDANCE_SETTINGS.fullAttendancePenalty : 0;
   const overtimeHours = Math.round(overtimeMinutes / 60 * 10) / 10;
   const overtimePay = Math.round(Math.min(overtimeHours, 2) * hourly * 4 / 3 + Math.max(0, overtimeHours - 2) * hourly * 5 / 3);
-  return { person, month, cfg, hourly, records, leaves, workMinutes, overtimeHours, overtimePay, leaveHours, leaveDeduction, fullAttendancePenalty, graceUsed, missingPunches, warnings };
+  const attendanceDays = new Set(records.map(r => r.date).filter(Boolean)).size;
+  const expectedWorkdays = attExpectedWorkdays(month);
+  return { person, month, cfg, hourly, records, leaves, attendanceDays, expectedWorkdays, workMinutes, overtimeHours, overtimePay, leaveHours, leaveDeduction, fullAttendancePenalty, graceUsed, missingPunches, warnings };
 }
 
 function attApplyDraftToPayroll() {
@@ -9595,18 +9620,11 @@ function renderAttendance() {
   const nameOf = id => PR_CONFIG[id]?.name || EMPLOYEES.find(e => e.id === id)?.name || id;
   const summary = document.getElementById('att-summary');
   if (summary) {
-    [
-      ['出勤天數', draft.records.length + ' 天', 'var(--accent)'],
-      ['請假時數', draft.leaveHours + ' 小時', 'var(--warning)'],
-      ['彈性早退', draft.graceUsed + ' 分', draft.graceUsed > ATTENDANCE_SETTINGS.monthlyGraceMinutes ? 'var(--error)' : 'var(--text)'],
-      ['請假扣款', attMoney(draft.leaveDeduction), 'var(--error)'],
-      ['加班試算', attMoney(draft.overtimePay), 'var(--success)'],
-    ].forEach((row, idx) => {});
     summary.innerHTML = [
-      ['出勤天數', draft.records.length + ' 天', 'var(--accent)'],
-      ['請假時數', draft.leaveHours + ' 小時', 'var(--warning)'],
-      ['彈性早退', draft.graceUsed + ' 分', draft.graceUsed > ATTENDANCE_SETTINGS.monthlyGraceMinutes ? 'var(--error)' : 'var(--text)'],
-      ['請假扣款', attMoney(draft.leaveDeduction), 'var(--error)'],
+      ['應出勤', draft.expectedWorkdays + ' 天', 'var(--text)'],
+      ['實際出勤', draft.attendanceDays + ' 天', 'var(--accent)'],
+      ['請假', draft.leaveHours + ' 小時', 'var(--warning)'],
+      ['缺卡', draft.missingPunches + ' 筆', draft.missingPunches ? 'var(--error)' : 'var(--success)'],
       ['加班試算', attMoney(draft.overtimePay), 'var(--success)'],
     ].map(([label,val,color]) => `<div class="kpi-card" style="padding:12px 14px"><div class="kpi-label">${label}</div><div style="font-size:18px;font-weight:800;color:${color}">${val}</div></div>`).join('');
   }
