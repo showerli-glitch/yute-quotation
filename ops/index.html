@@ -1169,7 +1169,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.46 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.47 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5774,7 +5774,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.46', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.47', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5835,7 +5835,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.46', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.47', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6803,7 +6803,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.46';
+  merged.appVersion = '1.2.47';
   return { ok:true, data:merged };
 }
 
@@ -6927,7 +6927,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.46';
+  merged.appVersion = '1.2.47';
   return { ok:true, data:merged };
 }
 
@@ -7039,7 +7039,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.46';
+  merged.appVersion = '1.2.47';
   return { ok:true, data:merged };
 }
 
@@ -7158,7 +7158,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.46';
+  merged.appVersion = '1.2.47';
   return { ok:true, data:merged };
 }
 
@@ -8402,6 +8402,16 @@ function deleteCase(caseCode) {
   showToast(`已刪除誤建個案「${target.name}」`, 'success');
 }
 
+function caseActionSelect(select, caseCode) {
+  const action = select?.value || '';
+  if (select) select.value = '';
+  if (action === 'location') openCaseLocation(caseCode);
+  else if (action === 'close') closeCaseIfReady(caseCode);
+  else if (action === 'edit') openEditCase(caseCode);
+  else if (action === 'delete') deleteCase(caseCode);
+  else if (action === 'detail') openCaseDetail(caseCode);
+}
+
 function renderCases() {
   dcUpdateCaseBtn();
   const tbody = document.getElementById('case-tbody');
@@ -8443,12 +8453,15 @@ function renderCases() {
       <td style="text-align:center">${retentionAmt ? `<span class="tag ${retentionTag}">${retentionLabel}</span>` : '<span style="color:var(--text3)">—</span>'}</td>
       <td style="font-size:12px;color:var(--text2);min-width:3em;white-space:nowrap">${c.person}</td>
       ${canSetLocation ? `<td style="text-align:center">${caseHasSiteLocation(c) ? '<span class="tag tag-done">已設定</span>' : '<span class="tag tag-pending">未設定</span>'}</td>` : ''}
-      <td style="white-space:nowrap">
-        ${canSetLocation ? `<button class="btn btn-ghost btn-sm" onclick="openCaseLocation('${c.code}')">座標</button>` : ''}
-        ${canSetLocation && c.status !== '結案' ? `<button class="btn btn-ghost btn-sm" onclick="closeCaseIfReady('${c.code}')">結案</button>` : ''}
-        ${canSetLocation ? `<button class="btn btn-ghost btn-sm" onclick="openEditCase('${c.code}')">編輯</button>` : ''}
-        ${currentUser?.roleCode === 'OWNER' ? `<button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="deleteCase('${c.code}')">刪除</button>` : ''}
-        <button class="btn btn-ghost btn-sm" onclick="openCaseDetail('${c.code}')">詳情</button>
+      <td style="white-space:nowrap;text-align:center">
+        <select class="filter-select" aria-label="${c.name} 操作" style="min-width:76px;width:76px;padding:5px 7px;font-size:11px" onchange="caseActionSelect(this,'${c.code}')">
+          <option value="">操作 ▾</option>
+          ${canSetLocation ? '<option value="location">座標設定</option>' : ''}
+          ${canSetLocation && c.status !== '結案' ? '<option value="close">標記結案</option>' : ''}
+          ${canSetLocation ? '<option value="edit">編輯個案</option>' : ''}
+          ${currentUser?.roleCode === 'OWNER' ? '<option value="delete">刪除個案</option>' : ''}
+          <option value="detail">查看詳情</option>
+        </select>
       </td>
     </tr>`;
   };
