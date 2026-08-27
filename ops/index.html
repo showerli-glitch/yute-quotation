@@ -1169,7 +1169,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.48 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.49 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4478,14 +4478,27 @@ function isOperatingPayrollPerson(person) {
 function payrollNetAmount(r) {
   return (r.baseSalary||0)+(r.phoneAllowance||0)+(r.fullAttendanceBonus||0)+(r.dutyAllowance||0)+(r.performanceBonus||0)+(r.mealAllowance||0)+(r.overtimePay||0)+(r.expenseReimbursement||0)+(r.yearEndBonus||0)-(r.laborInsurance||0)-(r.healthInsurance||0)-(r.voluntaryPension||0)-(r.leaveDeduction||0);
 }
+function userHasProfitShareInCase(c, userId = currentUser?.id) {
+  if (!c || !userId || c.excludeFromProfitReports || c.profitSplit === '不分潤') return false;
+  const ratios = c.splitRatio || PROFIT_SPLIT_RATIOS[c.profitSplit] || {};
+  return Number(ratios[userId] || 0) > 0;
+}
+
 function userCanViewCaseFinancials(caseCode, page) {
   const level = permissionLevel(page);
   const c = CASES.find(row => row.code === caseCode);
   if (c && !canSeeRestrictedCase(c)) return false;
   if (['manage','view_all'].includes(level)) return true;
-  if (!['view_self','view_profit_cases'].includes(level)) return false;
+  if (level === 'none') return false;
   if (!c || !currentUser?.id) return false;
-  return !!(psGetSplitRatio(c)[currentUser.id] || 0);
+  return userHasProfitShareInCase(c);
+}
+
+function userCanViewCaseScopedRow(caseCode, page, rowPerson = '') {
+  const level = permissionLevel(page);
+  if (['manage','view_all'].includes(level)) return true;
+  if (caseCode) return userCanViewCaseFinancials(caseCode, page);
+  return !!rowPerson && rowPerson === currentUser?.id;
 }
 const EMP_ACCESS_ROLES = {
   none: '不開通系統',
@@ -5774,7 +5787,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.48', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.49', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5835,7 +5848,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.48', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.49', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6803,7 +6816,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.48';
+  merged.appVersion = '1.2.49';
   return { ok:true, data:merged };
 }
 
@@ -6927,7 +6940,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.48';
+  merged.appVersion = '1.2.49';
   return { ok:true, data:merged };
 }
 
@@ -7039,7 +7052,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.48';
+  merged.appVersion = '1.2.49';
   return { ok:true, data:merged };
 }
 
@@ -7158,7 +7171,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.48';
+  merged.appVersion = '1.2.49';
   return { ok:true, data:merged };
 }
 
@@ -8225,10 +8238,13 @@ function refreshAllCaseDropdowns() {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value;
-    const filterFn =
-      id === 'rv-filter-case' ? (c => userCanViewCaseFinancials(c.code, 'receivable')) :
-      id === 'py-filter-case' ? (c => userCanViewCaseFinancials(c.code, 'payable')) :
-      null;
+    const pageById = {
+      'pr-case':'payreq', 'py-filter-case':'payable', 'rv-filter-case':'receivable',
+      'ap-add-case':'payable', 'rv-add-case':'receivable',
+      'exp-add-case':'expense', 'exp-filter-case':'expense'
+    };
+    const page = pageById[id];
+    const filterFn = page ? (c => userCanViewCaseFinancials(c.code, page)) : null;
     el.innerHTML = buildCaseOptions(ph, oh, activeOnly, cur, filterFn);
     if (cur) el.value = cur;
   });
@@ -9211,7 +9227,7 @@ function attFillCaseOptions() {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value;
-    el.innerHTML = '<option value="">公司／無指定案場</option>' + CASES.filter(c => c.status !== '結案').map(c => `<option value="${c.code}">${c.name}</option>`).join('');
+    el.innerHTML = '<option value="">公司／無指定案場</option>' + CASES.filter(c => userCanViewCaseFinancials(c.code, 'attendance')).map(c => `<option value="${c.code}">${c.name}</option>`).join('');
     el.value = cur || '';
   });
 }
@@ -9740,7 +9756,7 @@ function openPayreqModal() {
   // 動態填充案件下拉
   const prCase = document.getElementById('pr-case');
   if (prCase) {
-    prCase.innerHTML = buildCaseOptions('── 不指定個案（選填）──', false, true);
+    prCase.innerHTML = buildCaseOptions('── 不指定個案（選填）──', false, false, '', c => userCanViewCaseFinancials(c.code, 'payreq'));
     prCase.value = '';
   }
   // 動態填充廠商 datalist
@@ -9780,12 +9796,13 @@ function setPayreqRadio(groupId, value) {
 function openEditPayreqModal(id) {
   const p = PAYABLES.find(x => Number(x.id) === Number(id) && (x.status === 'pending' || x.status === 'rejected'));
   if (!p) { showToast('找不到這筆待審核或已退回的請款', 'error'); return; }
+  if (!userCanViewCaseScopedRow(p.case, 'payreq', p.person)) { showToast('您沒有查看這個案的權限', 'error'); return; }
   if (p.status === 'pending' && !requireManage('payreq', '您沒有編輯請款申請的權限')) return;
   if (p.status === 'rejected' && !(canManage('payreq') || p.person === currentUser.id)) { showToast('您沒有修改這筆請款的權限', 'error'); return; }
   payreqEditId = p.id;
   const prCase = document.getElementById('pr-case');
   if (prCase) {
-    prCase.innerHTML = buildCaseOptions('── 不指定個案（選填）──', false, true, p.case || '');
+    prCase.innerHTML = buildCaseOptions('── 不指定個案（選填）──', false, false, p.case || '', c => userCanViewCaseFinancials(c.code, 'payreq'));
     prCase.value = p.case || '';
   }
   const dl = document.getElementById('dl-vendors');
@@ -9830,7 +9847,7 @@ function submitPayReq() {
   if (!amount)   { showToast('請填寫付款金額', 'error'); return; }
   if (!summary)  { showToast('請填寫摘要', 'error'); return; }
   if (!payDate)  { showToast('請選擇希望付款日', 'error'); return; }
-  if (caseVal && isClosedCase(caseVal)) { showToast('已結案個案不可新增請款', 'error'); return; }
+  if (caseVal && !userCanViewCaseFinancials(caseVal, 'payreq')) { showToast('您只能選擇自己有分潤的個案', 'error'); return; }
 
   // 日期限制暫時開放（匯入歷史資料用），需要時再開：
   // const today = new Date().toISOString().split('T')[0];
@@ -11405,7 +11422,8 @@ function pfToggleCaseDropdown() {
     // Rebuild checkboxes
     const container = document.getElementById('pf-case-checkboxes');
     if (container) {
-      container.innerHTML = buildCaseCheckboxGroups(CASES, c => pfSelCases.size === 0 || pfSelCases.has(c.code), 'pfCaseCheckChange()');
+      const visibleCases = CASES.filter(c => userCanViewCaseFinancials(c.code, 'profit'));
+      container.innerHTML = buildCaseCheckboxGroups(visibleCases, c => pfSelCases.size === 0 || pfSelCases.has(c.code), 'pfCaseCheckChange()');
       const allCb = document.getElementById('pf-case-all');
       if (allCb) allCb.checked = pfSelCases.size === 0;
     }
@@ -11424,7 +11442,8 @@ function pfCaseAllToggle(cb) {
 function pfCaseCheckChange() {
   const boxes = [...document.querySelectorAll('#pf-case-checkboxes input[type=checkbox]')];
   const checked = boxes.filter(b => b.checked).map(b => b.value);
-  pfSelCases = checked.length === CASES.length ? new Set() : new Set(checked);
+  const visibleCount = CASES.filter(c => userCanViewCaseFinancials(c.code, 'profit')).length;
+  pfSelCases = checked.length === visibleCount ? new Set() : new Set(checked);
   const allCb = document.getElementById('pf-case-all');
   if (allCb) allCb.checked = pfSelCases.size === 0;
   updatePfCaseBtn();
@@ -12082,6 +12101,7 @@ function renderExpense() {
     if (filterMonth  && r.month  !== filterMonth)  return false;
     if (filterCase   && r.caseKey !== filterCase)  return false;
     if (!canApprove && r.person !== currentUser.id) return false;
+    if (r.caseKey && r.caseKey !== '固定開銷' && !userCanViewCaseFinancials(r.caseKey, 'expense')) return false;
     if (kw && !`${r.item} ${r.category} ${r.caseName} ${r.caseKey}`.toLowerCase().includes(kw)) return false;
     return true;
   });
@@ -12239,17 +12259,7 @@ function expBatchCaseOptions() {
 }
 
 function expIsSelectableCase(c) {
-  if (!c) return false;
-  if (expCanManageAll()) return true;
-  if (c.status === '結案') return false;
-  const text = `${c.code || ''} ${c.name || ''} ${c.clientName || ''} ${c.caseType || ''} ${c.billingMode || ''} ${c.invoiceMode || ''}`;
-  // 明確開放目前需要由同事填報費用、但不參與分潤的進行中案件。
-  if (/內湖|新莊.*撤點/.test(text)) return true;
-  if (c.excludeFromProfitReports) return false;
-  const split = String(c.profitSplit || '').trim();
-  if (!split || split === '不分潤') return false;
-  if (/親友|成本轉付|修繕|維修|撤點/.test(text)) return false;
-  return true;
+  return !!c && userCanViewCaseFinancials(c.code, 'expense');
 }
 
 function expBatchCaseLabel(c) {
@@ -14651,7 +14661,7 @@ let toastTimer;
 // DASHBOARD RENDER
 // ══════════════════════════════════
 function payreqPendingCount() {
-  return PAYABLES.filter(p => p.status === 'pending').length;
+  return PAYABLES.filter(p => p.status === 'pending' && userCanViewCaseScopedRow(p.case, 'payreq', p.person)).length;
 }
 
 function updatePayreqNavBadge(count = payreqPendingCount()) {
@@ -14700,7 +14710,9 @@ function renderDashboard() {
   if (kpiCollectedSub) kpiCollectedSub.textContent = canSeeTotals ? `待入帳 ${Math.round(totalPending/10000)} 萬` : '僅管理者';
 
   // KPI 4: 待付廠商款（approved）；待審核另列提醒。
-  const visiblePayables = PAYABLES.filter(p => inDashboardCaseFilter(p.case) && (!p.case || userCanViewCaseFinancials(p.case, 'dashboard') || userCanViewCaseFinancials(p.case, 'payable')));
+  const visiblePayables = PAYABLES.filter(p => inDashboardCaseFilter(p.case) && (
+    userCanViewCaseScopedRow(p.case, 'dashboard', p.person) || userCanViewCaseScopedRow(p.case, 'payable', p.person)
+  ));
   const pendingItems = visiblePayables.filter(p => p.status==='pending');
   const approvedItems = visiblePayables.filter(p => p.status==='approved');
   const approvedAmt   = approvedItems.reduce((s,p) => s+(p.amount||0), 0);
@@ -14762,10 +14774,11 @@ function renderPayreq() {
   const kw = (document.getElementById('payreq-search')?.value || '').toLowerCase();
   const match = p => searchTextMatches(`${p.vendor} ${p.summary} ${p.caseName} ${p.case} ${searchAmountText(p.amount)} ${p.wantDate || ''}`, kw);
 
-  const pending  = PAYABLES.filter(p => p.status === 'pending' && match(p));
-  const rejected = PAYABLES.filter(p => p.status === 'rejected' && match(p) && (manage || p.person === currentUser.id))
+  const canSeeRow = p => userCanViewCaseScopedRow(p.case, 'payreq', p.person);
+  const pending  = PAYABLES.filter(p => p.status === 'pending' && canSeeRow(p) && match(p));
+  const rejected = PAYABLES.filter(p => p.status === 'rejected' && canSeeRow(p) && match(p))
                            .slice().sort((a,b) => a.id - b.id);
-  const approved = PAYABLES.filter(p => (p.status === 'approved' || p.status === 'paid') && match(p) && (manage || p.person === currentUser.id))
+  const approved = PAYABLES.filter(p => (p.status === 'approved' || p.status === 'paid') && canSeeRow(p) && match(p))
                            .slice().sort((a,b) => a.id - b.id);
 
   const pb = document.getElementById('payreq-pending-badge');
