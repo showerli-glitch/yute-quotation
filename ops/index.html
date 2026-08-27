@@ -1169,7 +1169,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.47 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.48 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5774,7 +5774,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.47', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.48', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5835,7 +5835,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.47', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.48', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6803,7 +6803,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.47';
+  merged.appVersion = '1.2.48';
   return { ok:true, data:merged };
 }
 
@@ -6927,7 +6927,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.47';
+  merged.appVersion = '1.2.48';
   return { ok:true, data:merged };
 }
 
@@ -7039,7 +7039,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.47';
+  merged.appVersion = '1.2.48';
   return { ok:true, data:merged };
 }
 
@@ -7158,7 +7158,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.47';
+  merged.appVersion = '1.2.48';
   return { ok:true, data:merged };
 }
 
@@ -12241,12 +12241,14 @@ function expBatchCaseOptions() {
 function expIsSelectableCase(c) {
   if (!c) return false;
   if (expCanManageAll()) return true;
+  if (c.status === '結案') return false;
+  const text = `${c.code || ''} ${c.name || ''} ${c.clientName || ''} ${c.caseType || ''} ${c.billingMode || ''} ${c.invoiceMode || ''}`;
+  // 明確開放目前需要由同事填報費用、但不參與分潤的進行中案件。
+  if (/內湖|新莊.*撤點/.test(text)) return true;
   if (c.excludeFromProfitReports) return false;
   const split = String(c.profitSplit || '').trim();
   if (!split || split === '不分潤') return false;
-  const text = `${c.code || ''} ${c.name || ''} ${c.clientName || ''} ${c.caseType || ''} ${c.billingMode || ''} ${c.invoiceMode || ''}`;
   if (/親友|成本轉付|修繕|維修|撤點/.test(text)) return false;
-  if (c.status === '結案' && !expCanManageAll()) return false;
   return true;
 }
 
@@ -12323,6 +12325,16 @@ function expBatchCaseChanged(select) {
   treatment.style.opacity = closed ? '1' : '.55';
 }
 
+function expBatchResetCase(button) {
+  const input = button?.closest('td')?.querySelector('input[list="dl-exp-batch-cases"]');
+  if (!input) return;
+  input.value = '';
+  input.dataset.caseKey = '固定開銷';
+  expBatchCaseChanged(input);
+  input.focus();
+  try { input.showPicker?.(); } catch (_) {}
+}
+
 let _batchN = 0;
 let expBatchEditId = null;
 
@@ -12386,7 +12398,7 @@ function expBatchAddRow(focusNew) {
   tr.style.borderBottom = '1px solid var(--border)';
   tr.innerHTML = `
     <td style="padding:4px 5px;text-align:center;font-size:11px;color:var(--text3)">${idx}</td>
-    <td style="padding:4px 4px"><input type="text" list="dl-exp-batch-cases" data-case-key="固定開銷" value="" style="${_CS}" placeholder="固定開銷／輸入案名或代碼" oninput="expBatchCaseChanged(this)" onchange="expBatchCaseChanged(this)"></td>
+    <td style="padding:4px 4px"><div style="display:flex;align-items:center;gap:3px"><input type="text" list="dl-exp-batch-cases" data-case-key="固定開銷" value="" style="${_CS};min-width:0;flex:1" placeholder="固定開銷／輸入案名或代碼" oninput="expBatchCaseChanged(this)" onchange="expBatchCaseChanged(this)"><button type="button" onclick="expBatchResetCase(this)" title="清除並重新選擇個案" aria-label="清除並重新選擇個案" style="border:1px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--text2);cursor:pointer;padding:4px 6px;line-height:1">↻</button></div></td>
     <td style="padding:4px 4px"><select class="exp-post-close-treatment" style="${_CS};opacity:.55" disabled>${treatmentOpts}</select></td>
     <td style="padding:4px 4px"><input type="date" style="${_CS}" value="${dateDef}"></td>
     <td style="padding:4px 4px"><input type="text" style="${_CS}" placeholder="付款項目（必填）"></td>
