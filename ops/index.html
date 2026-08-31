@@ -1179,7 +1179,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.65 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.66 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5584,7 +5584,7 @@ const CODEX_SEED_UPY_JIAYI_SETTLEMENT = {
 };
 
 // 2026/1~4 公司開銷細項（來源：2026公司開銷 Google Sheet）
-// 順序對應 OH_FIXED_ITEMS：房租,水電,瓦斯,勞保,健保,勞退,員工薪資(由薪資模組自動帶入,此處填0),
+// 舊資料順序對應 OH_LEGACY_FIXED_ITEMS：房租,水電,瓦斯,勞保,健保,勞退,員工薪資(由薪資模組自動帶入,此處填0),
 // 衛星犬資料處理,飲水機保養費,google訂閱費,市話,公務機話費,網路費,會計師記帳費,外聘清潔費,員工福利公司飲料,貨車保養維修,文具影印機紙張墨水
 const CODEX_SEED_OH_DETAIL = [
   { month:'2025-10',
@@ -5777,8 +5777,18 @@ function ensureCodexSeedData() {
     if (!OVERHEAD[month]) OVERHEAD[month] = { fixed: OH_FIXED_CONFIG.map(()=>0), fixedNotes: OH_FIXED_CONFIG.map(()=>''), variable:[] };
     const data = OVERHEAD[month];
     if (data.ohDetailImported) return;
-    data.fixed = OH_FIXED_CONFIG.map(name => fixed[OH_FIXED_ITEMS.indexOf(name)] || 0);
-    data.fixedNotes = OH_FIXED_CONFIG.map(name => fixedNotes[OH_FIXED_ITEMS.indexOf(name)] || '');
+    data.fixed = OH_FIXED_CONFIG.map(name => {
+      if (name === '水費') return 0;
+      if (name === '電費') return month >= OH_WATER_ELECTRIC_SPLIT_MONTH ? (fixed[OH_LEGACY_FIXED_ITEMS.indexOf('水電')] || 0) : 0;
+      if (name === '水電' && month >= OH_WATER_ELECTRIC_SPLIT_MONTH) return 0;
+      return fixed[OH_LEGACY_FIXED_ITEMS.indexOf(name)] || 0;
+    });
+    data.fixedNotes = OH_FIXED_CONFIG.map(name => {
+      if (name === '水費') return '';
+      if (name === '電費') return month >= OH_WATER_ELECTRIC_SPLIT_MONTH ? (fixedNotes[OH_LEGACY_FIXED_ITEMS.indexOf('水電')] || '') : '';
+      if (name === '水電' && month >= OH_WATER_ELECTRIC_SPLIT_MONTH) return '';
+      return fixedNotes[OH_LEGACY_FIXED_ITEMS.indexOf(name)] || '';
+    });
     data.variable = data.variable.filter(v => v.note !== '2025-2026分潤表');
     extraVariable.forEach(v => data.variable.push({ id: ohVarNextId++, ...v }));
     data.ohDetailImported = true;
@@ -5831,7 +5841,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.65', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.66', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5892,7 +5902,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.65', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.66', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6250,6 +6260,7 @@ function applyDataSnapshot(d) {
   if (Array.isArray(d.OH_FIXED_CONFIG) && d.OH_FIXED_CONFIG.length > 0) {
     OH_FIXED_CONFIG.length = 0; OH_FIXED_CONFIG.push(...d.OH_FIXED_CONFIG);
   }
+  ohMigrateWaterElectricSplit();
   if (d.PAYROLL)     { PAYROLL.length = 0;     PAYROLL.push(...d.PAYROLL); }
   if (d.PAYROLL_EMPLOYEE_ACCOUNTS && typeof d.PAYROLL_EMPLOYEE_ACCOUNTS === 'object') {
     Object.keys(PAYROLL_EMPLOYEE_ACCOUNTS).forEach(k => delete PAYROLL_EMPLOYEE_ACCOUNTS[k]);
@@ -6860,7 +6871,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.65';
+  merged.appVersion = '1.2.66';
   return { ok:true, data:merged };
 }
 
@@ -6984,7 +6995,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.65';
+  merged.appVersion = '1.2.66';
   return { ok:true, data:merged };
 }
 
@@ -7096,7 +7107,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.65';
+  merged.appVersion = '1.2.66';
   return { ok:true, data:merged };
 }
 
@@ -7215,7 +7226,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.65';
+  merged.appVersion = '1.2.66';
   return { ok:true, data:merged };
 }
 
@@ -12851,8 +12862,14 @@ function submitBatchExpense() {
 // ══════════════════════════════════
 // OVERHEAD DATA
 // ══════════════════════════════════
-const OH_FIXED_ITEMS = [
+const OH_WATER_ELECTRIC_SPLIT_MONTH = '2026-03';
+const OH_LEGACY_FIXED_ITEMS = [
   '房租','水電','瓦斯','勞保','健保','勞退','員工薪資',
+  '衛星犬資料處理','飲水機保養費','google訂閱費','市話','公務機話費',
+  '網路費','會計師記帳費','外聘清潔費','員工福利公司飲料','貨車保養維修','文具影印機紙張墨水'
+];
+const OH_FIXED_ITEMS = [
+  '房租','水電','水費','電費','瓦斯','勞保','健保','勞退','員工薪資',
   '衛星犬資料處理','飲水機保養費','google訂閱費','市話','公務機話費',
   '網路費','會計師記帳費','外聘清潔費','員工福利公司飲料','貨車保養維修','文具影印機紙張墨水'
 ];
@@ -12861,6 +12878,48 @@ let OH_FIXED_CONFIG = [...OH_FIXED_ITEMS];
 
 let OVERHEAD = {};
 let ohVarNextId = 1;
+
+function ohMigrateWaterElectricSplit() {
+  const legacyIdx = OH_FIXED_CONFIG.indexOf('水電');
+  if (legacyIdx < 0) return false;
+  let waterIdx = OH_FIXED_CONFIG.indexOf('水費');
+  let electricIdx = OH_FIXED_CONFIG.indexOf('電費');
+  if (waterIdx < 0) {
+    OH_FIXED_CONFIG.splice(legacyIdx + 1, 0, '水費');
+    Object.values(OVERHEAD).forEach(data => {
+      if (!data || typeof data !== 'object') return;
+      if (!Array.isArray(data.fixed)) data.fixed = [];
+      if (!Array.isArray(data.fixedNotes)) data.fixedNotes = [];
+      data.fixed.splice(legacyIdx + 1, 0, 0);
+      data.fixedNotes.splice(legacyIdx + 1, 0, '');
+    });
+    waterIdx = legacyIdx + 1;
+  }
+  electricIdx = OH_FIXED_CONFIG.indexOf('電費');
+  if (electricIdx < 0) {
+    OH_FIXED_CONFIG.splice(waterIdx + 1, 0, '電費');
+    Object.values(OVERHEAD).forEach(data => {
+      if (!data || typeof data !== 'object') return;
+      if (!Array.isArray(data.fixed)) data.fixed = [];
+      if (!Array.isArray(data.fixedNotes)) data.fixedNotes = [];
+      data.fixed.splice(waterIdx + 1, 0, 0);
+      data.fixedNotes.splice(waterIdx + 1, 0, '');
+    });
+    electricIdx = waterIdx + 1;
+  }
+  Object.entries(OVERHEAD).forEach(([month, data]) => {
+    if (month < OH_WATER_ELECTRIC_SPLIT_MONTH || !data || typeof data !== 'object') return;
+    if (!Array.isArray(data.fixed)) data.fixed = [];
+    if (!Array.isArray(data.fixedNotes)) data.fixedNotes = [];
+    const legacyAmount = parseInt(data.fixed[legacyIdx]) || 0;
+    if (legacyAmount && !(parseInt(data.fixed[electricIdx]) || 0)) data.fixed[electricIdx] = legacyAmount;
+    if (legacyAmount) data.fixed[legacyIdx] = 0;
+    const legacyNote = String(data.fixedNotes[legacyIdx] || '');
+    if (legacyNote && !data.fixedNotes[electricIdx]) data.fixedNotes[electricIdx] = legacyNote;
+    if (legacyNote) data.fixedNotes[legacyIdx] = '';
+  });
+  return true;
+}
 
 // ══════════════════════════════════
 // OVERHEAD MODULE
@@ -12946,6 +13005,8 @@ function renderOverhead() {
   const fixedTbody = document.getElementById('oh-fixed-tbody');
   if (fixedTbody) {
     fixedTbody.innerHTML = OH_FIXED_CONFIG.map((name,i) => {
+      if (month < OH_WATER_ELECTRIC_SPLIT_MONTH && (name === '水費' || name === '電費')) return '';
+      if (month >= OH_WATER_ELECTRIC_SPLIT_MONTH && name === '水電') return '';
       const isPayroll = i === salaryIdx;
       return `
       <tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
@@ -13052,6 +13113,14 @@ function ohCopyFixedFromPrevMonth() {
   if (!confirm(`確定要把 ${ohMonthLabel(prevMonth)} 的固定支出金額複製到 ${ohMonthLabel(month)}？\n目前月份固定支出金額會被取代，備註不會複製。`)) return;
   OVERHEAD[month].fixed = OH_FIXED_CONFIG.map((_,i) => parseInt(prevData.fixed?.[i]) || 0);
   OVERHEAD[month].fixedNotes = OH_FIXED_CONFIG.map(()=>'');
+  if (month >= OH_WATER_ELECTRIC_SPLIT_MONTH && prevMonth < OH_WATER_ELECTRIC_SPLIT_MONTH) {
+    const legacyIdx = OH_FIXED_CONFIG.indexOf('水電');
+    const electricIdx = OH_FIXED_CONFIG.indexOf('電費');
+    if (legacyIdx >= 0 && electricIdx >= 0) {
+      OVERHEAD[month].fixed[electricIdx] = OVERHEAD[month].fixed[legacyIdx] || 0;
+      OVERHEAD[month].fixed[legacyIdx] = 0;
+    }
+  }
   renderOverhead();
   saveData();
   showToast('已複製上月固定支出金額 ✓', 'success');
