@@ -1172,7 +1172,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.54 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.55 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1308,6 +1308,14 @@ body.auth-pending .auth-screen{display:flex}
       <div class="sec-title">廠商請款申請</div>
       <div style="display:flex;gap:8px;align-items:center">
         <input class="search-input" id="payreq-search" placeholder="搜尋廠商、摘要、金額、個案編號…" oninput="renderPayreq()" style="height:32px">
+        <select class="filter-select" id="payreq-sort" onchange="renderPayreq()" style="height:32px;min-width:148px">
+          <option value="date-desc">日期新到舊</option>
+          <option value="date-asc">日期舊到新</option>
+          <option value="vendor-asc">廠商 A→Z</option>
+          <option value="amount-desc">金額高到低</option>
+          <option value="created-desc">加入時間新到舊</option>
+          <option value="updated-desc">修改時間新到舊</option>
+        </select>
         <button class="btn btn-primary" id="btn-new-payreq" onclick="openPayreqModal()">＋ 新增請款申請</button>
       </div>
     </div>
@@ -4924,6 +4932,8 @@ const ATTENDANCE_SETTINGS = {
   graceEarlyLeaveMinutes: 10,
   monthlyGraceMinutes: 30,
   fullAttendancePenalty: 1000,
+  overtimeStart: '17:30',
+  overtimeUnitMinutes: 30,
   hourlyBase: 'monthly30',
   officeLat: OFFICE_LOCATION_DEFAULT.lat,
   officeLng: OFFICE_LOCATION_DEFAULT.lng,
@@ -5791,7 +5801,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.54', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.55', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5852,7 +5862,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.54', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.55', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6820,7 +6830,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.54';
+  merged.appVersion = '1.2.55';
   return { ok:true, data:merged };
 }
 
@@ -6944,7 +6954,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.54';
+  merged.appVersion = '1.2.55';
   return { ok:true, data:merged };
 }
 
@@ -7056,7 +7066,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.54';
+  merged.appVersion = '1.2.55';
   return { ok:true, data:merged };
 }
 
@@ -7175,7 +7185,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.54';
+  merged.appVersion = '1.2.55';
   return { ok:true, data:merged };
 }
 
@@ -9681,7 +9691,10 @@ function attComputeDraft(person, month) {
     const expectedOut = inM + ATTENDANCE_SETTINGS.workdayMinutes;
     const early = Math.max(0, expectedOut - outM - ATTENDANCE_SETTINGS.graceEarlyLeaveMinutes);
     graceUsed += early;
-    overtimeMinutes += Math.max(0, paid - ATTENDANCE_SETTINGS.paidWorkMinutes);
+    const overtimeStart = attMinutes(ATTENDANCE_SETTINGS.overtimeStart || '17:30');
+    const overtimeUnit = Math.max(1, Number(ATTENDANCE_SETTINGS.overtimeUnitMinutes) || 30);
+    const rawOvertime = Math.max(0, outM - overtimeStart);
+    overtimeMinutes += Math.floor(rawOvertime / overtimeUnit) * overtimeUnit;
     if (inM > attMinutes(ATTENDANCE_SETTINGS.latestIn)) warnings.push(`${r.date} 上班晚於 ${ATTENDANCE_SETTINGS.latestIn}`);
     if (r.locationType === 'site' && !r.caseCode) warnings.push(`${r.date} 工地打卡未指定案場`);
   });
@@ -9798,7 +9811,7 @@ function renderAttendance() {
         <div><strong style="color:var(--text)">${nameOf(person)}｜${month}</strong></div>
         <div>時薪基礎：${attMoney(draft.hourly)}（月薪 / 30 / 8）</div>
         <div>請假扣款：${attMoney(draft.leaveDeduction)}；全勤扣款：${attMoney(draft.fullAttendancePenalty)}</div>
-        <div>加班試算：${draft.overtimeHours} 小時，${attMoney(draft.overtimePay)}</div>
+        <div>加班試算：${draft.overtimeHours} 小時，${attMoney(draft.overtimePay)}（17:30 後起算，每滿 30 分鐘計）</div>
         <div>薪資草稿會寫入「請假扣款、加班費、全勤獎金調整與備註」，正式發薪前仍需財務覆核。</div>
       </div>
       ${draft.warnings.length ? `<div style="margin-top:10px;padding:10px;border:1px solid rgba(224,112,112,.35);border-radius:8px;background:var(--error-bg);color:var(--error);font-size:12px;line-height:1.7">${draft.warnings.map(tfEsc).join('<br>')}</div>` : `<div style="margin-top:10px;color:var(--success);font-size:12px">目前沒有出勤異常。</div>`}`;
@@ -10575,15 +10588,47 @@ function saveLinks() {
   showToast('附件連結已儲存 ✓', 'success');
 }
 
+// 來源：行政院人事行政總處 115、116 年政府行政機關辦公日曆表。
+// 週六、週日由程式判斷；此表收錄落在週一至週五的政府放假日與補假日。
+const TW_GOV_WEEKDAY_HOLIDAYS = new Set([
+  '2026-01-01','2026-02-16','2026-02-17','2026-02-18','2026-02-19','2026-02-20','2026-02-27',
+  '2026-04-03','2026-04-06','2026-05-01','2026-06-19','2026-09-25','2026-09-28','2026-10-09',
+  '2026-10-26','2026-12-25',
+  '2027-01-01','2027-02-04','2027-02-05','2027-02-08','2027-02-09','2027-02-10','2027-03-01',
+  '2027-04-05','2027-04-06','2027-04-30','2027-06-09','2027-09-15','2027-09-28','2027-10-11',
+  '2027-10-25','2027-12-24','2027-12-31'
+]);
+
+function pyIsGovernmentWorkday(date) {
+  const day = date.getDay();
+  return day !== 0 && day !== 6 && !TW_GOV_WEEKDAY_HOLIDAYS.has(localDateKey(date));
+}
+
+function pyScheduledPaymentDate(reservationDate) {
+  const parts = String(reservationDate || '').split('-').map(Number);
+  if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return reservationDate || '';
+  let [year, month, day] = parts;
+  let payDay = 10;
+  if (day >= 9 && day <= 18) payDay = 20;
+  else if (day >= 19 && day <= 28) payDay = 30;
+  else if (day >= 29) {
+    month += 1;
+    if (month > 12) { month = 1; year += 1; }
+  }
+  const scheduled = new Date(year, month - 1, payDay, 12, 0, 0);
+  while (!pyIsGovernmentWorkday(scheduled)) scheduled.setDate(scheduled.getDate() - 1);
+  return localDateKey(scheduled);
+}
+
 function markPaid(id) {
   if (!requireManage('payable', '您沒有標記付款的權限')) return;
   const p = PAYABLES.find(x => x.id===id);
   if (!p) return;
   const before = auditClone(p);
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateKey(new Date());
   p.status = 'paid';
-  p.transferDate = p.transferDate || today;
-  p.doneDate = today;
+  p.transferDate = today;
+  p.doneDate = pyScheduledPaymentDate(today);
   touchRowMeta(p);
   pySyncRentToOverhead(p);
   normalizeProfitPayables();
@@ -10595,7 +10640,7 @@ function markPaid(id) {
   renderPayable(); renderPayreq(); renderCases(); renderOverhead(); renderDashboard(); renderProfit();
   renderProfitShare();
   saveData();
-  showToast('已標記為已付款 ✓', 'success');
+  showToast(`已預約匯款：${p.transferDate}；預定完成：${p.doneDate} ✓`, 'success');
 }
 
 function pySyncRentToOverhead(p) {
@@ -14840,14 +14885,15 @@ function renderPayreq() {
   const stTag   = {pending:'tag-pending', approved:'tag-active', paid:'tag-done'};
   const stLabel = {pending:'待審核', approved:'已核准', paid:'已付款'};
   const kw = (document.getElementById('payreq-search')?.value || '').toLowerCase();
+  const sortMode = document.getElementById('payreq-sort')?.value || 'date-desc';
   const match = p => searchTextMatches(`${p.vendor} ${p.summary} ${p.caseName} ${p.case} ${searchAmountText(p.amount)} ${p.wantDate || ''}`, kw);
+  const payreqDate = p => p.wantDate || p.doneDate || p.transferDate || String(p.createdAt || '').slice(0,10);
+  const sorted = rows => sortOpsRows(rows, sortMode, payreqDate, p => p.vendor, p => p.amount);
 
   const canSeeRow = p => userCanViewCaseScopedRow(p.case, 'payreq', p.person);
-  const pending  = PAYABLES.filter(p => p.status === 'pending' && canSeeRow(p) && match(p));
-  const rejected = PAYABLES.filter(p => p.status === 'rejected' && canSeeRow(p) && match(p))
-                           .slice().sort((a,b) => a.id - b.id);
-  const approved = PAYABLES.filter(p => (p.status === 'approved' || p.status === 'paid') && canSeeRow(p) && match(p))
-                           .slice().sort((a,b) => a.id - b.id);
+  const pending  = sorted(PAYABLES.filter(p => p.status === 'pending' && canSeeRow(p) && match(p)));
+  const rejected = sorted(PAYABLES.filter(p => p.status === 'rejected' && canSeeRow(p) && match(p)));
+  const approved = sorted(PAYABLES.filter(p => (p.status === 'approved' || p.status === 'paid') && canSeeRow(p) && match(p)));
 
   const pb = document.getElementById('payreq-pending-badge');
   if (pb) pb.textContent = `${pending.length} 筆`;
