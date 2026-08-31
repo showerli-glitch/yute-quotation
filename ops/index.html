@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Yutesign OPS - 內測系統</title>
 <meta name="description" content="Yutesign OPS 管理系統內測版。已開通的宇德員工可使用公司 Google 帳號登入；未開通或已離職停用帳號不可登入。">
 <meta property="og:title" content="Yutesign OPS - 內測系統">
@@ -1169,7 +1172,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.53 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.54 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4931,6 +4934,7 @@ const ATTENDANCE_SETTINGS = {
 let attGpsWatchId = null;
 let attGpsPosition = null;
 let attGpsResult = { ok:false, reason:'尚未取得定位' };
+let attGpsPunching = false;
 
 
 // ══════════════════════════════════
@@ -5787,7 +5791,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.53', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.54', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5848,7 +5852,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.53', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.54', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6816,7 +6820,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.53';
+  merged.appVersion = '1.2.54';
   return { ok:true, data:merged };
 }
 
@@ -6940,7 +6944,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.53';
+  merged.appVersion = '1.2.54';
   return { ok:true, data:merged };
 }
 
@@ -7052,7 +7056,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.53';
+  merged.appVersion = '1.2.54';
   return { ok:true, data:merged };
 }
 
@@ -7171,7 +7175,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.53';
+  merged.appVersion = '1.2.54';
   return { ok:true, data:merged };
 }
 
@@ -9342,7 +9346,7 @@ function attGpsRefresh() {
           : `若地圖藍點正確，請校正${target.label}座標或調整半徑`;
     }
   }
-  const canPunch = hasPerson && attGpsResult.ok;
+  const canPunch = hasPerson && attGpsResult.ok && !attGpsPunching;
   if (inBtn) inBtn.disabled = !canPunch;
   if (outBtn) outBtn.disabled = !canPunch;
 }
@@ -9406,8 +9410,68 @@ function attGpsStart() {
   }, { enableHighAccuracy:true, timeout:12000, maximumAge:30000 });
 }
 
-function attGpsPunch(type) {
+function attDailyEffectiveRecords(person = '', month = '') {
+  const rows = ATTENDANCE_RECORDS.filter(r =>
+    (!person || r.person === person) &&
+    (!month || String(r.date || '').startsWith(month))
+  );
+  const grouped = new Map();
+  rows.forEach(row => {
+    if (row.source !== 'gps' || !row.person || !row.date) {
+      grouped.set(`id:${row.id}`, { ...row });
+      return;
+    }
+    const key = `gps:${row.person}:${row.date}`;
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, { ...row, gpsPunches:[...(row.gpsPunches || [])] });
+      return;
+    }
+    const inTimes = [existing.inTime, row.inTime].filter(Boolean).sort();
+    const outTimes = [existing.outTime, row.outTime].filter(Boolean).sort();
+    existing.inTime = inTimes[0] || '';
+    existing.outTime = outTimes[outTimes.length - 1] || '';
+    existing.gpsPunches = [...(existing.gpsPunches || []), ...(row.gpsPunches || [])]
+      .sort((a,b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
+    if (String(row.updatedAt || '') > String(existing.updatedAt || '')) {
+      ['locationType','caseCode','caseName','note','updatedAt','updatedBy'].forEach(field => {
+        if (row[field] !== undefined) existing[field] = row[field];
+      });
+    }
+  });
+  return [...grouped.values()];
+}
+
+function attMergeDuplicateGpsRows(person, date) {
+  const duplicates = ATTENDANCE_RECORDS.filter(r => r.source === 'gps' && r.person === person && r.date === date);
+  if (duplicates.length <= 1) return duplicates[0] || null;
+  const merged = attDailyEffectiveRecords(person).find(r => r.source === 'gps' && r.date === date);
+  const keep = duplicates.slice().sort((a,b) => Number(a.id || 0) - Number(b.id || 0))[0];
+  const duplicateIds = new Set(duplicates.slice(1).map(r => String(r.id)));
+  Object.assign(keep, merged, { id:keep.id, updatedAt:new Date().toISOString(), updatedBy:currentUser.name });
+  ATTENDANCE_RECORDS = ATTENDANCE_RECORDS.filter(r => !duplicateIds.has(String(r.id)));
+  recordAuditLog('update', 'attendanceRecord', keep.id, duplicates, keep, {
+    riskLevel:'medium',
+    targetLabel:`${date} ${person}`,
+    reason:'合併同日重複 GPS 打卡紀錄'
+  });
+  return keep;
+}
+
+function attWaitForCloudSync(timeoutMs = 12000) {
+  if (!OPS_AUTH_ENFORCED || !opsAuthenticatedEmail) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (!opsCloudPendingSync) { clearInterval(timer); resolve(true); }
+      else if (Date.now() - started >= timeoutMs) { clearInterval(timer); resolve(false); }
+    }, 200);
+  });
+}
+
+async function attGpsPunch(type) {
   if (!canAccess('attendance')) { showToast('您沒有出勤功能權限', 'error'); return; }
+  if (attGpsPunching) { showToast('打卡正在寫入，請勿重複點選', 'warning'); return; }
   attGpsRefresh();
   const person = attCanManage() ? document.getElementById('att-gps-person')?.value : currentUser.id;
   if (!person) { showToast('請先選擇打卡人員', 'error'); return; }
@@ -9416,7 +9480,9 @@ function attGpsPunch(type) {
   const date = localDateKey(now);
   const time = now.toLocaleTimeString('zh-TW', { hour12:false }).slice(0,5);
   const target = attGpsResult.target || attGpsTarget();
-  let row = ATTENDANCE_RECORDS.find(r => r.person === person && r.date === date && r.source === 'gps');
+  attGpsPunching = true;
+  attGpsRefresh();
+  let row = attMergeDuplicateGpsRows(person, date) || ATTENDANCE_RECORDS.find(r => r.person === person && r.date === date && r.source === 'gps');
   if (!row) {
     row = {
       id: attNextId++,
@@ -9456,8 +9522,13 @@ function attGpsPunch(type) {
   });
   row.note = `${target.label} GPS ${type === 'in' ? '上班' : '下班'}打卡；距離 ${attGpsResult.distance}m`;
   saveData();
+  if (opsCloudReady) opsCloudFlushPendingSave();
   renderAttendance();
-  showToast(`${type === 'in' ? '上班' : '下班'}打卡已寫入 OPS ✓`, 'success');
+  showToast(`${type === 'in' ? '上班' : '下班'}打卡已寫入，正在同步雲端…`, 'success');
+  const synced = await attWaitForCloudSync();
+  attGpsPunching = false;
+  attGpsRefresh();
+  showToast(synced ? `${type === 'in' ? '上班' : '下班'}打卡已同步雲端 ✓` : '打卡已存在手機，雲端尚未確認，請保留畫面並按「重試同步」', synced ? 'success' : 'error');
 }
 
 function attSetRecordEditMode(row) {
@@ -9593,7 +9664,7 @@ function attDeleteLeave(id) {
 function attComputeDraft(person, month) {
   const cfg = PR_CONFIG[person] || {};
   const hourly = (cfg.baseSalary || 0) / 30 / 8;
-  const records = ATTENDANCE_RECORDS.filter(r => r.person === person && String(r.date || '').startsWith(month));
+  const records = attDailyEffectiveRecords(person, month);
   const leaves = ATTENDANCE_LEAVES.filter(r => r.person === person && String(r.date || '').startsWith(month));
   let workMinutes = 0;
   let overtimeMinutes = 0;
@@ -9701,7 +9772,7 @@ function renderAttendance() {
       ['加班試算', attMoney(draft.overtimePay), 'var(--success)'],
     ].map(([label,val,color]) => `<div class="kpi-card" style="padding:12px 14px"><div class="kpi-label">${label}</div><div style="font-size:18px;font-weight:800;color:${color}">${val}</div></div>`).join('');
   }
-  const rows = ATTENDANCE_RECORDS.filter(r => r.person === person && String(r.date || '').startsWith(month)).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const rows = attDailyEffectiveRecords(person, month).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const tbody = document.getElementById('att-record-tbody');
   if (tbody) {
     tbody.innerHTML = rows.length ? rows.map(r => `<tr>
