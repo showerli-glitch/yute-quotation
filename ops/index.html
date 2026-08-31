@@ -1172,7 +1172,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.55 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.56 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -2540,7 +2540,7 @@ body.auth-pending .auth-screen{display:flex}
         </div>
         <div class="form-field form-full">
           <label class="form-label">工種類別 *</label>
-          <select class="form-select" id="vd-f-trade">
+          <select class="form-select" id="vd-f-trade" onchange="vdSuggestCodeFromTrade()">
             <option value="">── 請選擇 ──</option>
             <option value="假設及拆運">假設及拆運</option>
             <option value="土木工程">土木工程</option>
@@ -2627,10 +2627,12 @@ body.auth-pending .auth-screen{display:flex}
         </div>
         <div class="form-field">
           <label class="form-label">狀態</label>
-          <select class="form-select" id="vd-f-status">
-            <option value="有效">有效</option>
-            <option value="停用">停用</option>
-          </select>
+          <input type="hidden" id="vd-f-status" value="有效">
+          <button type="button" class="btn btn-ghost" id="vd-toggle-status-btn" style="width:100%" onclick="vdToggleStatusInForm()">停用廠商</button>
+        </div>
+        <div class="form-field" id="vd-disabled-date-wrap" style="display:none">
+          <label class="form-label">停用日期 *</label>
+          <input type="date" class="form-input" id="vd-f-disabledDate">
         </div>
         <div class="form-field form-full">
           <label class="form-label">備註</label>
@@ -4380,6 +4382,15 @@ function normalizeCompanyData() {
     if (!('email' in e)) e.email = '';
     if (e.id === 'nc' && !e.email) e.email = 'nc@yutesign.com';
   });
+  const correctedVendor = VENDORS.find(v => v.name === '高一實業社' && v.code === 'WD014');
+  if (correctedVendor && !VENDORS.some(v => v !== correctedVendor && v.code === 'WD-014')) correctedVendor.code = 'WD-014';
+  VENDORS.forEach(v => {
+    if (!v.status) v.status = '有效';
+    if (v.status !== '停用') v.disabledDate = '';
+  });
+  ['peng','lien'].forEach(id => {
+    if (USER_PERMISSIONS[id]?.vendors === 'view_all') USER_PERMISSIONS[id].vendors = 'view_all_apply_self';
+  });
   ensureLuYanchenOpsAccess();
   normalizeEmployeeEmploymentStatus();
   PROFIT_SETTLEMENTS.forEach(settlement => {
@@ -4424,8 +4435,8 @@ tagCompany(USERS);
 const USER_PERMISSIONS = {
   shower: {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage'},
   nc:     {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage'},
-  peng:   {dashboard:'view_profit_cases',payreq:'view_all_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
-  lien:   {dashboard:'view_profit_cases',payreq:'view_all_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
+  peng:   {dashboard:'view_profit_cases',payreq:'view_all_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all_apply_self'},
+  lien:   {dashboard:'view_profit_cases',payreq:'view_all_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all_apply_self'},
   sun:    {dashboard:'view_profit_cases',payreq:'view_all_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
   lu_yanchen: {dashboard:'none',payreq:'view_all_apply_self',payable:'none',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_profit_cases',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
   chen_hongjun: {dashboard:'view_all',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_all',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'manage',vendors:'manage'},
@@ -5801,7 +5812,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.55', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.56', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5862,7 +5873,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.55', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.56', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6830,7 +6841,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.55';
+  merged.appVersion = '1.2.56';
   return { ok:true, data:merged };
 }
 
@@ -6954,7 +6965,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.55';
+  merged.appVersion = '1.2.56';
   return { ok:true, data:merged };
 }
 
@@ -7066,7 +7077,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.55';
+  merged.appVersion = '1.2.56';
   return { ok:true, data:merged };
 }
 
@@ -7185,7 +7196,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.55';
+  merged.appVersion = '1.2.56';
   return { ok:true, data:merged };
 }
 
@@ -8059,7 +8070,7 @@ function applyRole(user) {
     'btn-attendance-payroll-draft': canManage('attendance'),
     'btn-new-employee': canManage('employees'),
     'btn-new-client': canManage('clients'),
-    'btn-new-vendor': canManage('vendors'),
+    'btn-new-vendor': canApplySelf('vendors'),
   };
   Object.entries(visibility).forEach(([id, visible]) => {
     const el = document.getElementById(id);
@@ -15292,6 +15303,49 @@ function submitClient() {
 // VENDOR MODULE
 // ══════════════════════════════════
 let vdSortKey = 'code', vdSortAsc = true;
+function vendorCreatedByCurrentUser(v) {
+  const who = rowAuditUser();
+  return !!v?.createdBy && [who, currentUser?.email, currentUser?.name].filter(Boolean).includes(v.createdBy);
+}
+function canEditVendor(v) { return canManage('vendors') || (canApplySelf('vendors') && vendorCreatedByCurrentUser(v)); }
+function vendorPrefixForTrade(trade) {
+  const counts = {};
+  VENDORS.filter(v => v.trade === trade).forEach(v => {
+    const match = String(v.code || '').match(/^([A-Z]+)-\d+$/);
+    if (match) counts[match[1]] = (counts[match[1]] || 0) + 1;
+  });
+  const inferred = Object.entries(counts).sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+  if (inferred) return inferred;
+  const fallback = {'假設及拆運':'DM','土木工程':'TW','水電／照明':'EL','防水':'WP','輕隔間及輕鋼架天花板':'LG','泥作及貼磚':'TL','木作及系統櫃':'WD','門扇':'DR','鋁窗':'AL','鐵件及金屬':'MT','油漆':'PT','地坪':'FL','玻璃及貼膜':'GL','廣告及招牌':'AD','窗簾':'CR','空調':'AC','石材／人造石':'ST','衛浴設備':'BA','廚具設備':'KT','燈具／設備及其他':'EQ','完工清潔':'CL','設計製圖費':'DS','建材供應':'SP','傢俱設備':'FN','其他':'OT'};
+  return fallback[trade] || 'VD';
+}
+function vdSuggestCodeFromTrade() {
+  if (vdEditCode) return;
+  const trade = document.getElementById('vd-f-trade').value;
+  if (!trade) return;
+  const prefix = vendorPrefixForTrade(trade);
+  const max = VENDORS.reduce((n, v) => {
+    const match = String(v.code || '').match(new RegExp(`^${prefix}-(\\d+)$`));
+    return match ? Math.max(n, Number(match[1])) : n;
+  }, 0);
+  document.getElementById('vd-f-code').value = `${prefix}-${String(max + 1).padStart(3,'0')}`;
+}
+function vdRefreshStatusForm() {
+  const disabled = document.getElementById('vd-f-status').value === '停用';
+  document.getElementById('vd-disabled-date-wrap').style.display = disabled ? '' : 'none';
+  const btn = document.getElementById('vd-toggle-status-btn');
+  btn.textContent = disabled ? '取消停用' : '停用廠商';
+  btn.className = `btn ${disabled ? 'btn-ghost' : 'btn-danger'}`;
+  btn.style.width = '100%';
+}
+function vdToggleStatusInForm() {
+  const status = document.getElementById('vd-f-status');
+  const date = document.getElementById('vd-f-disabledDate');
+  const willDisable = status.value !== '停用';
+  status.value = willDisable ? '停用' : '有效';
+  date.value = willDisable ? (date.value || localDateKey()) : '';
+  vdRefreshStatusForm();
+}
 function vdSetSort(key) {
   if (vdSortKey === key) vdSortAsc = !vdSortAsc;
   else { vdSortKey = key; vdSortAsc = true; }
@@ -15299,7 +15353,6 @@ function vdSetSort(key) {
 }
 
 function renderVendors() {
-  const manage = canManage('vendors');
   const kw = (document.getElementById('vd-search')?.value || '').toLowerCase();
   const tradeF = document.getElementById('vd-filter-trade')?.value || '';
   const statusF = document.getElementById('vd-filter-status')?.value || '';
@@ -15360,7 +15413,7 @@ function renderVendors() {
       <td style="text-align:center"><span class="tag ${v.status==='有效'?'tag-done':'tag-inactive'}" style="font-size:10px">${v.status}</span></td>
       <td style="text-align:center;white-space:nowrap;display:flex;gap:4px;justify-content:center">
         ${canApplySelf('payreq') ? `<button class="btn btn-primary btn-sm" style="font-size:11px" onclick="event.stopPropagation();openPayreqForVendor('${v.code}')">發起請款</button>` : ''}
-        ${manage ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openVendorModal('${v.code}')">編輯</button>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>'}
+        ${canEditVendor(v) ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openVendorModal('${v.code}')">編輯</button>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>'}
       </td>
     </tr>`;
   }).join('');
@@ -15394,18 +15447,19 @@ function viewVendor(code) {
         <div><div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">帳號</div><div style="font-family:'DM Mono',monospace;font-size:13px">${v.account||'—'}</div></div>
         <div><div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">戶名</div><div style="font-size:13px">${v.accountName||'—'}</div></div>
       </div>
+      <div><div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">狀態</div><div>${v.status||'有效'}${v.status==='停用' && v.disabledDate ? ` · ${v.disabledDate}` : ''}</div></div>
       ${v.note?`<div style="background:var(--surface2);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">備註</div><div style="font-size:13px;line-height:1.6">${v.note}</div></div>`:''}
     </div>`;
   const editBtn = document.getElementById('vd-detail-edit-btn');
-  editBtn.style.display = canManage('vendors') ? '' : 'none';
+  editBtn.style.display = canEditVendor(v) ? '' : 'none';
   editBtn.onclick = () => { closeModal('modal-vendor-detail'); openVendorModal(code); };
   openModal('modal-vendor-detail');
 }
 
 function openVendorModal(code) {
-  if (!requireManage('vendors')) return;
   vdEditCode = code || null;
   const v = code ? VENDORS.find(x => x.code === code) : null;
+  if (v ? !canEditVendor(v) : !canApplySelf('vendors')) { showToast('您沒有此廠商的編輯權限', 'error'); return; }
   document.getElementById('vd-modal-title').textContent = v ? `編輯廠商 · ${v.name}` : '新增廠商';
   const fields = ['code','name','trade','taxId','owner','tel','mobile','email','address','bank','branch','account','accountName','payMethod','status','note'];
   fields.forEach(f => {
@@ -15417,11 +15471,14 @@ function openVendorModal(code) {
   });
   if (v) document.getElementById('vd-f-code').readOnly = true;
   else document.getElementById('vd-f-code').readOnly = false;
+  document.getElementById('vd-f-disabledDate').value = v?.disabledDate || '';
+  vdRefreshStatusForm();
   openModal('modal-vendor');
 }
 
 function submitVendor() {
-  if (!requireManage('vendors')) return;
+  const existing = vdEditCode ? VENDORS.find(x => x.code === vdEditCode) : null;
+  if (existing ? !canEditVendor(existing) : !canApplySelf('vendors')) { showToast('您沒有此廠商的編輯權限', 'error'); return; }
   const code = document.getElementById('vd-f-code').value.trim().toUpperCase();
   const name = document.getElementById('vd-f-name').value.trim();
   const trade = document.getElementById('vd-f-trade').value;
@@ -15440,16 +15497,18 @@ function submitVendor() {
     accountName: document.getElementById('vd-f-accountName').value.trim(),
     payMethod: document.getElementById('vd-f-payMethod').value,
     status: document.getElementById('vd-f-status').value,
+    disabledDate: document.getElementById('vd-f-status').value === '停用' ? document.getElementById('vd-f-disabledDate').value : '',
     note: document.getElementById('vd-f-note').value.trim(),
   };
+  if (obj.status === '停用' && !obj.disabledDate) { showToast('請選擇停用日期', 'error'); return; }
   if (vdEditCode) {
     const idx = VENDORS.findIndex(x => x.code === vdEditCode);
-    if (idx >= 0) VENDORS[idx] = obj;
+    if (idx >= 0) VENDORS[idx] = touchRowMeta({...VENDORS[idx], ...obj});
     saveData();
     showToast('廠商資料已更新', 'success');
   } else {
     if (VENDORS.find(x => x.code === code)) { showToast('代碼重複，請換一個', 'error'); return; }
-    VENDORS.push(obj);
+    VENDORS.push(touchRowMeta(obj, true));
     saveData();
     showToast('新廠商已新增', 'success');
   }
