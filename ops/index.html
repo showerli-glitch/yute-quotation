@@ -1172,7 +1172,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.62 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.63 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5824,7 +5824,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.62', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.63', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5885,7 +5885,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.62', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.63', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6853,7 +6853,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.62';
+  merged.appVersion = '1.2.63';
   return { ok:true, data:merged };
 }
 
@@ -6977,7 +6977,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.62';
+  merged.appVersion = '1.2.63';
   return { ok:true, data:merged };
 }
 
@@ -7089,7 +7089,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.62';
+  merged.appVersion = '1.2.63';
   return { ok:true, data:merged };
 }
 
@@ -7208,7 +7208,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.62';
+  merged.appVersion = '1.2.63';
   return { ok:true, data:merged };
 }
 
@@ -8507,8 +8507,8 @@ function renderCases() {
       <td style="font-size:12px;color:var(--text2);min-width:3em;white-space:nowrap">${c.person}</td>
       ${canSetLocation ? `<td style="text-align:center">${caseHasSiteLocation(c) ? '<span class="tag tag-done">已設定</span>' : '<span class="tag tag-pending">未設定</span>'}</td>` : ''}
       <td style="white-space:nowrap;text-align:center">
-        ${canSetLocation ? `<select class="filter-select" aria-label="${c.name} 操作" style="min-width:64px;width:64px;padding:4px 3px;font-size:11px" onchange="caseActionSelect(this,'${c.code}')">
-          <option value="">操作 ▾</option>
+        ${canSetLocation ? `<select class="filter-select" aria-label="${c.name} 操作" style="min-width:44px;width:44px;padding:3px 0;font-size:11px" onchange="caseActionSelect(this,'${c.code}')">
+          <option value="">操作</option>
           <option value="location">座標設定</option>
           ${c.status !== '結案' ? '<option value="close">標記結案</option>' : ''}
           <option value="edit">編輯個案</option>
@@ -10532,7 +10532,7 @@ function renderPayable() {
           <div style="display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap">
             ${manage && p.status==='pending'  ? `<button class="btn btn-sm" style="background:var(--success-bg);color:var(--success);border:1px solid rgba(110,184,148,0.3)" onclick="event.stopPropagation();openApprove(${p.id})">核准</button><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();rejectPayable(${p.id})">退回</button>` : ''}
             ${manage && p.status==='approved' ? `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();markPaid(${p.id})">標記已付款</button>` : ''}
-            ${manage ? (p.systemLocked ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openEditPayableModal(${p.id})">編輯付款資訊</button><span style="font-size:10px;color:var(--text3)">結算鎖定</span>` : `<select class="filter-select" aria-label="應付單操作" style="min-width:64px;width:64px;padding:4px 3px;font-size:11px" onchange="payableDocumentAction(this,${p.id})"><option value="">操作 ▾</option><option value="clone">複製單據</option><option value="edit">編輯單據</option><option value="delete">刪除單據</option></select>`) : (p.status!=='paid' ? '<span style="font-size:11px;color:var(--text3)">唯讀</span>' : '')}
+            ${manage ? (p.systemLocked ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openEditPayableModal(${p.id})">編輯付款資訊</button><span style="font-size:10px;color:var(--text3)">結算鎖定</span>` : `<select class="filter-select" aria-label="應付單操作" style="min-width:44px;width:44px;padding:3px 0;font-size:11px" onchange="payableDocumentAction(this,${p.id})"><option value="">操作</option><option value="clone">複製單據</option><option value="edit">編輯單據</option><option value="delete">刪除單據</option></select>`) : (p.status!=='paid' ? '<span style="font-size:11px;color:var(--text3)">唯讀</span>' : '')}
           </div>
         </td>
       </tr>`).join('');
@@ -11204,7 +11204,7 @@ function renderReceivable() {
         <td class="rv-col-actions" style="padding:10px 14px;text-align:center;white-space:nowrap">
           <div style="display:flex;align-items:center;justify-content:center;gap:4px">
             ${manage ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openInvoice(${r.id})" title="開立發票／標記收款">📄</button>
-            <select class="filter-select" aria-label="應收單操作" style="min-width:64px;width:64px;padding:4px 3px;font-size:11px" onchange="receivableDocumentAction(this,${r.id})"><option value="">操作 ▾</option><option value="clone">複製單據</option><option value="edit">編輯單據</option><option value="delete">刪除單據</option></select>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>'}
+            <select class="filter-select" aria-label="應收單操作" style="min-width:44px;width:44px;padding:3px 0;font-size:11px" onchange="receivableDocumentAction(this,${r.id})"><option value="">操作</option><option value="clone">複製單據</option><option value="edit">編輯單據</option><option value="delete">刪除單據</option></select>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>'}
           </div>
         </td>
       </tr>`).join('');
@@ -15039,7 +15039,7 @@ function renderPayreq() {
             <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
               ${manage ? `<button class="btn btn-sm" style="background:var(--success-bg);color:var(--success);border:1px solid rgba(110,184,148,0.3)" onclick="approveReq(${p.id})">核准</button>
               <button class="btn btn-ghost btn-sm" onclick="rejectPayreq(${p.id})">退回</button>
-              <select class="filter-select" aria-label="請款單操作" style="min-width:64px;width:64px;padding:4px 3px;font-size:11px" onchange="payreqDocumentAction(this,${p.id})"><option value="">操作 ▾</option><option value="clone">複製單據</option><option value="edit">編輯單據</option><option value="delete">刪除單據</option></select>` : (canApplySelf('payreq') ? `<button class="btn btn-ghost btn-sm" onclick="clonePayreq(${p.id})">複製</button>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>')}
+              <select class="filter-select" aria-label="請款單操作" style="min-width:44px;width:44px;padding:3px 0;font-size:11px" onchange="payreqDocumentAction(this,${p.id})"><option value="">操作</option><option value="clone">複製單據</option><option value="edit">編輯單據</option><option value="delete">刪除單據</option></select>` : (canApplySelf('payreq') ? `<button class="btn btn-ghost btn-sm" onclick="clonePayreq(${p.id})">複製</button>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>')}
             </div>
           </td>
         </tr>`).join('');
@@ -15060,7 +15060,7 @@ function renderPayreq() {
           <td><span class="tag tag-inactive">已退回</span></td>
           <td style="white-space:nowrap">
             <div style="display:flex;align-items:center;gap:4px">
-              ${(manage || p.person === currentUser.id) ? `<select class="filter-select" aria-label="請款單操作" style="min-width:64px;width:64px;padding:4px 3px;font-size:11px" onchange="payreqDocumentAction(this,${p.id})"><option value="">操作 ▾</option><option value="clone">複製單據</option><option value="edit">修改並重送</option>${manage?'<option value="delete">刪除單據</option>':''}</select>` : ''}
+              ${(manage || p.person === currentUser.id) ? `<select class="filter-select" aria-label="請款單操作" style="min-width:44px;width:44px;padding:3px 0;font-size:11px" onchange="payreqDocumentAction(this,${p.id})"><option value="">操作</option><option value="clone">複製單據</option><option value="edit">修改並重送</option>${manage?'<option value="delete">刪除單據</option>':''}</select>` : ''}
             </div>
           </td>
         </tr>`).join('');
@@ -15081,7 +15081,7 @@ function renderPayreq() {
           <td><span class="tag ${stTag[p.status]||'tag-active'}">${stLabel[p.status]||p.status}</span></td>
           <td style="white-space:nowrap">
             <div style="display:flex;align-items:center;gap:4px">
-              ${manage ? `<select class="filter-select" aria-label="請款單操作" style="min-width:64px;width:64px;padding:4px 3px;font-size:11px" onchange="payreqDocumentAction(this,${p.id})"><option value="">操作 ▾</option><option value="clone">複製單據</option><option value="edit">編輯單據</option><option value="delete">刪除單據</option></select>` : (canApplySelf('payreq') ? `<button class="btn btn-ghost btn-sm" onclick="clonePayreq(${p.id})">複製</button>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>')}
+              ${manage ? `<select class="filter-select" aria-label="請款單操作" style="min-width:44px;width:44px;padding:3px 0;font-size:11px" onchange="payreqDocumentAction(this,${p.id})"><option value="">操作</option><option value="clone">複製單據</option><option value="edit">編輯單據</option><option value="delete">刪除單據</option></select>` : (canApplySelf('payreq') ? `<button class="btn btn-ghost btn-sm" onclick="clonePayreq(${p.id})">複製</button>` : '<span style="font-size:11px;color:var(--text3)">唯讀</span>')}
             </div>
           </td>
         </tr>`).join('');
