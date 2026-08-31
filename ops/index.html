@@ -1172,7 +1172,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.56 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.57 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4391,6 +4391,17 @@ function normalizeCompanyData() {
   ['peng','lien'].forEach(id => {
     if (USER_PERMISSIONS[id]?.vendors === 'view_all') USER_PERMISSIONS[id].vendors = 'view_all_apply_self';
   });
+  const duplicateShengFeng = PAYABLES.filter(p =>
+    p.status === 'pending' && p.case === 'YT-VOL-2026-004' &&
+    p.vendor === '盛豐起重工程行' && p.summary === '宏匯傢俱搬至新莊Volvo' &&
+    Number(p.amount) === 19845 && p.wantDate === '2026-08-31'
+  ).sort((a,b) => Number(a.id || 0) - Number(b.id || 0));
+  if (duplicateShengFeng.length > 1) {
+    const rowsToRemove = new Set(duplicateShengFeng.slice(1));
+    for (let i = PAYABLES.length - 1; i >= 0; i--) {
+      if (rowsToRemove.has(PAYABLES[i])) PAYABLES.splice(i, 1);
+    }
+  }
   ensureLuYanchenOpsAccess();
   normalizeEmployeeEmploymentStatus();
   PROFIT_SETTLEMENTS.forEach(settlement => {
@@ -4930,6 +4941,7 @@ let attNextId = 1;
 let attLeaveNextId = 1;
 let attEditRecordId = null;
 let payreqEditId = null;
+let payreqSubmitting = false;
 let AUDIT_LOGS = [];
 let auditNextId = 1;
 const OFFICE_LOCATION_DEFAULT = { lat: 25.046124, lng: 121.584709 };
@@ -5812,7 +5824,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.56', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.57', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5873,7 +5885,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.56', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.57', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6841,7 +6853,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.56';
+  merged.appVersion = '1.2.57';
   return { ok:true, data:merged };
 }
 
@@ -6965,7 +6977,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.56';
+  merged.appVersion = '1.2.57';
   return { ok:true, data:merged };
 }
 
@@ -7077,7 +7089,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.56';
+  merged.appVersion = '1.2.57';
   return { ok:true, data:merged };
 }
 
@@ -7196,7 +7208,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.56';
+  merged.appVersion = '1.2.57';
   return { ok:true, data:merged };
 }
 
@@ -9847,6 +9859,7 @@ function selectRadio(groupId, el) {
 // ══════════════════════════════════
 function openPayreqModal() {
   if (!canApplySelf('payreq')) { showToast('您沒有新增請款的權限', 'error'); return; }
+  payreqSubmitting = false;
   payreqEditId = null;
   // 動態填充案件下拉
   const prCase = document.getElementById('pr-case');
@@ -9874,7 +9887,7 @@ function openPayreqModal() {
   const titleEl = document.querySelector('#modal-payreq .modal-title');
   if (titleEl) titleEl.textContent = '廠商請款申請';
   const btn = document.getElementById('pr-submit-btn');
-  if (btn) btn.textContent = '送出申請';
+  if (btn) { btn.textContent = '送出申請'; btn.disabled = false; }
   openModal('modal-payreq');
 }
 
@@ -9925,6 +9938,7 @@ function openEditPayreqModal(id) {
 
 function submitPayReq() {
   if (!canApplySelf('payreq')) { showToast('您沒有新增請款的權限', 'error'); return; }
+  if (payreqSubmitting) { showToast('請款正在送出，請勿重複點選', 'warning'); return; }
   const caseVal     = document.getElementById('pr-case').value;
   const vendorRaw    = document.getElementById('pr-vendor').value.trim();
   // datalist 格式是 "CODE - 廠商名稱"，取後面的名稱；若直接打名字也直接用
@@ -9965,9 +9979,23 @@ function submitPayReq() {
     status: 'pending',
     note
   };
+  if (!payreqEditId) {
+    const exactDuplicate = PAYABLES.find(p =>
+      p.status === 'pending' && p.case === data.case && p.vendor === data.vendor &&
+      p.summary === data.summary && Number(p.amount) === Number(data.amount) &&
+      p.wantDate === data.wantDate && p.person === data.person
+    );
+    if (exactDuplicate) {
+      showToast('已有一筆完全相同的待審核請款，本次未重複新增', 'error');
+      return;
+    }
+  }
+  payreqSubmitting = true;
+  const submitBtn = document.getElementById('pr-submit-btn');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '送出中…'; }
   if (payreqEditId) {
     const row = PAYABLES.find(x => Number(x.id) === Number(payreqEditId) && (x.status === 'pending' || x.status === 'rejected'));
-    if (!row) { showToast('找不到要更新的待審核或已退回請款', 'error'); return; }
+    if (!row) { payreqSubmitting = false; if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '儲存修改'; } showToast('找不到要更新的待審核或已退回請款', 'error'); return; }
     Object.assign(row, data, { id: row.id, status: 'pending' });
   } else {
     PAYABLES.push({ id: pyNextId++, ...data });
@@ -9980,6 +10008,7 @@ function submitPayReq() {
   renderDashboard();
   closeModal('modal-payreq');
   saveData();
+  setTimeout(() => { payreqSubmitting = false; }, 1500);
   showToast(wasEditing ? '請款申請已更新 ✓' : '請款申請已送出，等待財務審核 ✓', 'success');
 }
 
