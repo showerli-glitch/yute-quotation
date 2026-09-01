@@ -4434,6 +4434,11 @@ function normalizeCompanyData() {
   ['peng','lien'].forEach(id => {
     if (USER_PERMISSIONS[id]?.vendors === 'view_all') USER_PERMISSIONS[id].vendors = 'view_all_apply_self';
   });
+  // 廠商請款的「view_all_apply_self」名不符實：實際只看得到自己有分潤的個案＋自己送出的申請，
+  // 改用 view_profit_cases_apply_self 讓權限矩陣畫面標示與實際行為一致；行為本身不變。
+  ['peng','lien','sun','lu_yanchen'].forEach(id => {
+    if (USER_PERMISSIONS[id]?.payreq === 'view_all_apply_self') USER_PERMISSIONS[id].payreq = 'view_profit_cases_apply_self';
+  });
   const duplicateShengFeng = PAYABLES.filter(p =>
     p.status === 'pending' && p.case === 'YT-VOL-2026-004' &&
     p.vendor === '盛豐起重工程行' && p.summary === '宏匯傢俱搬至新莊Volvo' &&
@@ -4489,10 +4494,10 @@ tagCompany(USERS);
 const USER_PERMISSIONS = {
   shower: {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage'},
   nc:     {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage'},
-  peng:   {dashboard:'view_profit_cases',payreq:'view_all_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all_apply_self'},
-  lien:   {dashboard:'view_profit_cases',payreq:'view_all_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all_apply_self'},
-  sun:    {dashboard:'view_profit_cases',payreq:'view_all_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
-  lu_yanchen: {dashboard:'none',payreq:'view_all_apply_self',payable:'none',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_profit_cases',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
+  peng:   {dashboard:'view_profit_cases',payreq:'view_profit_cases_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all_apply_self'},
+  lien:   {dashboard:'view_profit_cases',payreq:'view_profit_cases_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all_apply_self'},
+  sun:    {dashboard:'view_profit_cases',payreq:'view_profit_cases_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
+  lu_yanchen: {dashboard:'none',payreq:'view_profit_cases_apply_self',payable:'none',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_profit_cases',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
   chen_hongjun: {dashboard:'view_all',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_all',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'manage',vendors:'manage'},
 };
 const LU_YANCHEN_OPS_PERMISSIONS = { ...USER_PERMISSIONS.lu_yanchen };
@@ -4523,7 +4528,7 @@ function permissionLevel(page) {
 }
 function canManage(page) { return permissionLevel(page) === 'manage'; }
 function canAccess(page) { return permissionLevel(page) !== 'none'; }
-function canApplySelf(page) { return ['manage','view_all_apply_self','view_self_apply_self'].includes(permissionLevel(page)); }
+function canApplySelf(page) { return ['manage','view_all_apply_self','view_self_apply_self','view_profit_cases_apply_self'].includes(permissionLevel(page)); }
 function canViewPaymentType() { return ['OWNER','FINANCE','ACCOUNTING'].includes(currentUser?.roleCode); }
 function canSeeFinancialTotals() { return ['OWNER','FINANCE','ACCOUNTING'].includes(currentUser?.roleCode); }
 function canSeeRestrictedCase(c) { return !c?.excludeFromProfitReports || canSeeFinancialTotals(); }
@@ -7656,6 +7661,33 @@ async function opsCloudStart() {
     showToast(opsCloudErrorMessage(e, '雲端同步'), 'error');
   }
 }
+
+// 手機瀏覽器背景化（鎖螢幕／切到其他 App）常會暫停 JS 計時器與即時監聽的連線；
+// 回到前景時單靠既有的 `.on('value')` 監聽或 4 秒一次的 watchdog 不一定會馬上補回來，
+// 導致手機畫面停在舊資料，或剛送出的請款卡在本機沒真的推上 Firebase。
+// 回到前景時主動補推待送資料、並在沒有待送資料時重新讀一次雲端正本，兩邊都不會覆蓋掉使用者還沒送出的編輯。
+async function opsCloudRefreshOnForeground() {
+  if (!OPS_AUTH_ENFORCED || !opsAuthenticatedEmail) return;
+  if (opsCloudPendingSnapshot) { opsCloudFlushPendingSave(); return; }
+  if (!opsCloudReady) { opsCloudStart().catch(e => console.warn('OPS cloud foreground reconnect failed:', e)); return; }
+  try {
+    const snap = await opsCloudRef().get();
+    if (!snap.exists()) return;
+    const payload = snap.val();
+    const meta = payload?.meta || {};
+    if (meta.savedAt && meta.savedAt === opsCloudLastSavedAt) return;
+    if (opsCloudPendingSnapshot) return;
+    opsApplyCloudPayload(payload, { silent: meta.savedBy === opsAuthenticatedEmail });
+  } catch(e) {
+    console.warn('OPS cloud foreground refresh failed:', e);
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') opsCloudRefreshOnForeground();
+});
+window.addEventListener('pageshow', () => {
+  if (document.visibilityState === 'visible') opsCloudRefreshOnForeground();
+});
 
 function opsUnlockForUser(user, email = '', options = {}) {
   if (!user) return false;
@@ -15426,6 +15458,7 @@ const EMP_PERM_LEVELS = [
   {value:'view_all',             label:'查看全部'},
   {value:'view_all_apply_self',  label:'查看全部＋申請自己'},
   {value:'view_self_apply_self', label:'查看自己＋申請自己'},
+  {value:'view_profit_cases_apply_self', label:'查看分潤案件＋申請自己'},
   {value:'view_self',            label:'查看自己'},
   {value:'view_profit_cases',    label:'查看有分潤案件'},
   {value:'none',                 label:'無權限'},
