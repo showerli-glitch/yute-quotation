@@ -1179,7 +1179,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.69 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.70 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5875,7 +5875,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.69', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.70', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5936,7 +5936,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.69', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.70', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6909,7 +6909,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.69';
+  merged.appVersion = '1.2.70';
   return { ok:true, data:merged };
 }
 
@@ -7033,7 +7033,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.69';
+  merged.appVersion = '1.2.70';
   return { ok:true, data:merged };
 }
 
@@ -7145,7 +7145,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.69';
+  merged.appVersion = '1.2.70';
   return { ok:true, data:merged };
 }
 
@@ -7264,7 +7264,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.69';
+  merged.appVersion = '1.2.70';
   return { ok:true, data:merged };
 }
 
@@ -9334,11 +9334,22 @@ function attDefaultFormValues() {
   const inEl = document.getElementById('att-rec-in');
   const outEl = document.getElementById('att-rec-out');
   if (inEl && !inEl.value) inEl.value = '08:00';
-  if (outEl && !outEl.value) outEl.value = '17:00';
+  // 下班時間不可預填；只有實際下班打卡或管理者明確輸入才可寫入。
+  if (outEl && !attEditRecordId) outEl.value = '';
+}
+
+function attIsFutureTodayTime(date, time) {
+  if (!date || !time || date !== attToday()) return false;
+  const now = new Date().toLocaleTimeString('zh-TW', { hour12:false }).slice(0,5);
+  return time > now;
+}
+
+function attEffectiveOutTime(row) {
+  return attIsFutureTodayTime(row?.date || '', row?.outTime || '') ? '' : (row?.outTime || '');
 }
 
 function attRecordStatus(row) {
-  if (!row.inTime || !row.outTime) return '缺卡';
+  if (!row.inTime || !attEffectiveOutTime(row)) return '缺卡';
   if (row.approvedBy) return '已核准';
   return row.source === 'manual' ? '補登待核' : '正常';
 }
@@ -9663,6 +9674,8 @@ function attSetRecordEditMode(row) {
 function attCancelEditRecord() {
   attEditRecordId = null;
   attSetRecordEditMode(null);
+  const inEl = document.getElementById('att-rec-in'); if (inEl) inEl.value = '';
+  const outEl = document.getElementById('att-rec-out'); if (outEl) outEl.value = '';
   attDefaultFormValues();
   const noteEl = document.getElementById('att-rec-note');
   if (noteEl) noteEl.value = '';
@@ -9679,7 +9692,7 @@ function attEditRecord(id) {
   set('att-rec-person', row.person);
   set('att-rec-date', row.date);
   set('att-rec-in', row.inTime);
-  set('att-rec-out', row.outTime);
+  set('att-rec-out', attEffectiveOutTime(row));
   set('att-rec-location-type', row.locationType || 'office');
   set('att-rec-case', row.caseCode);
   set('att-rec-overtime', row.overtimeHoursOverride ?? '');
@@ -9702,6 +9715,7 @@ function attAddRecord() {
   const overtimeHoursOverride = attCanManage() && overtimeRaw !== '' ? Math.max(0, Number(overtimeRaw) || 0) : null;
   if (!person || !date) { showToast('請選擇人員與日期', 'error'); return; }
   if (!inTime && !outTime) { showToast('請至少填寫上班或下班時間', 'error'); return; }
+  if (attIsFutureTodayTime(date, outTime)) { showToast('下班時間不可晚於目前時間；尚未下班請保持空白', 'error'); return; }
   const c = CASES.find(x => x.code === caseCode);
   if (attEditRecordId) {
     const idx = ATTENDANCE_RECORDS.findIndex(r => Number(r.id) === Number(attEditRecordId));
@@ -9739,6 +9753,9 @@ function attAddRecord() {
   }
   const noteEl = document.getElementById('att-rec-note'); if (noteEl) noteEl.value = '';
   const overtimeEl = document.getElementById('att-rec-overtime'); if (overtimeEl) overtimeEl.value = '';
+  const inEl = document.getElementById('att-rec-in'); if (inEl) inEl.value = '';
+  const outEl = document.getElementById('att-rec-out'); if (outEl) outEl.value = '';
+  attDefaultFormValues();
   saveData();
   renderAttendance();
 }
@@ -9798,7 +9815,7 @@ function attApproveRecord(id) {
   const before = auditClone(ATTENDANCE_RECORDS.filter(r => r.person === row.person && r.date === row.date));
   const sameDay = ATTENDANCE_RECORDS.filter(r => r.person === row.person && r.date === row.date);
   const inTimes = sameDay.map(r => r.inTime).filter(Boolean).sort();
-  const outTimes = sameDay.map(r => r.outTime).filter(Boolean).sort();
+  const outTimes = sameDay.map(r => attEffectiveOutTime(r)).filter(Boolean).sort();
   row.inTime = inTimes[0] || row.inTime || '';
   row.outTime = outTimes[outTimes.length - 1] || row.outTime || '';
   row.approvedBy = currentUser.name;
@@ -9832,7 +9849,7 @@ function attComputeDraft(person, month) {
   const warnings = [];
   records.forEach(r => {
     const inM = attMinutes(r.inTime);
-    const outM = attMinutes(r.outTime);
+    const outM = attMinutes(attEffectiveOutTime(r));
     if (!Number.isFinite(inM) || !Number.isFinite(outM)) { missingPunches += 1; warnings.push(`${r.date} 缺卡`); return; }
     const stay = Math.max(0, outM - inM);
     const paid = Math.max(0, stay - ATTENDANCE_SETTINGS.lunchMinutes);
@@ -9943,7 +9960,7 @@ function renderAttendance() {
   const tbody = document.getElementById('att-record-tbody');
   if (tbody) {
     tbody.innerHTML = rows.length ? rows.map(r => `<tr>
-      <td>${r.date || '—'}</td><td>${nameOf(r.person)}</td><td>${r.inTime || '—'}</td><td>${r.outTime || '—'}</td>
+      <td>${r.date || '—'}</td><td>${nameOf(r.person)}</td><td>${r.inTime || '—'}</td><td>${attEffectiveOutTime(r) || '—'}</td>
       <td>${r.locationType === 'site' ? '工地' : '公司'}${r.caseName ? '｜'+tfEsc(r.caseName) : ''}${r.source === 'gps' ? '<br><span style="font-size:10px;color:var(--success)">GPS</span>' : ''}</td>
       <td><span class="tag ${attRecordStatus(r)==='缺卡'?'tag-pending':'tag-done'}">${attRecordStatus(r)}</span>${r.overtimeHoursOverride !== undefined && r.overtimeHoursOverride !== null && r.overtimeHoursOverride !== '' ? `<br><span style="font-size:10px;color:var(--accent)">加班 ${Number(r.overtimeHoursOverride)} 小時（手動）</span>` : ''}</td>
       <td style="text-align:center;white-space:nowrap">${attCanManage() ? `${attRecordStatus(r)==='補登待核' ? `<button class="btn btn-primary btn-sm" onclick="attApproveRecord(${r.id})">核准</button> ` : ''}<button class="btn btn-ghost btn-sm" onclick="attEditRecord(${r.id})">編輯</button> <button class="btn btn-ghost btn-sm" onclick="attDeleteRecord(${r.id})" style="color:var(--error)">刪除</button>` : '—'}</td>
