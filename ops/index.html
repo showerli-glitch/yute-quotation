@@ -1193,7 +1193,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.75 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.76 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5837,7 +5837,7 @@ function ensureCodexSeedData() {
   if (!OVERHEAD['2026-05']) {
     OVERHEAD['2026-05'] = { fixed: OH_FIXED_CONFIG.map(()=>0), fixedNotes: OH_FIXED_CONFIG.map(()=>''), variable:[], note:'Codex 2026-05 薪資歸屬月份' };
   }
-  PAYABLES.filter(p => p.status === 'paid').forEach(pySyncRentToOverhead);
+  pyRebuildRentOverhead();
   pyNextId = Math.max(pyNextId || 1, maxId(PAYABLES) + 1);
   rvNextId = Math.max(rvNextId || 1, maxId(RECEIVABLES) + 1);
   if (typeof expNextId !== 'undefined') expNextId = Math.max(expNextId || 1, maxId(EXPENSES) + 1);
@@ -5886,7 +5886,10 @@ function syncPayrollEmployeeAccountsFromConfig() {
       emp.payrollAccountName = String(emp.payrollAccountName || '').trim();
       emp.payrollAccount = String(emp.payrollAccount || '').trim();
     }
-    PAYROLL_EMPLOYEE_ACCOUNTS[emp.id] = { bank:emp.payrollBank, account:emp.payrollAccount };
+    PAYROLL_EMPLOYEE_ACCOUNTS[emp.id] = {
+      bank: emp.payrollBank,
+      account: emp.payrollAccount
+    };
   });
 }
 
@@ -5894,7 +5897,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.75', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.76', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5955,7 +5958,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.75', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.76', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6928,7 +6931,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.75';
+  merged.appVersion = '1.2.76';
   return { ok:true, data:merged };
 }
 
@@ -7052,7 +7055,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.75';
+  merged.appVersion = '1.2.76';
   return { ok:true, data:merged };
 }
 
@@ -7164,7 +7167,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.75';
+  merged.appVersion = '1.2.76';
   return { ok:true, data:merged };
 }
 
@@ -7283,7 +7286,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.75';
+  merged.appVersion = '1.2.76';
   return { ok:true, data:merged };
 }
 
@@ -10866,7 +10869,7 @@ function confirmApprove() {
 function pyUpdateNote(id, val) {
   if (!canManage('payable')) return;
   const p = PAYABLES.find(x => x.id===id);
-  if (p) { p.note = val; touchRowMeta(p); saveData(); }
+  if (p) { p.note = val; touchRowMeta(p); pyRebuildRentOverhead(); renderOverhead(); saveData(); }
 }
 
 let pyLinkTarget = null;
@@ -10928,11 +10931,21 @@ function markPaid(id) {
   if (!p) return;
   const before = auditClone(p);
   const today = localDateKey(new Date());
+  let actualRentDate = '';
+  if (pyIsCompanyRentPayable(p)) {
+    actualRentDate = prompt('請確認公司房租實際完成付款日（歸屬月份以此日期為準）：', today);
+    if (actualRentDate === null) return;
+    const parsed = new Date(`${actualRentDate}T12:00:00`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(actualRentDate) || Number.isNaN(parsed.getTime()) || localDateKey(parsed) !== actualRentDate) {
+      showToast('實際付款日格式不正確，請使用 YYYY-MM-DD', 'error');
+      return;
+    }
+  }
   p.status = 'paid';
   p.transferDate = today;
-  p.doneDate = pyScheduledPaymentDate(today);
+  p.doneDate = actualRentDate || pyScheduledPaymentDate(today);
   touchRowMeta(p);
-  pySyncRentToOverhead(p);
+  pyRebuildRentOverhead();
   normalizeProfitPayables();
   recordAuditLog('markPaid', 'payable', p.id, before, p, {
     riskLevel:'high',
@@ -10945,26 +10958,52 @@ function markPaid(id) {
   showToast(`已預約匯款：${p.transferDate}；預定完成：${p.doneDate} ✓`, 'success');
 }
 
-function pySyncRentToOverhead(p) {
-  if (!p || p.status !== 'paid') return;
-  if (p.paymentType !== 'overhead_link') return;
+function pyIsCompanyRentPayable(p) {
+  if (!p || p.paymentType !== 'overhead_link') return false;
   const text = `${p.vendor || ''} ${p.summary || ''} ${p.note || ''}`;
-  if (!text.includes('房租')) return;
-  const date = p.doneDate || p.transferDate || p.wantDate || '';
-  const month = date.slice(0,7);
-  if (!prIsValidMonth(month)) return;
-  if (!OVERHEAD[month]) ohInitMonth(month);
+  return text.includes('房租') && !String(p.case || '').trim();
+}
+
+function pyRebuildRentOverhead() {
   const idx = OH_FIXED_CONFIG.indexOf('房租');
   if (idx < 0) return;
-  const note = `應付已付款連動：${p.vendor || '受款人未填'}／${p.summary || '房租'}／${(p.amount || 0).toLocaleString('zh-TW')}／${date}`;
-  OVERHEAD[month].fixed = OVERHEAD[month].fixed || OH_FIXED_CONFIG.map(()=>0);
-  OVERHEAD[month].fixedNotes = OVERHEAD[month].fixedNotes || OH_FIXED_CONFIG.map(()=>'');
-  while (OVERHEAD[month].fixed.length < OH_FIXED_CONFIG.length) OVERHEAD[month].fixed.push(0);
-  while (OVERHEAD[month].fixedNotes.length < OH_FIXED_CONFIG.length) OVERHEAD[month].fixedNotes.push('');
-  const old = OVERHEAD[month].fixedNotes[idx] || '';
-  if (!old.includes(`AP#${p.id}`)) {
-    OVERHEAD[month].fixedNotes[idx] = [old, `AP#${p.id} ${note}`].filter(Boolean).join('；');
-  }
+  const linkedByMonth = new Map();
+  PAYABLES.filter(p => p.status === 'paid' && pyIsCompanyRentPayable(p)).forEach(p => {
+    const date = p.doneDate || p.transferDate || p.wantDate || '';
+    const month = date.slice(0,7);
+    if (!prIsValidMonth(month)) return;
+    if (!linkedByMonth.has(month)) linkedByMonth.set(month, []);
+    linkedByMonth.get(month).push(p);
+  });
+  const months = new Set(linkedByMonth.keys());
+  Object.entries(OVERHEAD || {}).forEach(([month, data]) => {
+    if (data?.rentPayableManaged) months.add(month);
+  });
+  months.forEach(month => {
+    if (!OVERHEAD[month]) ohInitMonth(month);
+    const data = OVERHEAD[month];
+    data.fixed = data.fixed || OH_FIXED_CONFIG.map(()=>0);
+    data.fixedNotes = data.fixedNotes || OH_FIXED_CONFIG.map(()=>'');
+    while (data.fixed.length < OH_FIXED_CONFIG.length) data.fixed.push(0);
+    while (data.fixedNotes.length < OH_FIXED_CONFIG.length) data.fixedNotes.push('');
+    if (!data.rentPayableManaged) {
+      data.rentManualBackup = Number(data.fixed[idx]) || 0;
+      data.rentManualNoteBackup = String(data.fixedNotes[idx] || '');
+    }
+    const rows = (linkedByMonth.get(month) || []).sort((a,b) => Number(a.id) - Number(b.id));
+    data.rentPayableManaged = true;
+    data.rentPayableLinks = rows.map(p => ({
+      payableId:p.id,
+      amount:Number(p.amount) || 0,
+      paidDate:p.doneDate || p.transferDate || p.wantDate || '',
+      vendor:p.vendor || '',
+      summary:p.summary || ''
+    }));
+    data.fixed[idx] = data.rentPayableLinks.reduce((sum, row) => sum + row.amount, 0);
+    data.fixedNotes[idx] = data.rentPayableLinks.map(row =>
+      `AP#${row.payableId} 應付已付款連動：${row.vendor || '受款人未填'}／${row.summary || '房租'}／${row.amount.toLocaleString('zh-TW')}／${row.paidDate}`
+    ).join('；');
+  });
 }
 
 function rejectPayable(id) {
@@ -10974,6 +11013,7 @@ function rejectPayable(id) {
   if (!confirm(`確定退回並移除這筆應付帳款？\n${p.vendor || '受款人未填'}／${p.summary || '項目未填'}\n$${(p.amount || 0).toLocaleString('zh-TW')}`)) return;
   const before = auditClone(p);
   PAYABLES = PAYABLES.filter(p => p.id!==id);
+  pyRebuildRentOverhead();
   recordAuditLog('reject', 'payable', id, before, null, {
     riskLevel:'high',
     targetLabel:`${before.vendor || '受款人未填'}／${before.summary || '項目未填'}`
@@ -10983,6 +11023,7 @@ function rejectPayable(id) {
   renderDashboard();
   renderProfit();
   renderProfitShare();
+  renderOverhead();
   saveData();
   showToast('已退回並移除', 'warning');
 }
@@ -11153,6 +11194,7 @@ function deletePayableConfirm(id) {
   rememberDeletedSourceKey(p.sourceKey);
   PAYABLES = PAYABLES.filter(x => x.id !== id);
   RECEIVABLES = RECEIVABLES.filter(r => r.sourcePayableId !== id && r.sourceKey !== `payable:${id}`);
+  pyRebuildRentOverhead();
   refreshAccountingLinkedViews(affectedCase);
   saveData();
   showToast('已刪除 ✓', 'warning');
@@ -11286,6 +11328,12 @@ function submitAddPayable() {
   if (!vendor)  { showToast('請填寫受款廠商', 'error'); return; }
   if (!amount)  { showToast('請填寫金額', 'error'); return; }
   if (!summary) { showToast('請填寫摘要', 'error'); return; }
+  if (paymentType === 'overhead_link' && !`${vendor} ${summary}`.includes('房租')) {
+    showToast('「固定開銷付款連結」目前僅限公司房租，摘要請明確填寫房租', 'error'); return;
+  }
+  if (paymentType === 'overhead_link' && status === 'paid' && !doneDate) {
+    showToast('公司房租已付款時必須填寫實際完成付款日，公司開銷月份以此日期為準', 'error'); return;
+  }
   const amtNum   = parseInt(amount.replace(/[^0-9\-]/g,''));
   const caseName = caseVal ? (caseEl.selectedOptions[0].text.split(' ').slice(1).join(' ')) : '';
   let affectedCase = shouldKeepCase ? caseVal : '';
@@ -11319,6 +11367,7 @@ function submitAddPayable() {
         syncDerivedReceivableForPayable(p);
       }
       touchRowMeta(p);
+      pyRebuildRentOverhead();
     }
     closeModal('modal-add-payable');
     refreshAccountingLinkedViews(affectedCase);
@@ -11338,6 +11387,7 @@ function submitAddPayable() {
     touchRowMeta(row, true);
     PAYABLES.push(row);
     syncDerivedReceivableForPayable(row);
+    pyRebuildRentOverhead();
     closeModal('modal-add-payable');
     refreshAccountingLinkedViews(shouldKeepCase ? caseVal : '');
     saveData();
@@ -13221,11 +13271,12 @@ function renderOverhead() {
       if (month < OH_WATER_ELECTRIC_SPLIT_MONTH && (name === '水費' || name === '電費')) return '';
       if (month >= OH_WATER_ELECTRIC_SPLIT_MONTH && name === '水電') return '';
       const isPayroll = i === salaryIdx;
+      const isLinkedRent = name === '房租' && data.rentPayableManaged;
       return `
       <tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
         <td style="padding:8px 14px;font-size:12px;white-space:nowrap">${name}</td>
         <td style="padding:4px 8px;text-align:right;white-space:nowrap">
-          ${isPayroll
+          ${isPayroll || isLinkedRent
             ? `<span style="display:inline-block;width:100px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--text);padding:3px 5px">$${(data.fixed[i]||0).toLocaleString('zh-TW')}</span>`
             : `<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text3);padding:3px 2px">$</span><input type="text" value="${(data.fixed[i]||0).toLocaleString('zh-TW')}" ${manage?'':'readonly'}
             style="background:transparent;border:none;outline:none;width:90px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--text);padding:3px 5px;border-radius:4px"
@@ -13234,15 +13285,15 @@ function renderOverhead() {
             onkeydown="if(event.key==='Enter')this.blur()">`}
         </td>
         <td style="padding:4px 8px">
-          ${isPayroll
-            ? `<span style="font-size:11px;color:var(--text3)">自動同步薪資模組</span>`
+          ${isPayroll || isLinkedRent
+            ? `<span style="font-size:11px;color:var(--text3)">${isPayroll ? '自動同步薪資模組' : (data.fixedNotes[i] || '由已付款應付帳款自動彙總')}</span>`
             : `<input type="text" value="${(data.fixedNotes[i]||'').replace(/"/g,'&quot;')}" placeholder="備註…" ${manage?'':'readonly'}
               style="background:transparent;border:none;outline:none;width:100%;font-size:11px;color:var(--text3);padding:2px 4px;border-radius:4px"
               onfocus="this.style.background='var(--surface2)';this.style.border='1px solid var(--border)'"
               onblur="this.style.background='transparent';this.style.border='none';ohUpdateNote('${month}',${i},this.value)"
               onkeydown="if(event.key==='Enter')this.blur()">`}
         </td>
-        <td style="padding:4px 4px;text-align:center">${(manage && !isPayroll) ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" title="改名" onclick="ohRenameFixedItem(${i})">✎</button>` : ''}</td>
+        <td style="padding:4px 4px;text-align:center">${(manage && !isPayroll && !isLinkedRent) ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" title="改名" onclick="ohRenameFixedItem(${i})">✎</button>` : ''}</td>
       </tr>`;
     }).join('');
   }
@@ -13284,6 +13335,11 @@ function renderOverhead() {
 function ohUpdateFixed(month, idx, val) {
   if (!requireManage('overhead')) return;
   if (!OVERHEAD[month]) return;
+  if (OH_FIXED_CONFIG[idx] === '房租' && OVERHEAD[month].rentPayableManaged) {
+    showToast('這個月份的房租由已付款應付帳款自動彙總，請到應付帳款修改', 'warning');
+    renderOverhead();
+    return;
+  }
   OVERHEAD[month].fixed[idx] = parseInt(val.replace(/[^0-9]/g,'')) || 0;
   renderOverhead();
   saveData();
@@ -15080,7 +15136,11 @@ function submitPayroll() {
     PR_CONFIG[prCurrentEmp].bank = bank;
     PR_CONFIG[prCurrentEmp].account = account;
   }
-  const afterAccount = { bank, accountLast4:account ? account.slice(-4) : '', hasAccount:!!account };
+  const afterAccount = {
+    bank,
+    accountLast4: account ? account.slice(-4) : '',
+    hasAccount: !!account
+  };
   if (JSON.stringify(beforeAccount) !== JSON.stringify(afterAccount)) {
     recordAuditLog('update', 'employeePayrollAccount', prCurrentEmp, beforeAccount, afterAccount, {
       targetLabel: emp?.name || prCurrentEmp,
@@ -15547,7 +15607,10 @@ function submitEmployee() {
     const idx = EMPLOYEES.findIndex(x => x.id === empEditId);
     const previousEmployee = idx >= 0 ? auditClone(EMPLOYEES[idx]) : null;
     if (idx >= 0) EMPLOYEES[idx] = { ...EMPLOYEES[idx], ...obj };
-    PAYROLL_EMPLOYEE_ACCOUNTS[empEditId] = { bank:obj.payrollBank || '', account:obj.payrollAccount || '' };
+    PAYROLL_EMPLOYEE_ACCOUNTS[empEditId] = {
+      bank: obj.payrollBank || '',
+      account: obj.payrollAccount || ''
+    };
     // 儲存細部權限（OWNER 才有權限矩陣）
     if (currentUser.roleCode === 'OWNER' && document.getElementById('emp-perm-section')?.style.display !== 'none') {
       const perms = {};
@@ -15565,13 +15628,16 @@ function submitEmployee() {
     );
     if (accountChanged) {
       const masked = employee => ({
-        bank:employee?.payrollBank || '', branch:employee?.payrollBranch || '',
-        accountName:employee?.payrollAccountName || '',
-        accountLast4:employee?.payrollAccount ? String(employee.payrollAccount).slice(-4) : '',
-        hasAccount:!!employee?.payrollAccount
+        bank: employee?.payrollBank || '',
+        branch: employee?.payrollBranch || '',
+        accountName: employee?.payrollAccountName || '',
+        accountLast4: employee?.payrollAccount ? String(employee.payrollAccount).slice(-4) : '',
+        hasAccount: !!employee?.payrollAccount
       });
       recordAuditLog('update', 'employeePayrollAccount', empEditId, masked(previousEmployee), masked(obj), {
-        targetLabel:obj.name, reason:'員工主檔更新薪資匯款帳戶', riskLevel:'high'
+        targetLabel: obj.name,
+        reason: '員工主檔更新薪資匯款帳戶',
+        riskLevel: 'high'
       });
     }
     showToast('員工資料已更新', 'success');
