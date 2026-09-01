@@ -433,6 +433,19 @@ body.auth-pending .auth-screen{display:flex}
   grid-template-columns:1fr 1fr;
   gap:16px;
 }
+.att-record-table{
+  width:max-content!important;
+  min-width:0!important;
+}
+.att-record-table th,.att-record-table td{padding:8px 7px!important}
+.att-record-table th:nth-child(1),.att-record-table td:nth-child(1){width:92px}
+.att-record-table th:nth-child(2),.att-record-table td:nth-child(2){width:70px}
+.att-record-table th:nth-child(3),.att-record-table td:nth-child(3),
+.att-record-table th:nth-child(4),.att-record-table td:nth-child(4){width:54px}
+.att-record-table th:nth-child(5),.att-record-table td:nth-child(5){width:105px}
+.att-record-table th:nth-child(6),.att-record-table td:nth-child(6){width:94px}
+.att-record-table th:nth-child(7),.att-record-table td:nth-child(7){width:142px;text-align:left!important}
+.att-record-table td:nth-child(7) .btn{padding:4px 8px}
 .profit-toolbar{
   display:flex;
   align-items:center;
@@ -1179,7 +1192,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.70 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.71 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1915,7 +1928,7 @@ body.auth-pending .auth-screen{display:flex}
         <div class="card" style="padding:0;overflow:hidden">
           <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:14px;font-weight:800">出勤紀錄</div>
           <div style="overflow:auto;max-height:360px">
-            <table class="data-table" style="font-size:12px;min-width:760px">
+            <table class="data-table att-record-table" style="font-size:12px">
               <thead><tr><th>日期</th><th>人員</th><th>上班</th><th>下班</th><th>地點</th><th>狀態</th><th></th></tr></thead>
               <tbody id="att-record-tbody"></tbody>
             </table>
@@ -5875,7 +5888,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.70', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.71', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5936,7 +5949,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.70', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.71', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6909,7 +6922,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.70';
+  merged.appVersion = '1.2.71';
   return { ok:true, data:merged };
 }
 
@@ -7033,7 +7046,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.70';
+  merged.appVersion = '1.2.71';
   return { ok:true, data:merged };
 }
 
@@ -7145,7 +7158,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.70';
+  merged.appVersion = '1.2.71';
   return { ok:true, data:merged };
 }
 
@@ -7264,7 +7277,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.70';
+  merged.appVersion = '1.2.71';
   return { ok:true, data:merged };
 }
 
