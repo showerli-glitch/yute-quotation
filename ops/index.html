@@ -434,17 +434,18 @@ body.auth-pending .auth-screen{display:flex}
   gap:16px;
 }
 .att-record-table{
-  width:max-content!important;
+  width:100%!important;
   min-width:0!important;
+  table-layout:fixed;
 }
 .att-record-table th,.att-record-table td{padding:8px 7px!important}
-.att-record-table th:nth-child(1),.att-record-table td:nth-child(1){width:92px}
-.att-record-table th:nth-child(2),.att-record-table td:nth-child(2){width:70px}
+.att-record-table th:nth-child(1),.att-record-table td:nth-child(1){width:82px}
+.att-record-table th:nth-child(2),.att-record-table td:nth-child(2){width:64px}
 .att-record-table th:nth-child(3),.att-record-table td:nth-child(3),
-.att-record-table th:nth-child(4),.att-record-table td:nth-child(4){width:54px}
-.att-record-table th:nth-child(5),.att-record-table td:nth-child(5){width:105px}
-.att-record-table th:nth-child(6),.att-record-table td:nth-child(6){width:94px}
-.att-record-table th:nth-child(7),.att-record-table td:nth-child(7){width:142px;text-align:left!important}
+.att-record-table th:nth-child(4),.att-record-table td:nth-child(4){width:48px}
+.att-record-table th:nth-child(5),.att-record-table td:nth-child(5){width:82px}
+.att-record-table th:nth-child(6),.att-record-table td:nth-child(6){width:78px}
+.att-record-table th:nth-child(7),.att-record-table td:nth-child(7){width:126px;text-align:left!important}
 .att-record-table td:nth-child(7) .btn{padding:4px 8px}
 .profit-toolbar{
   display:flex;
@@ -1192,7 +1193,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.71 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.73 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5888,7 +5889,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.71', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.73', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5949,7 +5950,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.71', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.73', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6922,7 +6923,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.71';
+  merged.appVersion = '1.2.73';
   return { ok:true, data:merged };
 }
 
@@ -7046,7 +7047,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.71';
+  merged.appVersion = '1.2.73';
   return { ok:true, data:merged };
 }
 
@@ -7158,7 +7159,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.71';
+  merged.appVersion = '1.2.73';
   return { ok:true, data:merged };
 }
 
@@ -7277,7 +7278,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.71';
+  merged.appVersion = '1.2.73';
   return { ok:true, data:merged };
 }
 
@@ -9271,7 +9272,7 @@ function attMoney(v) {
   return '$' + Math.round(v || 0).toLocaleString('zh-TW');
 }
 
-function attExpectedWorkdays(month) {
+function attExpectedWorkdays(month, person = '') {
   const match = String(month || '').match(/^(\d{4})-(\d{2})$/);
   if (!match) return 0;
   const year = Number(match[1]);
@@ -9279,15 +9280,43 @@ function attExpectedWorkdays(month) {
   const todayParts = attToday().split('-').map(Number);
   const today = new Date(todayParts[0], todayParts[1] - 1, todayParts[2]);
   const start = new Date(year, monthIndex, 1);
+  const employeeStart = EMPLOYEES.find(e => e.id === person)?.startDate || '';
+  if (employeeStart && employeeStart.startsWith(`${match[1]}-${match[2]}`)) {
+    const startParts = employeeStart.split('-').map(Number);
+    start.setDate(Math.max(1, startParts[2] || 1));
+  }
   const endOfMonth = new Date(year, monthIndex + 1, 0);
   if (start > today) return 0;
   const end = endOfMonth < today ? endOfMonth : today;
   let count = 0;
   for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
-    const day = date.getDay();
-    if (day !== 0 && day !== 6) count += 1;
+    if (pyIsGovernmentWorkday(date)) count += 1;
   }
   return count;
+}
+
+function attMissingPastWorkDates(person, month, records, leaves) {
+  const match = String(month || '').match(/^(\d{4})-(\d{2})$/);
+  if (!match) return [];
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const todayKey = attToday();
+  const start = new Date(year, monthIndex, 1);
+  const employeeStart = EMPLOYEES.find(e => e.id === person)?.startDate || '';
+  if (employeeStart && employeeStart.startsWith(`${match[1]}-${match[2]}`)) {
+    start.setDate(Math.max(1, Number(employeeStart.slice(-2)) || 1));
+  }
+  const end = new Date(year, monthIndex + 1, 0);
+  const recordedDates = new Set((records || []).map(r => r.date).filter(Boolean));
+  const leaveDates = new Set((leaves || []).map(r => r.date).filter(Boolean));
+  const missing = [];
+  for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+    const key = localDateKey(date);
+    if (key >= todayKey) break;
+    if (!pyIsGovernmentWorkday(date) || recordedDates.has(key) || leaveDates.has(key)) continue;
+    missing.push(key);
+  }
+  return missing;
 }
 
 function attFillPersonOptions() {
@@ -9362,7 +9391,10 @@ function attEffectiveOutTime(row) {
 }
 
 function attRecordStatus(row) {
-  if (!row.inTime || !attEffectiveOutTime(row)) return '缺卡';
+  if (!row.inTime || !attEffectiveOutTime(row)) {
+    if (row.date === attToday()) return row.inTime ? '上班中' : '今日待補';
+    return '缺卡';
+  }
   if (row.approvedBy) return '已核准';
   return row.source === 'manual' ? '補登待核' : '正常';
 }
@@ -9863,7 +9895,10 @@ function attComputeDraft(person, month) {
   records.forEach(r => {
     const inM = attMinutes(r.inTime);
     const outM = attMinutes(attEffectiveOutTime(r));
-    if (!Number.isFinite(inM) || !Number.isFinite(outM)) { missingPunches += 1; warnings.push(`${r.date} 缺卡`); return; }
+    if (!Number.isFinite(inM) || !Number.isFinite(outM)) {
+      if (r.date < attToday()) { missingPunches += 1; warnings.push(`${r.date} 缺卡`); }
+      return;
+    }
     const stay = Math.max(0, outM - inM);
     const paid = Math.max(0, stay - ATTENDANCE_SETTINGS.lunchMinutes);
     workMinutes += paid;
@@ -9880,6 +9915,9 @@ function attComputeDraft(person, month) {
     if (inM > attMinutes(ATTENDANCE_SETTINGS.latestIn)) warnings.push(`${r.date} 上班晚於 ${ATTENDANCE_SETTINGS.latestIn}`);
     if (r.locationType === 'site' && !r.caseCode) warnings.push(`${r.date} 工地打卡未指定案場`);
   });
+  const absentDates = attMissingPastWorkDates(person, month, records, leaves);
+  missingPunches += absentDates.length;
+  absentDates.forEach(date => warnings.push(`${date} 未打卡且未請假`));
   const leaveHours = leaves.reduce((s,r)=>s+(Number(r.hours)||0),0);
   const personalHours = leaves.filter(r => r.type === 'personal').reduce((s,r)=>s+(Number(r.hours)||0),0);
   const sickHours = leaves.filter(r => r.type === 'sick').reduce((s,r)=>s+(Number(r.hours)||0),0);
@@ -9889,7 +9927,7 @@ function attComputeDraft(person, month) {
   const overtimeHours = Math.round(overtimeMinutes / 60 * 10) / 10;
   const overtimePay = Math.round(Math.min(overtimeHours, 2) * hourly * 4 / 3 + Math.max(0, overtimeHours - 2) * hourly * 5 / 3);
   const attendanceDays = new Set(records.map(r => r.date).filter(Boolean)).size;
-  const expectedWorkdays = attExpectedWorkdays(month);
+  const expectedWorkdays = attExpectedWorkdays(month, person);
   return { person, month, cfg, hourly, records, leaves, attendanceDays, expectedWorkdays, workMinutes, overtimeHours, overtimePay, leaveHours, leaveDeduction, fullAttendancePenalty, graceUsed, missingPunches, warnings };
 }
 
@@ -9975,7 +10013,7 @@ function renderAttendance() {
     tbody.innerHTML = rows.length ? rows.map(r => `<tr>
       <td>${r.date || '—'}</td><td>${nameOf(r.person)}</td><td>${r.inTime || '—'}</td><td>${attEffectiveOutTime(r) || '—'}</td>
       <td>${r.locationType === 'site' ? '工地' : '公司'}${r.caseName ? '｜'+tfEsc(r.caseName) : ''}${r.source === 'gps' ? '<br><span style="font-size:10px;color:var(--success)">GPS</span>' : ''}</td>
-      <td><span class="tag ${attRecordStatus(r)==='缺卡'?'tag-pending':'tag-done'}">${attRecordStatus(r)}</span>${r.overtimeHoursOverride !== undefined && r.overtimeHoursOverride !== null && r.overtimeHoursOverride !== '' ? `<br><span style="font-size:10px;color:var(--accent)">加班 ${Number(r.overtimeHoursOverride)} 小時（手動）</span>` : ''}</td>
+      <td><span class="tag ${attRecordStatus(r)==='缺卡'?'tag-pending':(['上班中','今日待補'].includes(attRecordStatus(r))?'tag-active':'tag-done')}">${attRecordStatus(r)}</span>${r.overtimeHoursOverride !== undefined && r.overtimeHoursOverride !== null && r.overtimeHoursOverride !== '' ? `<br><span style="font-size:10px;color:var(--accent)">加班 ${Number(r.overtimeHoursOverride)} 小時（手動）</span>` : ''}</td>
       <td style="text-align:center;white-space:nowrap">${attCanManage() ? `${attRecordStatus(r)==='補登待核' ? `<button class="btn btn-primary btn-sm" onclick="attApproveRecord(${r.id})">核准</button> ` : ''}<button class="btn btn-ghost btn-sm" onclick="attEditRecord(${r.id})">編輯</button> <button class="btn btn-ghost btn-sm" onclick="attDeleteRecord(${r.id})" style="color:var(--error)">刪除</button>` : '—'}</td>
     </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px">尚無出勤紀錄</td></tr>`;
   }
