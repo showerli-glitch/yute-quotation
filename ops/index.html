@@ -1179,7 +1179,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.68 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.69 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -2376,6 +2376,26 @@ body.auth-pending .auth-screen{display:flex}
         <div class="form-field form-full">
           <label class="form-label">地址</label>
           <input class="form-input" id="emp-f-address" placeholder="戶籍或通訊地址">
+        </div>
+        <div class="form-field form-full" style="padding-top:10px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--accent)">薪資匯款帳戶</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">僅完整管理者與財務可於薪資作業使用；帳號不顯示於員工清單。</div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">銀行名稱／代碼</label>
+          <input class="form-input" id="emp-f-payrollBank" placeholder="例：國泰世華 013" autocomplete="off">
+        </div>
+        <div class="form-field">
+          <label class="form-label">分行</label>
+          <input class="form-input" id="emp-f-payrollBranch" placeholder="分行名稱" autocomplete="off">
+        </div>
+        <div class="form-field">
+          <label class="form-label">戶名</label>
+          <input class="form-input" id="emp-f-payrollAccountName" placeholder="帳戶戶名" autocomplete="off">
+        </div>
+        <div class="form-field">
+          <label class="form-label">銀行帳號</label>
+          <input class="form-input" id="emp-f-payrollAccount" placeholder="銀行帳號" inputmode="numeric" autocomplete="off">
         </div>
         <div class="form-field">
           <label class="form-label">狀態</label>
@@ -5831,11 +5851,23 @@ function ensureCodexSeedData() {
 }
 
 function syncPayrollEmployeeAccountsFromConfig() {
-  Object.entries(PR_CONFIG || {}).forEach(([person, cfg]) => {
-    const bank = String(cfg?.bank || '').trim();
-    const account = String(cfg?.account || '').trim();
-    if (!bank && !account) return;
-    PAYROLL_EMPLOYEE_ACCOUNTS[person] = { bank, account };
+  EMPLOYEES.forEach(emp => {
+    const hasEmployeeContract = ['payrollBank','payrollBranch','payrollAccountName','payrollAccount']
+      .some(field => Object.prototype.hasOwnProperty.call(emp, field));
+    const legacy = PAYROLL_EMPLOYEE_ACCOUNTS[emp.id] || {};
+    const cfg = PR_CONFIG[emp.id] || {};
+    if (!hasEmployeeContract) {
+      emp.payrollBank = String(legacy.bank || cfg.bank || '').trim();
+      emp.payrollBranch = '';
+      emp.payrollAccountName = emp.name || '';
+      emp.payrollAccount = String(legacy.account || cfg.account || '').trim();
+    } else {
+      emp.payrollBank = String(emp.payrollBank || '').trim();
+      emp.payrollBranch = String(emp.payrollBranch || '').trim();
+      emp.payrollAccountName = String(emp.payrollAccountName || '').trim();
+      emp.payrollAccount = String(emp.payrollAccount || '').trim();
+    }
+    PAYROLL_EMPLOYEE_ACCOUNTS[emp.id] = { bank:emp.payrollBank, account:emp.payrollAccount };
   });
 }
 
@@ -5843,7 +5875,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.68', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.69', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5904,7 +5936,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.68', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.69', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6269,13 +6301,12 @@ function applyDataSnapshot(d) {
   ohMigrateWaterElectricSplit();
   if (d.PAYROLL)     { PAYROLL.length = 0;     PAYROLL.push(...d.PAYROLL); }
   if (d.PAYROLL_EMPLOYEE_ACCOUNTS && typeof d.PAYROLL_EMPLOYEE_ACCOUNTS === 'object') {
-    Object.keys(PAYROLL_EMPLOYEE_ACCOUNTS).forEach(k => delete PAYROLL_EMPLOYEE_ACCOUNTS[k]);
     Object.entries(d.PAYROLL_EMPLOYEE_ACCOUNTS).forEach(([person, account]) => {
       if (!account || typeof account !== 'object') return;
-      PAYROLL_EMPLOYEE_ACCOUNTS[person] = {
-        bank: String(account.bank || ''),
-        account: String(account.account || '')
-      };
+      const bank = String(account.bank || '').trim();
+      const number = String(account.account || '').trim();
+      if (!bank && !number) return;
+      PAYROLL_EMPLOYEE_ACCOUNTS[person] = { bank, account:number };
     });
   }
   if (Array.isArray(d.PAYROLL_MONTHS)) {
@@ -6315,6 +6346,7 @@ function applyDataSnapshot(d) {
     });
   }
   normalizeCompanyData();
+  syncPayrollEmployeeAccountsFromConfig();
   return true;
 }
 
@@ -6877,7 +6909,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.68';
+  merged.appVersion = '1.2.69';
   return { ok:true, data:merged };
 }
 
@@ -7001,7 +7033,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.68';
+  merged.appVersion = '1.2.69';
   return { ok:true, data:merged };
 }
 
@@ -7113,7 +7145,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.68';
+  merged.appVersion = '1.2.69';
   return { ok:true, data:merged };
 }
 
@@ -7232,7 +7264,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.68';
+  merged.appVersion = '1.2.69';
   return { ok:true, data:merged };
 }
 
@@ -14721,8 +14753,10 @@ function prGetConfig(person) {
   const savedAccount = PAYROLL_EMPLOYEE_ACCOUNTS[person] || {};
   return {
     ...base,
-    bank: savedAccount.bank ?? base.bank ?? '',
-    account: savedAccount.account ?? base.account ?? '',
+    bank: emp?.payrollBank ?? savedAccount.bank ?? base.bank ?? '',
+    branch: emp?.payrollBranch ?? '',
+    accountName: emp?.payrollAccountName ?? '',
+    account: emp?.payrollAccount ?? savedAccount.account ?? base.account ?? '',
   };
 }
 
@@ -14927,18 +14961,32 @@ function submitPayroll() {
   };
   if (existing) { Object.assign(existing, data); }
   else          { PAYROLL.push({id:prNextId++, ...data}); }
-  const cfg = PR_CONFIG[prCurrentEmp];
-  if (cfg) {
-    cfg.bank    = s('pr-bank');
-    cfg.account = s('pr-account');
-    PAYROLL_EMPLOYEE_ACCOUNTS[prCurrentEmp] = {
-      bank: cfg.bank,
-      account: cfg.account
-    };
-    if (PR_CONFIG[prCurrentEmp]) {
-      PR_CONFIG[prCurrentEmp].bank = cfg.bank;
-      PR_CONFIG[prCurrentEmp].account = cfg.account;
-    }
+  const bank = s('pr-bank').trim();
+  const account = s('pr-account').trim();
+  const emp = EMPLOYEES.find(e => e.id === prCurrentEmp);
+  const beforeAccount = emp ? {
+    bank: emp.payrollBank || '',
+    accountLast4: emp.payrollAccount ? String(emp.payrollAccount).slice(-4) : '',
+    hasAccount: !!emp.payrollAccount
+  } : null;
+  if (emp) {
+    emp.payrollBank = bank;
+    emp.payrollAccount = account;
+    if (!Object.prototype.hasOwnProperty.call(emp, 'payrollBranch')) emp.payrollBranch = '';
+    if (!Object.prototype.hasOwnProperty.call(emp, 'payrollAccountName')) emp.payrollAccountName = emp.name || '';
+  }
+  PAYROLL_EMPLOYEE_ACCOUNTS[prCurrentEmp] = { bank, account };
+  if (PR_CONFIG[prCurrentEmp]) {
+    PR_CONFIG[prCurrentEmp].bank = bank;
+    PR_CONFIG[prCurrentEmp].account = account;
+  }
+  const afterAccount = { bank, accountLast4:account ? account.slice(-4) : '', hasAccount:!!account };
+  if (JSON.stringify(beforeAccount) !== JSON.stringify(afterAccount)) {
+    recordAuditLog('update', 'employeePayrollAccount', prCurrentEmp, beforeAccount, afterAccount, {
+      targetLabel: emp?.name || prCurrentEmp,
+      reason: '薪資模組更新員工匯款帳戶',
+      riskLevel: 'high'
+    });
   }
   closeModal('modal-edit-payroll');
   renderPayroll();
@@ -15320,7 +15368,7 @@ function openEmployeeModal(id) {
   empEditId = id || null;
   const e = id ? EMPLOYEES.find(x => x.id === id) : null;
   document.getElementById('emp-modal-title').textContent = e ? `編輯員工 · ${e.name}` : '新增員工';
-  const fields = ['name','role','startDate','contact','email','laborInsuranceDate','healthInsuranceDate','idNumber','emergencyContact','address','status','endDate','endReason','note'];
+  const fields = ['name','role','startDate','contact','email','laborInsuranceDate','healthInsuranceDate','idNumber','emergencyContact','address','payrollBank','payrollBranch','payrollAccountName','payrollAccount','status','endDate','endReason','note'];
   fields.forEach(f => {
     const el = document.getElementById('emp-f-'+f);
     if (!el) return;
@@ -15367,7 +15415,7 @@ function submitEmployee() {
   if (!requireManage('employees')) return;
   const name = document.getElementById('emp-f-name').value.trim();
   if (!name) { showToast('姓名為必填', 'error'); return; }
-  const fields = ['role','startDate','contact','email','laborInsuranceDate','healthInsuranceDate','idNumber','emergencyContact','address','status','endDate','endReason','note'];
+  const fields = ['role','startDate','contact','email','laborInsuranceDate','healthInsuranceDate','idNumber','emergencyContact','address','payrollBank','payrollBranch','payrollAccountName','payrollAccount','status','endDate','endReason','note'];
   const obj = {
     name,
     profitEligible: !!document.getElementById('emp-f-profitEligible')?.checked,
@@ -15396,7 +15444,9 @@ function submitEmployee() {
   }
   if (empEditId) {
     const idx = EMPLOYEES.findIndex(x => x.id === empEditId);
+    const previousEmployee = idx >= 0 ? auditClone(EMPLOYEES[idx]) : null;
     if (idx >= 0) EMPLOYEES[idx] = { ...EMPLOYEES[idx], ...obj };
+    PAYROLL_EMPLOYEE_ACCOUNTS[empEditId] = { bank:obj.payrollBank || '', account:obj.payrollAccount || '' };
     // 儲存細部權限（OWNER 才有權限矩陣）
     if (currentUser.roleCode === 'OWNER' && document.getElementById('emp-perm-section')?.style.display !== 'none') {
       const perms = {};
@@ -15406,9 +15456,28 @@ function submitEmployee() {
       });
       USER_PERMISSIONS[empEditId] = perms;
     }
+    const accountChanged = previousEmployee && (
+      String(previousEmployee.payrollBank || '') !== String(obj.payrollBank || '') ||
+      String(previousEmployee.payrollBranch || '') !== String(obj.payrollBranch || '') ||
+      String(previousEmployee.payrollAccountName || '') !== String(obj.payrollAccountName || '') ||
+      String(previousEmployee.payrollAccount || '') !== String(obj.payrollAccount || '')
+    );
+    if (accountChanged) {
+      const masked = employee => ({
+        bank:employee?.payrollBank || '', branch:employee?.payrollBranch || '',
+        accountName:employee?.payrollAccountName || '',
+        accountLast4:employee?.payrollAccount ? String(employee.payrollAccount).slice(-4) : '',
+        hasAccount:!!employee?.payrollAccount
+      });
+      recordAuditLog('update', 'employeePayrollAccount', empEditId, masked(previousEmployee), masked(obj), {
+        targetLabel:obj.name, reason:'員工主檔更新薪資匯款帳戶', riskLevel:'high'
+      });
+    }
     showToast('員工資料已更新', 'success');
   } else {
-    EMPLOYEES.push({ id: 'emp'+(empNextId++), accessRole:'none', ...obj });
+    const newId = 'emp'+(empNextId++);
+    EMPLOYEES.push({ id:newId, accessRole:'none', ...obj });
+    PAYROLL_EMPLOYEE_ACCOUNTS[newId] = { bank:obj.payrollBank || '', account:obj.payrollAccount || '' };
     showToast('員工已新增', 'success');
   }
   closeModal('modal-employee');
