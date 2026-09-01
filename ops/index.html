@@ -1179,7 +1179,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.67 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.68 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1893,6 +1893,7 @@ body.auth-pending .auth-screen{display:flex}
             <div class="form-field"><label class="form-label">上班</label><input class="form-input" type="time" id="att-rec-in"></div>
             <div class="form-field"><label class="form-label">下班</label><input class="form-input" type="time" id="att-rec-out"></div>
             <div class="form-field"><label class="form-label">案場／地點</label><select class="form-select" id="att-rec-case"></select></div>
+            <div class="form-field form-full" id="att-rec-overtime-wrap"><label class="form-label">加班時數（管理者調整）</label><input class="form-input" type="number" id="att-rec-overtime" min="0" step="0.5" placeholder="留空＝系統自動試算；填 0＝不計加班"></div>
             <div class="form-field form-full"><label class="form-label">備註</label><input class="form-input" id="att-rec-note" placeholder="例：工地打卡、忘記打卡補登、GPS 待補"></div>
           </div>
           <button class="btn btn-primary btn-sm" id="att-rec-save-btn" onclick="attAddRecord()" style="margin-top:8px">儲存打卡紀錄</button>
@@ -5842,7 +5843,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.67', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.68', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5903,7 +5904,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.67', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.68', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6876,7 +6877,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.67';
+  merged.appVersion = '1.2.68';
   return { ok:true, data:merged };
 }
 
@@ -7000,7 +7001,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.67';
+  merged.appVersion = '1.2.68';
   return { ok:true, data:merged };
 }
 
@@ -7112,7 +7113,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.67';
+  merged.appVersion = '1.2.68';
   return { ok:true, data:merged };
 }
 
@@ -7231,7 +7232,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.67';
+  merged.appVersion = '1.2.68';
   return { ok:true, data:merged };
 }
 
@@ -9522,7 +9523,7 @@ function attDailyEffectiveRecords(person = '', month = '') {
     existing.gpsPunches = [...(existing.gpsPunches || []), ...(row.gpsPunches || [])]
       .sort((a,b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
     if (String(row.updatedAt || '') > String(existing.updatedAt || '')) {
-      ['locationType','caseCode','caseName','note','updatedAt','updatedBy'].forEach(field => {
+      ['locationType','caseCode','caseName','note','overtimeHoursOverride','updatedAt','updatedBy'].forEach(field => {
         if (row[field] !== undefined) existing[field] = row[field];
       });
     }
@@ -9633,6 +9634,8 @@ function attCancelEditRecord() {
   attDefaultFormValues();
   const noteEl = document.getElementById('att-rec-note');
   if (noteEl) noteEl.value = '';
+  const overtimeEl = document.getElementById('att-rec-overtime');
+  if (overtimeEl) overtimeEl.value = '';
   showToast('已取消編輯', 'success');
 }
 
@@ -9640,13 +9643,14 @@ function attEditRecord(id) {
   if (!attCanManage()) { showToast('只有出勤管理者可編輯', 'error'); return; }
   const row = ATTENDANCE_RECORDS.find(r => Number(r.id) === Number(id));
   if (!row) { showToast('找不到這筆出勤紀錄', 'error'); return; }
-  const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value || ''; };
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value ?? ''; };
   set('att-rec-person', row.person);
   set('att-rec-date', row.date);
   set('att-rec-in', row.inTime);
   set('att-rec-out', row.outTime);
   set('att-rec-location-type', row.locationType || 'office');
   set('att-rec-case', row.caseCode);
+  set('att-rec-overtime', row.overtimeHoursOverride ?? '');
   set('att-rec-note', row.note);
   attSetRecordEditMode(row);
   document.getElementById('att-rec-person')?.scrollIntoView({ behavior:'smooth', block:'center' });
@@ -9662,6 +9666,8 @@ function attAddRecord() {
   const locationType = document.getElementById('att-rec-location-type')?.value || 'office';
   const caseCode = document.getElementById('att-rec-case')?.value || '';
   const note = document.getElementById('att-rec-note')?.value || '';
+  const overtimeRaw = document.getElementById('att-rec-overtime')?.value ?? '';
+  const overtimeHoursOverride = attCanManage() && overtimeRaw !== '' ? Math.max(0, Number(overtimeRaw) || 0) : null;
   if (!person || !date) { showToast('請選擇人員與日期', 'error'); return; }
   if (!inTime && !outTime) { showToast('請至少填寫上班或下班時間', 'error'); return; }
   const c = CASES.find(x => x.code === caseCode);
@@ -9671,7 +9677,7 @@ function attAddRecord() {
     const before = auditClone(ATTENDANCE_RECORDS[idx]);
     Object.assign(ATTENDANCE_RECORDS[idx], {
       person, date, inTime, outTime, locationType, caseCode, caseName: c?.name || '',
-      note,
+      note, overtimeHoursOverride,
       approvedBy: attCanManage() ? currentUser.name : ATTENDANCE_RECORDS[idx].approvedBy || '',
       approvedAt: attCanManage() ? new Date().toISOString() : ATTENDANCE_RECORDS[idx].approvedAt || '',
       updatedAt:new Date().toISOString(),
@@ -9689,6 +9695,7 @@ function attAddRecord() {
       id: attNextId++,
       person, date, inTime, outTime, locationType, caseCode, caseName: c?.name || '',
       source:'manual',
+      overtimeHoursOverride,
       approvedBy: attCanManage() ? currentUser.name : '',
       approvedAt: attCanManage() ? new Date().toISOString() : '',
       note,
@@ -9699,6 +9706,7 @@ function attAddRecord() {
     showToast('出勤紀錄已儲存 ✓', 'success');
   }
   const noteEl = document.getElementById('att-rec-note'); if (noteEl) noteEl.value = '';
+  const overtimeEl = document.getElementById('att-rec-overtime'); if (overtimeEl) overtimeEl.value = '';
   saveData();
   renderAttendance();
 }
@@ -9749,6 +9757,37 @@ function attDeleteLeave(id) {
   renderAttendance();
 }
 
+function attApproveRecord(id) {
+  if (!attCanManage()) { showToast('只有出勤管理者可核准補登', 'error'); return; }
+  const row = ATTENDANCE_RECORDS.find(r => Number(r.id) === Number(id));
+  if (!row) { showToast('找不到這筆補登紀錄', 'error'); return; }
+  if (row.source !== 'manual' || row.approvedBy) { showToast('這筆紀錄不需要核准', 'warning'); return; }
+  if (!confirm(`確定核准 ${row.date || ''} 的補登打卡？\n同一天因手機打卡失敗留下的缺卡紀錄會一併合併。`)) return;
+  const before = auditClone(ATTENDANCE_RECORDS.filter(r => r.person === row.person && r.date === row.date));
+  const sameDay = ATTENDANCE_RECORDS.filter(r => r.person === row.person && r.date === row.date);
+  const inTimes = sameDay.map(r => r.inTime).filter(Boolean).sort();
+  const outTimes = sameDay.map(r => r.outTime).filter(Boolean).sort();
+  row.inTime = inTimes[0] || row.inTime || '';
+  row.outTime = outTimes[outTimes.length - 1] || row.outTime || '';
+  row.approvedBy = currentUser.name;
+  row.approvedAt = new Date().toISOString();
+  row.updatedAt = row.approvedAt;
+  row.updatedBy = currentUser.name;
+  row.note = [row.note, '補登已核准；同日手機缺卡紀錄已合併'].filter(Boolean).join('；');
+  const keepId = Number(row.id);
+  ATTENDANCE_RECORDS = ATTENDANCE_RECORDS.filter(r =>
+    Number(r.id) === keepId || r.person !== row.person || r.date !== row.date
+  );
+  recordAuditLog('update', 'attendanceRecord', row.id, before, auditClone(row), {
+    riskLevel:'medium',
+    targetLabel:`${row.date || ''} ${row.person || ''}`,
+    reason:'核准補登並合併同日手機缺卡紀錄'
+  });
+  saveData();
+  renderAttendance();
+  showToast('補登已核准，同日缺卡紀錄已合併 ✓', 'success');
+}
+
 function attComputeDraft(person, month) {
   const cfg = PR_CONFIG[person] || {};
   const hourly = (cfg.baseSalary || 0) / 30 / 8;
@@ -9766,12 +9805,16 @@ function attComputeDraft(person, month) {
     const stay = Math.max(0, outM - inM);
     const paid = Math.max(0, stay - ATTENDANCE_SETTINGS.lunchMinutes);
     workMinutes += paid;
-    const expectedOut = inM + ATTENDANCE_SETTINGS.workdayMinutes;
+    // 07:40 起可先打卡，但早於 08:00 不會讓正常下班時間提前；晚於 08:00 則依實際上班時間順延。
+    const scheduledIn = Math.max(inM, attMinutes('08:00'));
+    const expectedOut = scheduledIn + ATTENDANCE_SETTINGS.workdayMinutes;
     const early = Math.max(0, expectedOut - outM - ATTENDANCE_SETTINGS.graceEarlyLeaveMinutes);
     graceUsed += early;
     const overtimeUnit = Math.max(1, Number(ATTENDANCE_SETTINGS.overtimeUnitMinutes) || 30);
     const rawOvertime = Math.max(0, outM - expectedOut);
-    overtimeMinutes += Math.floor(rawOvertime / overtimeUnit) * overtimeUnit;
+    const autoOvertimeMinutes = Math.floor(rawOvertime / overtimeUnit) * overtimeUnit;
+    const hasOvertimeOverride = r.overtimeHoursOverride !== undefined && r.overtimeHoursOverride !== null && r.overtimeHoursOverride !== '';
+    overtimeMinutes += hasOvertimeOverride ? Math.max(0, Math.round(Number(r.overtimeHoursOverride) * 60)) : autoOvertimeMinutes;
     if (inM > attMinutes(ATTENDANCE_SETTINGS.latestIn)) warnings.push(`${r.date} 上班晚於 ${ATTENDANCE_SETTINGS.latestIn}`);
     if (r.locationType === 'site' && !r.caseCode) warnings.push(`${r.date} 工地打卡未指定案場`);
   });
@@ -9862,14 +9905,16 @@ function renderAttendance() {
       ['加班試算', attMoney(draft.overtimePay), 'var(--success)'],
     ].map(([label,val,color]) => `<div class="kpi-card" style="padding:12px 14px"><div class="kpi-label">${label}</div><div style="font-size:18px;font-weight:800;color:${color}">${val}</div></div>`).join('');
   }
+  const overtimeWrap = document.getElementById('att-rec-overtime-wrap');
+  if (overtimeWrap) overtimeWrap.style.display = attCanManage() ? '' : 'none';
   const rows = attDailyEffectiveRecords(person, month).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   const tbody = document.getElementById('att-record-tbody');
   if (tbody) {
     tbody.innerHTML = rows.length ? rows.map(r => `<tr>
       <td>${r.date || '—'}</td><td>${nameOf(r.person)}</td><td>${r.inTime || '—'}</td><td>${r.outTime || '—'}</td>
       <td>${r.locationType === 'site' ? '工地' : '公司'}${r.caseName ? '｜'+tfEsc(r.caseName) : ''}${r.source === 'gps' ? '<br><span style="font-size:10px;color:var(--success)">GPS</span>' : ''}</td>
-      <td><span class="tag ${attRecordStatus(r)==='缺卡'?'tag-pending':'tag-done'}">${attRecordStatus(r)}</span></td>
-      <td style="text-align:center;white-space:nowrap">${attCanManage() ? `<button class="btn btn-ghost btn-sm" onclick="attEditRecord(${r.id})">編輯</button> <button class="btn btn-ghost btn-sm" onclick="attDeleteRecord(${r.id})" style="color:var(--error)">刪除</button>` : '—'}</td>
+      <td><span class="tag ${attRecordStatus(r)==='缺卡'?'tag-pending':'tag-done'}">${attRecordStatus(r)}</span>${r.overtimeHoursOverride !== undefined && r.overtimeHoursOverride !== null && r.overtimeHoursOverride !== '' ? `<br><span style="font-size:10px;color:var(--accent)">加班 ${Number(r.overtimeHoursOverride)} 小時（手動）</span>` : ''}</td>
+      <td style="text-align:center;white-space:nowrap">${attCanManage() ? `${attRecordStatus(r)==='補登待核' ? `<button class="btn btn-primary btn-sm" onclick="attApproveRecord(${r.id})">核准</button> ` : ''}<button class="btn btn-ghost btn-sm" onclick="attEditRecord(${r.id})">編輯</button> <button class="btn btn-ghost btn-sm" onclick="attDeleteRecord(${r.id})" style="color:var(--error)">刪除</button>` : '—'}</td>
     </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px">尚無出勤紀錄</td></tr>`;
   }
   const leaveRows = ATTENDANCE_LEAVES.filter(r => r.person === person && String(r.date || '').startsWith(month)).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
@@ -9888,7 +9933,7 @@ function renderAttendance() {
         <div><strong style="color:var(--text)">${nameOf(person)}｜${month}</strong></div>
         <div>時薪基礎：${attMoney(draft.hourly)}（月薪 / 30 / 8）</div>
         <div>請假扣款：${attMoney(draft.leaveDeduction)}；全勤扣款：${attMoney(draft.fullAttendancePenalty)}</div>
-        <div>加班試算：${draft.overtimeHours} 小時，${attMoney(draft.overtimePay)}（每日上班＋9 小時後起算，每滿 30 分鐘計）</div>
+        <div>加班試算：${draft.overtimeHours} 小時，${attMoney(draft.overtimePay)}（08:00 前打卡以 08:00 起算；每日滿 9 小時後，每滿 30 分鐘計）</div>
         <div>薪資草稿會寫入「請假扣款、加班費、全勤獎金調整與備註」，正式發薪前仍需財務覆核。</div>
       </div>
       ${draft.warnings.length ? `<div style="margin-top:10px;padding:10px;border:1px solid rgba(224,112,112,.35);border-radius:8px;background:var(--error-bg);color:var(--error);font-size:12px;line-height:1.7">${draft.warnings.map(tfEsc).join('<br>')}</div>` : `<div style="margin-top:10px;color:var(--success);font-size:12px">目前沒有出勤異常。</div>`}`;
