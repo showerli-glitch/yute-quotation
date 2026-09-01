@@ -1179,7 +1179,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.66 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.67 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1870,6 +1870,7 @@ body.auth-pending .auth-screen{display:flex}
             <button class="btn btn-primary att-punch-btn" id="att-gps-in-btn" onclick="attGpsPunch('in')" disabled>上班打卡</button>
             <button class="btn btn-ghost att-punch-btn" id="att-gps-out-btn" onclick="attGpsPunch('out')" disabled>下班打卡</button>
           </div>
+          <button class="btn btn-ghost btn-sm" id="att-gps-retry-btn" onclick="attGpsRetry()" style="width:100%;justify-content:center;margin-top:8px">重新取得定位</button>
           <div class="att-gps-actions" id="att-gps-admin-actions" style="display:none;margin-top:8px">
             <button class="btn btn-ghost btn-sm" onclick="attGpsUseCurrentAsOffice()">用目前定位校正公司座標</button>
             <button class="btn btn-ghost btn-sm" onclick="attGpsResetOfficeLocation()">還原預設公司座標</button>
@@ -4962,7 +4963,7 @@ const ATTENDANCE_SETTINGS = {
   graceEarlyLeaveMinutes: 10,
   monthlyGraceMinutes: 30,
   fullAttendancePenalty: 1000,
-  overtimeStart: '17:30',
+  overtimeStart: 'dynamic',
   overtimeUnitMinutes: 30,
   hourlyBase: 'monthly30',
   officeLat: OFFICE_LOCATION_DEFAULT.lat,
@@ -5841,7 +5842,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.66', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.67', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5902,7 +5903,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.66', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.67', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6253,6 +6254,10 @@ function applyDataSnapshot(d) {
   if (Array.isArray(d.ATTENDANCE_LEAVES)) { ATTENDANCE_LEAVES.length = 0; ATTENDANCE_LEAVES.push(...d.ATTENDANCE_LEAVES); }
   if (Array.isArray(d.AUDIT_LOGS)) { AUDIT_LOGS.length = 0; AUDIT_LOGS.push(...d.AUDIT_LOGS); }
   if (d.ATTENDANCE_SETTINGS && typeof d.ATTENDANCE_SETTINGS === 'object') Object.assign(ATTENDANCE_SETTINGS, d.ATTENDANCE_SETTINGS);
+  // 正式加班規則：每日預計下班時間＝上班時間＋9 小時，超過部分每滿 30 分鐘才列入。
+  // 只固定計算單位，避免舊 snapshot 把零碎分鐘跨日累加成 3.7 小時。
+  ATTENDANCE_SETTINGS.overtimeStart = 'dynamic';
+  ATTENDANCE_SETTINGS.overtimeUnitMinutes = 30;
   if (d.OVERHEAD)    {
     Object.keys(OVERHEAD).forEach(k => delete OVERHEAD[k]);
     Object.assign(OVERHEAD, d.OVERHEAD);
@@ -6871,7 +6876,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.66';
+  merged.appVersion = '1.2.67';
   return { ok:true, data:merged };
 }
 
@@ -6995,7 +7000,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.66';
+  merged.appVersion = '1.2.67';
   return { ok:true, data:merged };
 }
 
@@ -7107,7 +7112,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.66';
+  merged.appVersion = '1.2.67';
   return { ok:true, data:merged };
 }
 
@@ -7226,7 +7231,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.66';
+  merged.appVersion = '1.2.67';
   return { ok:true, data:merged };
 }
 
@@ -9436,8 +9441,42 @@ function attGpsResetOfficeLocation() {
   showToast('已還原預設公司打卡座標', 'success');
 }
 
-function attGpsStart() {
-  if (!document.getElementById('page-attendance') || attGpsWatchId !== null) return;
+function attGpsErrorText(error) {
+  if (error?.code === 1) return '定位權限未開啟，請到手機瀏覽器設定允許位置存取';
+  if (error?.code === 2) return '手機目前無法取得位置，請確認系統定位服務已開啟';
+  if (error?.code === 3) return '取得定位逾時，請移到窗邊或戶外後按「重新取得定位」';
+  return '無法取得位置，請確認手機定位與瀏覽器權限';
+}
+
+function attGpsAcceptPosition(pos) {
+  attGpsPosition = {
+    lat: pos.coords.latitude,
+    lng: pos.coords.longitude,
+    accuracy: pos.coords.accuracy,
+    capturedAt: new Date().toISOString()
+  };
+  attGpsRefresh();
+}
+
+function attGpsHandleError(error) {
+  attGpsPosition = null;
+  const reason = attGpsErrorText(error);
+  if (attGpsWatchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(attGpsWatchId);
+  attGpsWatchId = null;
+  attGpsRefresh();
+  attGpsResult = { ok:false, reason };
+  attGpsSetStatus('fail', reason);
+  const debugEl = document.getElementById('att-gps-debug');
+  if (debugEl) debugEl.textContent = `定位錯誤 ${error?.code || '—'}：${reason}`;
+}
+
+function attGpsStart(force = false) {
+  if (!document.getElementById('page-attendance')) return;
+  if (force && attGpsWatchId !== null && navigator.geolocation) {
+    navigator.geolocation.clearWatch(attGpsWatchId);
+    attGpsWatchId = null;
+  }
+  if (attGpsWatchId !== null) return;
   const radiusEl = document.getElementById('att-gps-radius');
   if (radiusEl) radiusEl.value = ATTENDANCE_SETTINGS.officeRadiusMeters || 200;
   if (!navigator.geolocation) {
@@ -9445,20 +9484,18 @@ function attGpsStart() {
     return;
   }
   attGpsSetStatus('checking', '定位取得中...');
-  attGpsWatchId = navigator.geolocation.watchPosition(pos => {
-    attGpsPosition = {
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude,
-      accuracy: pos.coords.accuracy,
-      capturedAt: new Date().toISOString()
-    };
-    attGpsRefresh();
-  }, () => {
-    attGpsPosition = null;
-    attGpsResult = { ok:false, reason:'無法取得定位' };
-    attGpsSetStatus('fail', '無法取得位置，請允許定位權限');
-    attGpsRefresh();
-  }, { enableHighAccuracy:true, timeout:12000, maximumAge:30000 });
+  attGpsWatchId = navigator.geolocation.watchPosition(
+    attGpsAcceptPosition,
+    attGpsHandleError,
+    { enableHighAccuracy:true, timeout:20000, maximumAge:10000 }
+  );
+}
+
+function attGpsRetry() {
+  attGpsPosition = null;
+  attGpsResult = { ok:false, reason:'重新取得定位中' };
+  attGpsSetStatus('checking', '重新取得定位中...');
+  attGpsStart(true);
 }
 
 function attDailyEffectiveRecords(person = '', month = '') {
@@ -9732,9 +9769,8 @@ function attComputeDraft(person, month) {
     const expectedOut = inM + ATTENDANCE_SETTINGS.workdayMinutes;
     const early = Math.max(0, expectedOut - outM - ATTENDANCE_SETTINGS.graceEarlyLeaveMinutes);
     graceUsed += early;
-    const overtimeStart = attMinutes(ATTENDANCE_SETTINGS.overtimeStart || '17:30');
     const overtimeUnit = Math.max(1, Number(ATTENDANCE_SETTINGS.overtimeUnitMinutes) || 30);
-    const rawOvertime = Math.max(0, outM - overtimeStart);
+    const rawOvertime = Math.max(0, outM - expectedOut);
     overtimeMinutes += Math.floor(rawOvertime / overtimeUnit) * overtimeUnit;
     if (inM > attMinutes(ATTENDANCE_SETTINGS.latestIn)) warnings.push(`${r.date} 上班晚於 ${ATTENDANCE_SETTINGS.latestIn}`);
     if (r.locationType === 'site' && !r.caseCode) warnings.push(`${r.date} 工地打卡未指定案場`);
@@ -9852,7 +9888,7 @@ function renderAttendance() {
         <div><strong style="color:var(--text)">${nameOf(person)}｜${month}</strong></div>
         <div>時薪基礎：${attMoney(draft.hourly)}（月薪 / 30 / 8）</div>
         <div>請假扣款：${attMoney(draft.leaveDeduction)}；全勤扣款：${attMoney(draft.fullAttendancePenalty)}</div>
-        <div>加班試算：${draft.overtimeHours} 小時，${attMoney(draft.overtimePay)}（17:30 後起算，每滿 30 分鐘計）</div>
+        <div>加班試算：${draft.overtimeHours} 小時，${attMoney(draft.overtimePay)}（每日上班＋9 小時後起算，每滿 30 分鐘計）</div>
         <div>薪資草稿會寫入「請假扣款、加班費、全勤獎金調整與備註」，正式發薪前仍需財務覆核。</div>
       </div>
       ${draft.warnings.length ? `<div style="margin-top:10px;padding:10px;border:1px solid rgba(224,112,112,.35);border-radius:8px;background:var(--error-bg);color:var(--error);font-size:12px;line-height:1.7">${draft.warnings.map(tfEsc).join('<br>')}</div>` : `<div style="margin-top:10px;color:var(--success);font-size:12px">目前沒有出勤異常。</div>`}`;
