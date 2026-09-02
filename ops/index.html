@@ -1197,13 +1197,13 @@ body.auth-pending .auth-screen{display:flex}
     <div style="padding:0 12px 8px">
       <button class="btn btn-ghost btn-sm" id="btn-export-backup" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="exportBackup()">↓ 下載資料備份</button>
       <button class="btn btn-ghost btn-sm" id="btn-import-backup" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="openBackupImport()">↑ 匯入資料備份</button>
-      <button class="btn btn-ghost btn-sm" id="btn-paste-expense-patch" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="openExpensePatchPaste()">Codex 費用匯入</button>
+      <button class="btn btn-ghost btn-sm" id="btn-paste-expense-patch" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="openExpensePatchPaste()">Codex 資料匯入</button>
       <button class="btn btn-ghost btn-sm" id="btn-cloud-check" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="opsCloudCheckNow()">檢查雲端快照</button>
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--text3);margin-bottom:5px" onclick="opsCloudPushLocalNow()">上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.82 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.83 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3154,6 +3154,7 @@ body.auth-pending .auth-screen{display:flex}
             <option value="family_pass_through">親友成本轉付</option>
             <option value="private_loan">私人借支／支票借用</option>
             <option value="overhead_link">固定開銷付款連結</option>
+            <option value="prepaid_expense">預付費用／分期攤提</option>
             <option value="tax_liability">稅務負債／繳稅</option>
             <option value="historical_profit_evidence">歷史分潤付款佐證</option>
           </select>
@@ -3733,21 +3734,21 @@ body.auth-pending .auth-screen{display:flex}
   </div>
 </div>
 
-<!-- ════════ MODAL: EXPENSE PATCH IMPORT ════════ -->
+<!-- ════════ MODAL: CODEX PATCH IMPORT ════════ -->
 <div class="modal-overlay" id="modal-expense-patch" onclick="if(event.target===this)closeModal('modal-expense-patch')">
   <div class="modal" style="max-width:760px">
     <div class="modal-hd">
-      <div class="modal-title">Codex 費用明細匯入</div>
+      <div class="modal-title">Codex 資料匯入</div>
       <button class="modal-close" onclick="closeModal('modal-expense-patch')">✕</button>
     </div>
     <div class="modal-body">
       <div class="announce" style="margin-bottom:12px">
         <span class="announce-icon">📎</span>
-        <span>只限完整管理者使用。此工具只替換費用明細，不會覆蓋個案、應收、應付或測試回報。</span>
+        <span>只限完整管理者使用。支援費用明細補丁與應付帳款對帳補丁；匯入前會先驗證且留下審計紀錄。</span>
       </div>
       <div class="form-field form-full">
-        <label class="form-label">費用補丁 JSON</label>
-        <textarea class="form-input" id="expense-patch-json" style="min-height:260px;font-family:'DM Mono',monospace;font-size:11px;line-height:1.5" placeholder="貼上 Codex 產生的 yutesign-ops-expense-patch JSON"></textarea>
+        <label class="form-label">Codex 補丁 JSON</label>
+        <textarea class="form-input" id="expense-patch-json" style="min-height:260px;font-family:'DM Mono',monospace;font-size:11px;line-height:1.5" placeholder="貼上 Codex 產生的費用或應付帳款對帳 JSON"></textarea>
       </div>
       <div id="expense-patch-hint" style="font-size:11px;color:var(--text3);line-height:1.6">
         匯入前會檢查格式並顯示筆數與合計金額；確認後才會寫入並同步雲端。
@@ -3755,7 +3756,7 @@ body.auth-pending .auth-screen{display:flex}
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-expense-patch')">取消</button>
-      <button class="btn btn-primary" onclick="submitExpensePatchPaste()">匯入費用明細</button>
+      <button class="btn btn-primary" onclick="submitExpensePatchPaste()">驗證並匯入</button>
     </div>
   </div>
 </div>
@@ -4317,8 +4318,11 @@ function normalizeOrdinaryProjectAccounting() {
 
   PAYABLES.forEach(p => {
     if (p.paymentType !== 'private_loan') return;
-    p.case = 'YT-LOAN-2026-001';
-    p.caseName = '李媽媽私人借支';
+    // 已明確歸屬其他股東員工往來個案者必須保留；只替舊版沒有個案的李媽媽借支補預設歸屬。
+    if (!p.case) {
+      p.case = 'YT-LOAN-2026-001';
+      p.caseName = '李媽媽私人借支';
+    }
     p.accountingTreatment = 'receivable_from_related_party';
   });
 
@@ -5948,7 +5952,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.82', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.83', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6009,7 +6013,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.82', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.83', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6197,6 +6201,17 @@ function submitExpensePatchPaste() {
   if (!raw) return;
   try {
     const data = JSON.parse(raw);
+    if (data.format === OPS_AP_RECONCILIATION_PATCH_FORMAT) {
+      const error = validateApReconciliationPatch(data);
+      if (error) { showToast(error, 'error'); return; }
+      const label = data.title || '應付帳款對帳補丁';
+      const rowCount = data.payables.length;
+      const rowTotal = data.payables.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+      if (!confirm(`確定匯入「${label}」？\n\n會依來源鍵新增應付、修正指定既有列，並重建連動公司開銷；不會覆蓋整份快照。\n新增候選：${rowCount} 筆\n日期修正：${data.updates.length} 筆\n候選合計：$${rowTotal.toLocaleString('zh-TW')}`)) return;
+      applyApReconciliationPatch(data, 'pasted AP reconciliation patch');
+      closeModal('modal-expense-patch');
+      return;
+    }
     const error = validateExpensePatch(data);
     if (error) { showToast(error, 'error'); return; }
     const label = data.title || '費用明細補丁';
@@ -6222,6 +6237,87 @@ function validateBackupSnapshot(data) {
 }
 
 const OPS_EXPENSE_PATCH_FORMAT = 'yutesign-ops-expense-patch';
+const OPS_AP_RECONCILIATION_PATCH_FORMAT = 'yutesign-ops-ap-reconciliation-patch';
+
+function apPatchText(value) {
+  return String(value || '').replace(/[\s　（）()／/·・,.，。－_-]/g, '').toLowerCase();
+}
+
+function apPatchDateSet(row) {
+  return new Set([row.wantDate, row.transferDate, row.doneDate].map(v => String(v || '').slice(0, 10)).filter(Boolean));
+}
+
+function findApPatchMatches(spec) {
+  return PAYABLES.filter(row => {
+    if (spec.sourceKey && row.sourceKey === spec.sourceKey) return true;
+    if (spec.case !== undefined && String(row.case || '') !== String(spec.case || '')) return false;
+    if (spec.amount !== undefined && Math.abs(Number(row.amount || 0) - Number(spec.amount || 0)) > Number(spec.amountTolerance ?? 0.51)) return false;
+    if (spec.vendorIncludes && !apPatchText(row.vendor).includes(apPatchText(spec.vendorIncludes))) return false;
+    if (spec.summaryIncludes && !apPatchText(row.summary).includes(apPatchText(spec.summaryIncludes))) return false;
+    if (spec.date && !apPatchDateSet(row).has(spec.date)) return false;
+    return true;
+  });
+}
+
+function validateApReconciliationPatch(data) {
+  if (!data || typeof data !== 'object') return '檔案內容不是有效資料';
+  if (data.format !== OPS_AP_RECONCILIATION_PATCH_FORMAT) return '不是 OPS 應付帳款對帳補丁';
+  if (!Array.isArray(data.payables) || !Array.isArray(data.updates)) return '補丁缺少 payables 或 updates';
+  const badPayable = data.payables.find(row => !row?.sourceKey || !row.vendor || !row.summary || !Number.isFinite(Number(row.amount)) || !row.wantDate || !row.doneDate || !row.paymentType);
+  if (badPayable) return `應付新增資料格式不完整：${badPayable?.sourceKey || badPayable?.summary || '未命名資料'}`;
+  const badUpdate = data.updates.find(row => !row?.match || !row?.set || !Object.keys(row.set).length);
+  if (badUpdate) return '日期修正資料格式不完整';
+  const ambiguous = data.updates.map(update => ({ update, matches:findApPatchMatches(update.match) })).find(item => item.matches.length !== 1);
+  if (ambiguous) return `日期修正找不到唯一 OPS 資料：${ambiguous.update.label || ambiguous.update.match.summaryIncludes || ambiguous.update.match.vendorIncludes || '未命名'}（找到 ${ambiguous.matches.length} 筆）`;
+  return '';
+}
+
+function apPatchDuplicate(row) {
+  if (PAYABLES.some(existing => existing.sourceKey === row.sourceKey)) return true;
+  return PAYABLES.some(existing => {
+    if (String(existing.case || '') !== String(row.case || '')) return false;
+    if (Math.abs(Number(existing.amount || 0) - Number(row.amount || 0)) > 0.51) return false;
+    if (!apPatchDateSet(existing).has(row.doneDate) && !apPatchDateSet(existing).has(row.wantDate)) return false;
+    const vendorSame = apPatchText(existing.vendor).includes(apPatchText(row.vendor)) || apPatchText(row.vendor).includes(apPatchText(existing.vendor));
+    const summarySame = apPatchText(existing.summary).includes(apPatchText(row.summary)) || apPatchText(row.summary).includes(apPatchText(existing.summary));
+    return vendorSame || summarySame;
+  });
+}
+
+function applyApReconciliationPatch(data, fileName = 'AP reconciliation patch') {
+  const error = validateApReconciliationPatch(data);
+  if (error) { showToast(error, 'error'); return false; }
+  const beforeSummary = auditSummary();
+  const updateTargets = data.updates.map(update => ({ update, row:findApPatchMatches(update.match)[0] }));
+  updateTargets.forEach(({update, row}) => {
+    Object.assign(row, update.set);
+    touchRowMeta(row);
+  });
+  let added = 0;
+  let skipped = 0;
+  data.payables.forEach(input => {
+    const row = clone(input);
+    if (apPatchDuplicate(row)) { skipped += 1; return; }
+    row.id = pyNextId++;
+    row.companyId = COMPANY_ID;
+    row.sourceType = row.sourceType || 'ap_reconciliation_patch';
+    row.importedAt = row.importedAt || localDateKey();
+    PAYABLES.push(row);
+    added += 1;
+  });
+  pyNextId = Math.max(pyNextId, Math.max(0, ...PAYABLES.map(row => Number(row.id) || 0)) + 1);
+  normalizeOrdinaryProjectAccounting();
+  pyRebuildRentOverhead();
+  recordAuditLog('import', 'apReconciliationPatch', fileName, beforeSummary, auditSummary(), {
+    riskLevel:'high', targetLabel:data.title || '應付帳款對帳補丁',
+    reason:`依 2026 應付帳款回覆表新增 ${added} 筆、略過重複 ${skipped} 筆、修正 ${updateTargets.length} 筆；公司開銷與攤提同步重建`,
+    diff:[{ field:'payables', beforeValue:beforeSummary.payables, afterValue:PAYABLES.length }]
+  });
+  saveData();
+  renderAll();
+  showToast(`應付帳款對帳已匯入：新增 ${added}、重複略過 ${skipped}、修正 ${updateTargets.length} 筆 ✓`, 'success');
+  return true;
+}
 
 function validateExpensePatch(data) {
   if (!data || typeof data !== 'object') return '檔案內容不是有效資料';
@@ -6982,7 +7078,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.82';
+  merged.appVersion = '1.2.83';
   return { ok:true, data:merged };
 }
 
@@ -7106,7 +7202,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.82';
+  merged.appVersion = '1.2.83';
   return { ok:true, data:merged };
 }
 
@@ -7218,7 +7314,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.82';
+  merged.appVersion = '1.2.83';
   return { ok:true, data:merged };
 }
 
@@ -7337,7 +7433,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.82';
+  merged.appVersion = '1.2.83';
   return { ok:true, data:merged };
 }
 
@@ -11096,6 +11192,98 @@ function pyRebuildRentOverhead() {
       `AP#${row.payableId} 應付已付款連動：${row.vendor || '受款人未填'}／${row.summary || '房租'}／${row.amount.toLocaleString('zh-TW')}／${row.paidDate}`
     ).join('；');
   });
+  pyRebuildAdditionalPayableOverhead();
+}
+
+function pyMonthOffset(month, offset) {
+  const match = String(month || '').match(/^(\d{4})-(\d{2})$/);
+  if (!match) return '';
+  const date = new Date(Number(match[1]), Number(match[2]) - 1 + Number(offset || 0), 1, 12, 0, 0);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function pyRebuildAdditionalPayableOverhead() {
+  const managedVariableTypes = new Set(['payable_overhead_link', 'prepaid_amortization']);
+  Object.values(OVERHEAD || {}).forEach(data => {
+    if (!data || typeof data !== 'object') return;
+    if (!Array.isArray(data.variable)) data.variable = [];
+    data.variable = data.variable.filter(row => !managedVariableTypes.has(row.sourceType));
+  });
+
+  const fixedGroups = new Map();
+  PAYABLES.filter(p => p.status === 'paid' && p.paymentType === 'overhead_link' && p.overheadTreatment === 'fixed' && p.overheadItem).forEach(p => {
+    const month = String(p.doneDate || p.transferDate || p.wantDate || '').slice(0, 7);
+    if (!prIsValidMonth(month)) return;
+    const key = `${month}|${p.overheadItem}`;
+    if (!fixedGroups.has(key)) fixedGroups.set(key, { month, item:p.overheadItem, rows:[] });
+    fixedGroups.get(key).rows.push(p);
+  });
+  const fixedKeys = new Set(fixedGroups.keys());
+  Object.entries(OVERHEAD || {}).forEach(([month, data]) => {
+    Object.entries(data?.fixedPayableManagedItems || {}).forEach(([item, meta]) => {
+      const key = `${month}|${item}`;
+      if (fixedKeys.has(key)) return;
+      const idx = OH_FIXED_CONFIG.indexOf(item);
+      if (idx >= 0) {
+        data.fixed[idx] = Number(meta.manualBackup) || 0;
+        data.fixedNotes[idx] = String(meta.manualNoteBackup || '');
+      }
+      delete data.fixedPayableManagedItems[item];
+    });
+  });
+  fixedGroups.forEach(({month, item, rows}) => {
+    if (!OH_FIXED_CONFIG.includes(item)) {
+      OH_FIXED_CONFIG.push(item);
+      Object.values(OVERHEAD).forEach(monthData => {
+        if (Array.isArray(monthData.fixed)) monthData.fixed.push(0);
+        if (Array.isArray(monthData.fixedNotes)) monthData.fixedNotes.push('');
+      });
+    }
+    if (!OVERHEAD[month]) ohInitMonth(month);
+    const data = OVERHEAD[month];
+    const idx = OH_FIXED_CONFIG.indexOf(item);
+    data.fixedPayableManagedItems = data.fixedPayableManagedItems || {};
+    const existing = data.fixedPayableManagedItems[item];
+    const meta = existing || {
+      manualBackup:Number(data.fixed[idx]) || 0,
+      manualNoteBackup:String(data.fixedNotes[idx] || '')
+    };
+    meta.links = rows.map(p => ({ sourceKey:p.sourceKey || '', payableId:p.id, amount:Number(p.amount) || 0, paidDate:p.doneDate || p.transferDate || p.wantDate || '' }));
+    data.fixedPayableManagedItems[item] = meta;
+    data.fixed[idx] = (Number(meta.manualBackup) || 0) + meta.links.reduce((sum, row) => sum + row.amount, 0);
+    const linkedNotes = rows.map(p => `AP#${p.id} ${p.vendor || '受款人未填'}／${p.summary || item}／${(Number(p.amount)||0).toLocaleString('zh-TW')}`).join('；');
+    data.fixedNotes[idx] = [meta.manualNoteBackup, linkedNotes].filter(Boolean).join('；');
+  });
+
+  PAYABLES.filter(p => p.status === 'paid' && p.paymentType === 'overhead_link' && p.overheadTreatment === 'variable').forEach(p => {
+    const month = String(p.doneDate || p.transferDate || p.wantDate || '').slice(0, 7);
+    if (!prIsValidMonth(month)) return;
+    if (!OVERHEAD[month]) ohInitMonth(month);
+    OVERHEAD[month].variable.push({
+      id:ohVarNextId++, sourceKey:`overhead-payable:${p.sourceKey || p.id}`, sourcePayableId:p.id,
+      sourceType:'payable_overhead_link', name:p.overheadItem || p.summary || '公司不固定開銷',
+      amount:Number(p.amount) || 0, note:`應付已付款連動：${p.vendor || '受款人未填'}／${p.summary || ''}`
+    });
+  });
+
+  PAYABLES.filter(p => p.status === 'paid' && p.paymentType === 'prepaid_expense' && p.amortizationStartMonth && Number(p.amortizationMonths) > 0).forEach(p => {
+    const months = Math.max(1, Math.trunc(Number(p.amortizationMonths)));
+    const total = Math.round(Number(p.amount) || 0);
+    const monthly = Math.round(total / months);
+    let allocated = 0;
+    for (let i = 0; i < months; i += 1) {
+      const month = pyMonthOffset(p.amortizationStartMonth, i);
+      if (!month) continue;
+      if (!OVERHEAD[month]) ohInitMonth(month);
+      const amount = i === months - 1 ? total - allocated : monthly;
+      allocated += amount;
+      OVERHEAD[month].variable.push({
+        id:ohVarNextId++, sourceKey:`amortization:${p.sourceKey || p.id}:${month}`, sourcePayableId:p.id,
+        sourceType:'prepaid_amortization', name:p.overheadItem || p.summary || '預付費用攤提', amount,
+        note:`${p.vendor || '受款人未填'}／${p.summary || ''}；第 ${i + 1}/${months} 期攤提`
+      });
+    }
+  });
 }
 
 function rejectPayable(id) {
@@ -11468,7 +11656,8 @@ function submitAddPayable() {
   if (!vendor)  { showToast('請填寫受款廠商', 'error'); return; }
   if (!amount)  { showToast('請填寫金額', 'error'); return; }
   if (!summary) { showToast('請填寫摘要', 'error'); return; }
-  if (paymentType === 'overhead_link' && !`${vendor} ${summary}`.includes('房租')) {
+  const editPayable = editId ? PAYABLES.find(x => x.id === parseInt(editId)) : null;
+  if (paymentType === 'overhead_link' && !`${vendor} ${summary}`.includes('房租') && !editPayable?.overheadItem) {
     showToast('「固定開銷付款連結」目前僅限公司房租，摘要請明確填寫房租', 'error'); return;
   }
   if (paymentType === 'overhead_link' && status === 'paid' && !doneDate) {
@@ -13414,11 +13603,12 @@ function renderOverhead() {
       if (month >= OH_WATER_ELECTRIC_SPLIT_MONTH && name === '水電') return '';
       const isPayroll = i === salaryIdx;
       const isLinkedRent = name === '房租' && data.rentPayableManaged;
+      const isLinkedFixed = !!data.fixedPayableManagedItems?.[name];
       return `
       <tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
         <td style="padding:8px 14px;font-size:12px;white-space:nowrap">${name}</td>
         <td style="padding:4px 8px;text-align:right;white-space:nowrap">
-          ${isPayroll || isLinkedRent
+          ${isPayroll || isLinkedRent || isLinkedFixed
             ? `<span style="display:inline-block;width:100px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--text);padding:3px 5px">$${(data.fixed[i]||0).toLocaleString('zh-TW')}</span>`
             : `<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text3);padding:3px 2px">$</span><input type="text" value="${(data.fixed[i]||0).toLocaleString('zh-TW')}" ${manage?'':'readonly'}
             style="background:transparent;border:none;outline:none;width:90px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--text);padding:3px 5px;border-radius:4px"
@@ -13427,7 +13617,7 @@ function renderOverhead() {
             onkeydown="if(event.key==='Enter')this.blur()">`}
         </td>
         <td style="padding:4px 8px">
-          ${isPayroll || isLinkedRent
+          ${isPayroll || isLinkedRent || isLinkedFixed
             ? `<span style="font-size:11px;color:var(--text3)">${isPayroll ? '自動同步薪資模組' : (data.fixedNotes[i] || '由已付款應付帳款自動彙總')}</span>`
             : `<input type="text" value="${(data.fixedNotes[i]||'').replace(/"/g,'&quot;')}" placeholder="備註…" ${manage?'':'readonly'}
               style="background:transparent;border:none;outline:none;width:100%;font-size:11px;color:var(--text3);padding:2px 4px;border-radius:4px"
@@ -13435,7 +13625,7 @@ function renderOverhead() {
               onblur="this.style.background='transparent';this.style.border='none';ohUpdateNote('${month}',${i},this.value)"
               onkeydown="if(event.key==='Enter')this.blur()">`}
         </td>
-        <td style="padding:4px 4px;text-align:center">${(manage && !isPayroll && !isLinkedRent) ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" title="改名" onclick="ohRenameFixedItem(${i})">✎</button>` : ''}</td>
+          <td style="padding:4px 4px;text-align:center">${(manage && !isPayroll && !isLinkedRent && !isLinkedFixed) ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" title="改名" onclick="ohRenameFixedItem(${i})">✎</button>` : ''}</td>
       </tr>`;
     }).join('');
   }
@@ -13628,6 +13818,7 @@ const SPECIAL_PAYMENT_TYPES = {
   family_pass_through:'親友成本轉付',
   private_loan:'私人借支／支票借用',
   overhead_link:'固定開銷付款連結',
+  prepaid_expense:'預付費用／分期攤提',
   tax_liability:'稅務負債／繳稅',
   historical_profit_evidence:'歷史分潤付款佐證',
 };
