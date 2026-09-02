@@ -1203,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.80 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.81 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1264,6 +1264,14 @@ body.auth-pending .auth-screen{display:flex}
     <!-- Case Overview -->
     <div class="sec-hd">
       <div class="sec-title">個案總覽</div>
+      <div style="display:flex;align-items:center;gap:8px">
+      <select class="filter-select" id="case-sort" onchange="renderCases()" style="height:32px;min-width:142px" aria-label="未結案個案排序">
+        <option value="entry-desc">進案時間新到舊</option>
+        <option value="entry-asc">進案時間舊到新</option>
+        <option value="name-asc">名稱 A→Z</option>
+        <option value="code-asc">案號小到大</option>
+        <option value="code-desc">案號大到小</option>
+      </select>
       <div style="position:relative" id="case-filter-wrap">
         <button class="btn btn-ghost btn-sm" id="case-filter-btn" onclick="dcToggleCaseDropdown()" style="font-size:12px;min-width:120px;text-align:left">全部個案 ▾</button>
         <div id="case-filter-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;min-width:240px;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,.15);max-height:320px;overflow-y:auto">
@@ -1273,6 +1281,7 @@ body.auth-pending .auth-screen{display:flex}
           <div style="margin:4px 0;border-top:1px solid var(--border)"></div>
           <div id="case-filter-checkboxes"></div>
         </div>
+      </div>
       </div>
     </div>
 
@@ -5013,6 +5022,7 @@ function normalizeSpecialCaseClients() {
 let currentUser = USERS[0];
 let currentPage = 'dashboard';
 let dcSelCases = null; // null = 全部案件；空 Set = 零個案件
+let dcClosedCollapsed = localStorage.getItem('yutesign-ops-dashboard-closed-collapsed') === '1';
 let TEST_FEEDBACK = [];
 let tfNextId = 1;
 let tfScreenshotDraft = null;
@@ -5930,7 +5940,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.80', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.81', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5991,7 +6001,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.80', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.81', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6964,7 +6974,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.80';
+  merged.appVersion = '1.2.81';
   return { ok:true, data:merged };
 }
 
@@ -7088,7 +7098,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.80';
+  merged.appVersion = '1.2.81';
   return { ok:true, data:merged };
 }
 
@@ -7200,7 +7210,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.80';
+  merged.appVersion = '1.2.81';
   return { ok:true, data:merged };
 }
 
@@ -7319,7 +7329,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.80';
+  merged.appVersion = '1.2.81';
   return { ok:true, data:merged };
 }
 
@@ -8609,6 +8619,35 @@ function caseActionSelect(select, caseCode) {
   else if (action === 'detail') openCaseDetail(caseCode);
 }
 
+function dashboardCaseEntryDate(c) {
+  const explicit = String(c?.entryDate || c?.createdAt || c?.startDate || '').slice(0,10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(explicit)) return explicit;
+  const dates = [
+    ...RECEIVABLES.filter(r => r.case === c.code).flatMap(r => [r.invoiceDate, r.collectDate]),
+    ...PAYABLES.filter(r => r.case === c.code).flatMap(r => [r.wantDate, r.transferDate, r.doneDate]),
+    ...EXPENSES.filter(r => r.caseKey === c.code).map(r => r.date || (r.month ? `${r.month}-01` : '')),
+  ].filter(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''))).sort();
+  const codeYear = String(c?.code || '').match(/20\d{2}/)?.[0] || '';
+  return dates[0] || (codeYear ? `${codeYear}-01-01` : '');
+}
+
+function dashboardSortOpenCases(rows) {
+  const mode = document.getElementById('case-sort')?.value || 'entry-desc';
+  const list = rows.slice();
+  const byText = (a,b,key) => String(a[key] || '').localeCompare(String(b[key] || ''), 'zh-Hant', {numeric:true, sensitivity:'base'});
+  if (mode === 'entry-asc') return list.sort((a,b) => dashboardCaseEntryDate(a).localeCompare(dashboardCaseEntryDate(b)) || byText(a,b,'code'));
+  if (mode === 'name-asc') return list.sort((a,b) => byText(a,b,'name') || byText(a,b,'code'));
+  if (mode === 'code-asc') return list.sort((a,b) => byText(a,b,'code'));
+  if (mode === 'code-desc') return list.sort((a,b) => byText(b,a,'code'));
+  return list.sort((a,b) => dashboardCaseEntryDate(b).localeCompare(dashboardCaseEntryDate(a)) || byText(b,a,'code'));
+}
+
+function dcToggleClosedCases() {
+  dcClosedCollapsed = !dcClosedCollapsed;
+  localStorage.setItem('yutesign-ops-dashboard-closed-collapsed', dcClosedCollapsed ? '1' : '0');
+  renderCases();
+}
+
 function renderCases() {
   dcUpdateCaseBtn();
   const tbody = document.getElementById('case-tbody');
@@ -8662,12 +8701,12 @@ function renderCases() {
       </td>
     </tr>`;
   };
-  const open = data.filter(c => c.status !== '結案');
+  const open = dashboardSortOpenCases(data.filter(c => c.status !== '結案'));
   const closed = data.filter(c => c.status === '結案');
   let html = open.map(renderRow).join('');
   if (closed.length) {
-    html += `<tr><td colspan="${canSetLocation ? 12 : 11}" style="padding:4px 14px;border-top:2px solid var(--border2);background:var(--surface2);font-size:11px;color:var(--text3)">已結案個案</td></tr>`;
-    html += closed.map(renderRow).join('');
+    html += `<tr><td colspan="${canSetLocation ? 12 : 11}" style="padding:5px 14px;border-top:2px solid var(--border2);background:var(--surface2);font-size:11px;color:var(--text3)"><div style="display:flex;align-items:center;gap:8px"><span>已結案個案（${closed.length}）</span><button type="button" class="btn btn-ghost btn-sm" onclick="dcToggleClosedCases()" style="font-size:10px;padding:2px 8px">${dcClosedCollapsed ? '展開 ▾' : '收折 ▴'}</button></div></td></tr>`;
+    if (!dcClosedCollapsed) html += closed.map(renderRow).join('');
   }
   tbody.innerHTML = html;
 }
@@ -10475,6 +10514,7 @@ function submitNewCase() {
     caseRow.profitSplit = '三人';
     caseRow.excludeFromProfitReports = false;
   }
+  touchRowMeta(caseRow, true);
   CASES.push(caseRow);
   refreshAllCaseDropdowns();
   renderCases();
