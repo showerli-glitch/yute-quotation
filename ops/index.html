@@ -1196,7 +1196,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.77 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.79 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -4040,6 +4040,7 @@ const SOURCE_OF_TRUTH_CASE_CODES = new Set([
   'YT-VOL-REP-2026-001',
   'YT-VOL-REP-2026-002',
   'YT-LOAN-2026-001',
+  'YT-LOAN-2026-002',
 ]);
 
 function shouldUseCaseFinancialOverride(caseRecord) {
@@ -4242,7 +4243,22 @@ function normalizeOrdinaryProjectAccounting() {
       profitSplit:'不分潤', caseType:'私人借支', accountingTreatment:'receivable_from_related_party', excludeFromProfitReports:true,
       taxCostOverride:0, reconciliationNote:'私人借支／股東員工往來；公司付款列往來款資產，返還時沖銷，不進收入、成本、公司開銷、淨利潤或員工分潤。'
     },
+    {
+      code:'YT-LOAN-2026-002', name:'高雄博愛－舊案修繕往來', client:'', clientName:'內部往來',
+      status:'進行中', amount:79820, collected:0, person:'李鎮宇', pct:0,
+      profitSplit:'不分潤', caseType:'私人借支／股東員工往來', accountingTreatment:'receivable_from_related_party', excludeFromProfitReports:true,
+      companyAdvanceAmount:79820,
+      relatedPartyShares:[{person:'peng',name:'彭俞豪',ratio:0.3,amount:23946},{person:'shower',name:'李鎮宇',ratio:0.7,amount:55874}],
+      taxCostOverride:0, reconciliationNote:'舊案修繕款由公司先支付 79,820；彭俞豪負擔 30%＝23,946，李鎮宇負擔 70%＝55,874。列股東員工往來款，返還時沖銷，不進公司開銷、個案成本、淨利潤或分潤。'
+    },
   ].forEach(upsertCaseByCode);
+
+  [
+    { sourceKey:'related-party-kaohsiung-boai-peng-23946', case:'YT-LOAN-2026-002', caseName:'高雄博愛－舊案修繕往來', buyer:'彭俞豪', item:'公司代付舊案修繕款－應返還 30%', collectAmt:0, collectDate:'', bank:'', invoiceAmt:0, invoiceDate:'', invoiceNo:'', contractAmt:23946, progress:'待返還公司', status:'pending', receivableType:'private_loan', note:'公司代付 79,820 × 30%＝23,946；股東員工往來款，不列收入。' },
+    { sourceKey:'related-party-kaohsiung-boai-shower-55874', case:'YT-LOAN-2026-002', caseName:'高雄博愛－舊案修繕往來', buyer:'李鎮宇', item:'公司代付舊案修繕款－應返還 70%', collectAmt:0, collectDate:'', bank:'', invoiceAmt:0, invoiceDate:'', invoiceNo:'', contractAmt:55874, progress:'待返還公司', status:'pending', receivableType:'private_loan', note:'公司代付 79,820 × 70%＝55,874；股東員工往來款，不列收入。' },
+  ].forEach(seed => {
+    if (!RECEIVABLES.some(r => r.sourceKey === seed.sourceKey)) RECEIVABLES.push({ id:nextRowId(RECEIVABLES), ...seed });
+  });
 
   SOURCE_OF_TRUTH_CASE_CODES.forEach(code => {
     const c = CASES.find(x => x.code === code);
@@ -4476,6 +4492,7 @@ function normalizeCompanyData() {
   if (may2025IsEmpty) delete OVERHEAD['2025-05'];
   normalizeProfitPayables();
   normalizeOrdinaryProjectAccounting();
+  PAYABLES.filter(p => p.paymentType === 'tax_liability').forEach(syncTaxLiabilityForPayable);
   normalizeSpecialCaseClients();
   removeReplacedExpenseAggregates();
 }
@@ -5906,7 +5923,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.77', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.79', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5967,7 +5984,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.77', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.79', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6940,7 +6957,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.77';
+  merged.appVersion = '1.2.79';
   return { ok:true, data:merged };
 }
 
@@ -7064,7 +7081,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.77';
+  merged.appVersion = '1.2.79';
   return { ok:true, data:merged };
 }
 
@@ -7176,7 +7193,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.77';
+  merged.appVersion = '1.2.79';
   return { ok:true, data:merged };
 }
 
@@ -7295,7 +7312,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.77';
+  merged.appVersion = '1.2.79';
   return { ok:true, data:merged };
 }
 
@@ -10964,6 +10981,7 @@ function markPaid(id) {
   p.transferDate = today;
   p.doneDate = actualRentDate || pyScheduledPaymentDate(today);
   touchRowMeta(p);
+  syncTaxLiabilityForPayable(p);
   pyRebuildRentOverhead();
   normalizeProfitPayables();
   recordAuditLog('markPaid', 'payable', p.id, before, p, {
@@ -11032,6 +11050,7 @@ function rejectPayable(id) {
   if (!confirm(`確定退回並移除這筆應付帳款？\n${p.vendor || '受款人未填'}／${p.summary || '項目未填'}\n$${(p.amount || 0).toLocaleString('zh-TW')}`)) return;
   const before = auditClone(p);
   PAYABLES = PAYABLES.filter(p => p.id!==id);
+  TAX_LIABILITIES = TAX_LIABILITIES.filter(r => String(r.sourcePayableId) !== String(id));
   pyRebuildRentOverhead();
   recordAuditLog('reject', 'payable', id, before, null, {
     riskLevel:'high',
@@ -11203,6 +11222,52 @@ function syncDerivedReceivableForPayable(payable) {
   if (existingIdx >= 0) RECEIVABLES.splice(existingIdx, 1);
 }
 
+function taxPeriodFromPayable(payable, taxType) {
+  const text = `${payable?.summary || ''} ${payable?.note || ''}`;
+  if (taxType === '營所稅') {
+    const roc = text.match(/(?:民國)?(\d{3})\s*年?\s*(?:營所稅|營利事業所得稅)/);
+    if (roc) return String(Number(roc[1]) + 1911);
+    return String(payable?.doneDate || payable?.transferDate || payable?.wantDate || '').slice(0,4);
+  }
+  const months = text.match(/(?:^|\D)(1[0-2]|0?[1-9])\s*[.、~～至\/-]\s*(1[0-2]|0?[1-9])\s*月?/);
+  const year = String(payable?.doneDate || payable?.transferDate || payable?.wantDate || '').slice(0,4);
+  if (months && /^\d{4}$/.test(year)) {
+    const a = Number(months[1]);
+    const b = Number(months[2]);
+    return `${year}-${String(a).padStart(2,'0')}~${String(b).padStart(2,'0')}`;
+  }
+  return year;
+}
+
+function syncTaxLiabilityForPayable(payable) {
+  if (!payable) return;
+  const inferredType = /營所稅|營利事業所得稅/.test(`${payable.summary || ''} ${payable.note || ''}`) ? '營所稅' : '營業稅';
+  const payableDate = payable.doneDate || payable.transferDate || '';
+  let existingIdx = TAX_LIABILITIES.findIndex(r => String(r.sourcePayableId) === String(payable.id));
+  if (existingIdx < 0) existingIdx = TAX_LIABILITIES.findIndex(r =>
+    r.sourcePayableId == null && r.taxType === inferredType && Number(r.amount) === Number(payable.amount) && String(r.payDate || '') === String(payableDate)
+  );
+  if (payable.paymentType !== 'tax_liability') {
+    if (existingIdx >= 0) TAX_LIABILITIES.splice(existingIdx, 1);
+    return;
+  }
+  const existing = existingIdx >= 0 ? TAX_LIABILITIES[existingIdx] : null;
+  const row = existing || { id:TAX_LIABILITIES.reduce((m,r) => Math.max(m, Number(r.id)||0), 0) + 1, sourceKey:`payable-tax-${payable.id}`, sourcePayableId:payable.id };
+  Object.assign(row, {
+    taxType:row.payableTaxFieldsAdjusted ? row.taxType : inferredType,
+    period:row.payableTaxFieldsAdjusted ? row.period : taxPeriodFromPayable(payable, inferredType),
+    amount:Number(payable.amount) || 0,
+    payDate:payable.doneDate || payable.transferDate || '',
+    status:payable.status === 'paid' ? 'paid' : 'pending',
+    note:`應付 AP#${payable.id} 連動：${payable.vendor || '受款人未填'}／${payable.summary || '繳稅'}`,
+    source:'payable_tax_link', sourcePayableId:payable.id,
+    sourceKey:existing?.sourceKey || `payable-tax-${payable.id}`
+  });
+  tagCompany(row);
+  touchRowMeta(row, !existing);
+  if (!existing) TAX_LIABILITIES.push(row);
+}
+
 function deletePayableConfirm(id) {
   if (!requireManage('payable', '您沒有刪除應付帳款的權限')) return;
   const p = PAYABLES.find(x => x.id === id);
@@ -11213,6 +11278,7 @@ function deletePayableConfirm(id) {
   rememberDeletedSourceKey(p.sourceKey);
   PAYABLES = PAYABLES.filter(x => x.id !== id);
   RECEIVABLES = RECEIVABLES.filter(r => r.sourcePayableId !== id && r.sourceKey !== `payable:${id}`);
+  TAX_LIABILITIES = TAX_LIABILITIES.filter(r => String(r.sourcePayableId) !== String(id));
   pyRebuildRentOverhead();
   refreshAccountingLinkedViews(affectedCase);
   saveData();
@@ -11384,6 +11450,7 @@ function submitAddPayable() {
           amount:isNaN(amtNum)?p.amount:amtNum, wantDate:date, bank, transferDate, doneDate, ticket,
           invoice, receipt, person, status });
         syncDerivedReceivableForPayable(p);
+        syncTaxLiabilityForPayable(p);
       }
       touchRowMeta(p);
       pyRebuildRentOverhead();
@@ -11406,6 +11473,7 @@ function submitAddPayable() {
     touchRowMeta(row, true);
     PAYABLES.push(row);
     syncDerivedReceivableForPayable(row);
+    syncTaxLiabilityForPayable(row);
     pyRebuildRentOverhead();
     closeModal('modal-add-payable');
     refreshAccountingLinkedViews(shouldKeepCase ? caseVal : '');
@@ -12021,7 +12089,7 @@ function renderProfit() {
   const expApproved = EXPENSES.filter(e => e.status === 'approved' && yearOk(e.month) && e.caseKey !== '固定開銷' && e.postCloseTreatment !== 'company_absorb');
 
   // ── 3. 每個案件毛利計算（依案件篩選） ──
-  const caseRows = CASES.filter(c => caseOk(c.code)).map(c => {
+  const caseRows = CASES.filter(c => c.accountingTreatment !== 'receivable_from_related_party' && caseOk(c.code)).map(c => {
     const isFamilyPassThroughCase = isFamilyPassThroughCaseRecord(c);
     const casePaidReceivables = caseReceivableRows(c.code, { dateOk: d => yearOk(d) }).filter(receivableIsCollected);
     const casePaidPayables = casePayableRows(c.code, { dateOk: d => yearOk(d), costControlOnly: true }).filter(p => p.status === 'paid');
@@ -13979,6 +14047,11 @@ function psComputeData() {
 // TAX MANAGEMENT — read-only reconciliation; never posts to profit/overhead/cost
 // ══════════════════════════════════
 let TAX_SELECTED_YEAR = '';
+let TAX_EDIT_ID = null;
+
+function taxEscape(value) {
+  return String(value || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
 
 function taxMoney(value) {
   const n = Math.round(Number(value) || 0);
@@ -14020,6 +14093,58 @@ function taxSelectYear(value) {
   renderTaxManagement();
 }
 
+function taxStartEdit(id = 'new') {
+  if (!requireManage('tax')) return;
+  TAX_EDIT_ID = id;
+  renderTaxManagement();
+  requestAnimationFrame(() => document.getElementById('tax-entry-card')?.scrollIntoView({behavior:'smooth', block:'center'}));
+}
+
+function taxCancelEdit() {
+  TAX_EDIT_ID = null;
+  renderTaxManagement();
+}
+
+function taxSaveLiability() {
+  if (!requireManage('tax')) return;
+  const taxType = document.getElementById('tax-entry-type')?.value || '';
+  const period = document.getElementById('tax-entry-period')?.value.trim() || '';
+  const amount = Number(String(document.getElementById('tax-entry-amount')?.value || '').replace(/[^0-9.-]/g,'')) || 0;
+  const payDate = document.getElementById('tax-entry-date')?.value || '';
+  const status = document.getElementById('tax-entry-status')?.value || 'paid';
+  const note = document.getElementById('tax-entry-note')?.value.trim() || '';
+  if (!taxType || !period || !amount) { showToast('請填寫稅別、歸屬期與金額', 'error'); return; }
+  if (status === 'paid' && !payDate) { showToast('已繳納紀錄請填寫繳納日', 'error'); return; }
+  let row = TAX_EDIT_ID === 'new' || TAX_EDIT_ID == null ? null : TAX_LIABILITIES.find(r => String(r.id) === String(TAX_EDIT_ID));
+  if (!row) {
+    const nextId = TAX_LIABILITIES.reduce((m,r) => Math.max(m, Number(r.id)||0), 0) + 1;
+    row = { id:nextId, sourceKey:`tax-manual-${Date.now()}` };
+    TAX_LIABILITIES.push(row);
+  }
+  Object.assign(row, { taxType, period, amount, payDate, status, note, source:'manual_tax_management' });
+  if (row.sourcePayableId != null) {
+    row.payableTaxFieldsAdjusted = true;
+    row.source = 'payable_tax_link';
+  }
+  tagCompany(row);
+  touchRowMeta(row);
+  TAX_EDIT_ID = null;
+  saveData();
+  renderTaxManagement();
+  showToast('稅務負債／繳稅紀錄已儲存 ✓', 'success');
+}
+
+function taxDeleteLiability(id) {
+  if (!requireManage('tax')) return;
+  const row = TAX_LIABILITIES.find(r => String(r.id) === String(id));
+  if (!row || !confirm(`確定刪除「${row.taxType} ${row.period} ${taxMoney(row.amount)}」？`)) return;
+  TAX_LIABILITIES.splice(TAX_LIABILITIES.indexOf(row), 1);
+  TAX_EDIT_ID = null;
+  saveData();
+  renderTaxManagement();
+  showToast('繳稅紀錄已刪除', 'success');
+}
+
 function taxOpenIncomeEstimate() {
   const cases = CASES.filter(psIsProfitSettlementCase);
   return cases.reduce((sum, c) => {
@@ -14059,6 +14184,15 @@ function renderTaxManagement() {
     .filter(r => r.taxType === '營所稅' && r.status === 'paid' && String(r.period || '').startsWith(year))
     .reduce((s,r) => s + (Number(r.amount)||0), 0);
   const openEstimate = taxOpenIncomeEstimate();
+  const editRow = TAX_EDIT_ID === 'new' || TAX_EDIT_ID == null ? null : TAX_LIABILITIES.find(r => String(r.id) === String(TAX_EDIT_ID));
+  const taxRecords = TAX_LIABILITIES.filter(r => String(r.period || r.payDate || '').startsWith(year)).slice().sort((a,b) => String(b.payDate||'').localeCompare(String(a.payDate||'')));
+  const taxRecordRows = taxRecords.map(r => `<tr>
+    <td>${taxEscape(r.taxType)}</td><td style="font-family:'DM Mono',monospace">${taxEscape(r.period)}</td>
+    <td style="text-align:right;font-family:'DM Mono',monospace">${taxMoney(r.amount)}</td><td>${r.payDate || '—'}</td>
+    <td>${r.status === 'paid' ? '<span class="status status-paid">已繳納</span>' : '<span class="status status-pending">待繳納</span>'}</td>
+    <td style="font-size:11px;color:var(--text3)">${taxEscape(r.note || '')}</td>
+    <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="taxStartEdit('${r.id}')">編輯</button><button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="taxDeleteLiability('${r.id}')">刪除</button></td>
+  </tr>`).join('');
   const statusBadge = diff => diff >= -0.5
     ? '<span class="status status-paid">足夠／尚有餘額</span>'
     : '<span class="status status-pending">不足</span>';
@@ -14093,6 +14227,19 @@ function renderTaxManagement() {
         <div class="kpi-card"><div class="kpi-label">未結算個案預估</div><div class="kpi-val" style="font-size:18px;color:var(--warning)">${taxMoney(openEstimate)}</div><div class="kpi-sub">全部未鎖定個案，不算正式預留</div></div>
       </div>
       <div style="font-size:11px;color:var(--text3);line-height:1.7;margin-top:10px">未結算預估不歸入已選年度的正式差異，也不會寫回分潤表；待分潤結算鎖定後才轉為正式預留。</div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+      <div style="padding:12px 16px;background:var(--surface2);font-weight:700;font-size:13px;display:flex;justify-content:space-between;align-items:center"><span>稅務負債／繳稅紀錄</span><button class="btn btn-primary btn-sm" onclick="taxStartEdit()">＋ 新增紀錄</button></div>
+      ${(TAX_EDIT_ID !== null) ? `<div id="tax-entry-card" style="padding:14px 16px;border-bottom:1px solid var(--border);display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+        <div class="form-field"><label class="form-label">稅別 *</label><select class="form-select" id="tax-entry-type"><option value="營業稅" ${editRow?.taxType==='營業稅'?'selected':''}>營業稅</option><option value="營所稅" ${editRow?.taxType==='營所稅'?'selected':''}>營所稅</option></select></div>
+        <div class="form-field"><label class="form-label">歸屬期 *</label><input class="form-input" id="tax-entry-period" value="${taxEscape(editRow?.period || year)}" placeholder="例：2026-03~04 或 2025"></div>
+        <div class="form-field"><label class="form-label">金額 *</label><input class="form-input" id="tax-entry-amount" inputmode="numeric" value="${editRow?.amount || ''}"></div>
+        <div class="form-field"><label class="form-label">繳納日</label><input class="form-input" type="date" id="tax-entry-date" value="${editRow?.payDate || ''}"></div>
+        <div class="form-field"><label class="form-label">狀態</label><select class="form-select" id="tax-entry-status"><option value="paid" ${editRow?.status!=='pending'?'selected':''}>已繳納</option><option value="pending" ${editRow?.status==='pending'?'selected':''}>待繳納</option></select></div>
+        <div class="form-field"><label class="form-label">備註</label><input class="form-input" id="tax-entry-note" value="${taxEscape(editRow?.note || '')}"></div>
+        <div style="grid-column:1/-1;display:flex;gap:8px"><button class="btn btn-primary btn-sm" onclick="taxSaveLiability()">儲存</button><button class="btn btn-ghost btn-sm" onclick="taxCancelEdit()">取消</button></div>
+      </div>` : ''}
+      <div style="overflow:auto"><table class="data-table" style="min-width:850px"><thead><tr><th>稅別</th><th>歸屬期</th><th style="text-align:right">金額</th><th>繳納日</th><th>狀態</th><th>備註</th><th>操作</th></tr></thead><tbody>${taxRecordRows || '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text3)">本年度尚無繳稅紀錄</td></tr>'}</tbody></table></div>
     </div>
     ${unassigned.length ? `<div class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;background:var(--surface2);font-weight:700;font-size:13px;color:var(--warning)">待補發票日，暫不納入任何申報期</div><div style="overflow:auto"><table class="data-table" style="min-width:700px"><thead><tr><th>個案</th><th>買受人</th><th>項目</th><th style="text-align:right">發票金額</th><th>發票號碼</th></tr></thead><tbody>${unassignedRows}</tbody></table></div></div>` : ''}
   `;
