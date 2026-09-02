@@ -749,6 +749,13 @@ body.auth-pending .auth-screen{display:flex}
 #page-profit .sticky-table thead{
   top:0;
 }
+#page-tax .data-table{font-size:12px;line-height:1.45}
+#page-tax .data-table th{font-size:11px;font-weight:600;color:var(--text3);padding:9px 12px;white-space:nowrap}
+#page-tax .data-table td{font-size:12px;font-weight:400;padding:9px 12px;vertical-align:middle}
+#page-tax .data-table tfoot td{font-weight:700;background:var(--surface2);border-top:1px solid var(--border2)}
+#page-tax .status{font-size:10px;white-space:nowrap}
+#page-tax .kpi-label{font-size:11px}
+#page-tax .kpi-sub{font-size:10px}
 .form-textarea{
   background:var(--surface2);border:1px solid var(--border2);
   border-radius:9px;padding:10px 13px;color:var(--text);
@@ -1196,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.79 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.80 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5923,7 +5930,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.79', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.80', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -5984,7 +5991,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.79', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.80', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6957,7 +6964,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.79';
+  merged.appVersion = '1.2.80';
   return { ok:true, data:merged };
 }
 
@@ -7081,7 +7088,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.79';
+  merged.appVersion = '1.2.80';
   return { ok:true, data:merged };
 }
 
@@ -7193,7 +7200,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.79';
+  merged.appVersion = '1.2.80';
   return { ok:true, data:merged };
 }
 
@@ -7312,7 +7319,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.79';
+  merged.appVersion = '1.2.80';
   return { ok:true, data:merged };
 }
 
@@ -14217,7 +14224,7 @@ function renderTaxManagement() {
       <div class="kpi-card"><div class="kpi-label">營業稅差異</div><div class="kpi-val" style="font-size:18px;color:${vatReserveTotal-vatPaidTotal < 0 ? 'var(--error)' : 'var(--success)'}">${taxMoney(vatReserveTotal-vatPaidTotal)}</div><div class="kpi-sub">預留－實繳</div></div>
       <div class="kpi-card"><div class="kpi-label">待歸期發票</div><div class="kpi-val" style="font-size:18px;color:${unassigned.length?'var(--warning)':'var(--success)'}">${unassigned.length} 筆</div><div class="kpi-sub">有發票金額但缺發票日</div></div>
     </div>
-    <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px"><div style="padding:12px 16px;background:var(--surface2);font-weight:700;font-size:13px">營業稅（每兩個月）</div><div style="overflow:auto"><table class="data-table" style="min-width:820px"><thead><tr><th>申報期</th><th style="text-align:right">發票筆數</th><th style="text-align:right">含稅發票額</th><th style="text-align:right">預留稅額</th><th style="text-align:right">實際繳納</th><th style="text-align:right">差異</th><th>核對</th></tr></thead><tbody>${vatTable}</tbody></table></div></div>
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px"><div style="padding:12px 16px;background:var(--surface2);font-weight:700;font-size:13px">營業稅（每兩個月）</div><div style="overflow:auto"><table class="data-table" style="min-width:820px"><thead><tr><th>申報期</th><th style="text-align:right">發票筆數</th><th style="text-align:right">含稅發票額</th><th style="text-align:right">預留稅額</th><th style="text-align:right">實際繳納</th><th style="text-align:right">差異</th><th>核對</th></tr></thead><tbody>${vatTable}</tbody><tfoot><tr><td>${year} 年度合計</td><td style="text-align:right">${periodRows.reduce((s,r)=>s+r.invoices.length,0)}</td><td style="text-align:right;font-family:'DM Mono',monospace">${taxMoney(periodRows.reduce((s,r)=>s+r.invoiceTotal,0))}</td><td style="text-align:right;font-family:'DM Mono',monospace">${taxMoney(vatReserveTotal)}</td><td style="text-align:right;font-family:'DM Mono',monospace">${taxMoney(vatPaidTotal)}</td><td style="text-align:right;font-family:'DM Mono',monospace;color:${vatReserveTotal-vatPaidTotal < 0 ? 'var(--error)' : 'var(--success)'}">${taxMoney(vatReserveTotal-vatPaidTotal)}</td><td>${statusBadge(vatReserveTotal-vatPaidTotal)}</td></tr></tfoot></table></div></div>
     <div class="card" style="padding:16px;margin-bottom:16px">
       <div style="font-weight:700;font-size:13px;margin-bottom:12px">營所稅</div>
       <div class="profit-kpi-grid">
