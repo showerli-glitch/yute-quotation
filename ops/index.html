@@ -1203,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.94 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.95 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5978,7 +5978,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.94', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.95', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6039,7 +6039,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.94', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.95', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7137,7 +7137,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.94';
+  merged.appVersion = '1.2.95';
   return { ok:true, data:merged };
 }
 
@@ -7261,7 +7261,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.94';
+  merged.appVersion = '1.2.95';
   return { ok:true, data:merged };
 }
 
@@ -7373,7 +7373,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.94';
+  merged.appVersion = '1.2.95';
   return { ok:true, data:merged };
 }
 
@@ -7492,7 +7492,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.94';
+  merged.appVersion = '1.2.95';
   return { ok:true, data:merged };
 }
 
@@ -14373,15 +14373,30 @@ function isProfitSharePayout(row) {
   return row.paymentType === 'shareholder_distribution' && profitOffsetPerson(row) === 'shower';
 }
 
-function psUnsettledProfitPayables(person = '') {
+function psProfitPayoutBelongsToCurrentBatch(row, selectedCaseCodes = null) {
+  if (!isProfitSharePayout(row)) return false;
+  // 歷史結清款只屬於原結算，不得再扣目前尚未結算案件。
+  if (row.paymentType === 'profit_settlement' || row.psSettled) return false;
+  const linkedCodes = [...new Set([...(row.profitCaseCodes || []), row.case].filter(Boolean))];
+  if (!linkedCodes.length) return true; // 未指定案件的未沖抵預領，留給下一批結算。
+  const unsettledLinkedCodes = linkedCodes.filter(code => {
+    const linkedCase = CASES.find(c => c.code === code);
+    return linkedCase && !linkedCase.psSettled;
+  });
+  if (!unsettledLinkedCodes.length) return false;
+  if (!Array.isArray(selectedCaseCodes)) return true;
+  const selected = new Set(selectedCaseCodes);
+  return unsettledLinkedCodes.some(code => selected.has(code));
+}
+
+function psUnsettledProfitPayables(person = '', selectedCaseCodes = null) {
   return PAYABLES
-    .filter(r => isProfitSharePayout(r) && (!person || profitOffsetPerson(r) === person))
+    .filter(r => psProfitPayoutBelongsToCurrentBatch(r, selectedCaseCodes) && (!person || profitOffsetPerson(r) === person))
     .map(r => {
       const amount = Number(r.amount) || 0;
       const offset = Number(r.profitSettlementOffsetAmount) || 0;
       const remaining = Math.max(0, amount - offset);
       if (remaining <= 0.5) return null;
-      if (r.psSettled && remaining <= 0.5) return null;
       return remaining === amount ? r : { ...r, amount: remaining };
     })
     .filter(Boolean);
@@ -14516,7 +14531,7 @@ function psComputeData() {
     personGross[p] += c.caseNet * r;
   }));
   const persons = [...new Set([...participants.map(p => p.id), ...Object.keys(personGross)])];
-  const profitPayables = psUnsettledProfitPayables();
+  const profitPayables = psUnsettledProfitPayables('', selectedCodes);
   const adjustments = psOutstandingPostCloseAdjustments();
   const rows = persons.map(p => {
     const net = personGross[p];
