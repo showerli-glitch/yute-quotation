@@ -1203,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.88 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.89 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1937,7 +1937,7 @@ body.auth-pending .auth-screen{display:flex}
           <div class="att-leave-grid">
             <div class="form-field"><label class="form-label">人員</label><select class="form-select" id="att-leave-person"></select></div>
             <div class="form-field"><label class="form-label">日期</label><input class="form-input" type="date" id="att-leave-date"></div>
-            <div class="form-field"><label class="form-label">假別</label><select class="form-select" id="att-leave-type"><option value="personal">事假</option><option value="sick">病假</option><option value="annual">特休</option><option value="official">公假</option><option value="other">其他</option></select></div>
+            <div class="form-field"><label class="form-label">假別</label><select class="form-select" id="att-leave-type"><option value="personal">事假</option><option value="sick">病假</option><option value="annual">特休</option><option value="official">公假</option><option value="bereavement">喪假</option><option value="other">其他</option></select></div>
             <div class="form-field"><label class="form-label">時數</label><input class="form-input" type="number" id="att-leave-hours" min="0" step="0.5" value="8"></div>
             <div class="form-field form-full"><label class="form-label">備註</label><input class="form-input" id="att-leave-note" placeholder="例：核准人、證明文件、說明"></div>
           </div>
@@ -5976,7 +5976,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.88', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.89', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6037,7 +6037,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.88', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.89', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7134,7 +7134,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.88';
+  merged.appVersion = '1.2.89';
   return { ok:true, data:merged };
 }
 
@@ -7258,7 +7258,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.88';
+  merged.appVersion = '1.2.89';
   return { ok:true, data:merged };
 }
 
@@ -7370,7 +7370,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.88';
+  merged.appVersion = '1.2.89';
   return { ok:true, data:merged };
 }
 
@@ -7489,7 +7489,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.88';
+  merged.appVersion = '1.2.89';
   return { ok:true, data:merged };
 }
 
@@ -10300,7 +10300,7 @@ function renderAttendance() {
     </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px">尚無出勤紀錄</td></tr>`;
   }
   const leaveRows = ATTENDANCE_LEAVES.filter(r => r.person === person && String(r.date || '').startsWith(month)).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-  const leaveLabel = {personal:'事假', sick:'病假', annual:'特休', official:'公假', other:'其他'};
+  const leaveLabel = {personal:'事假', sick:'病假', annual:'特休', official:'公假', bereavement:'喪假', other:'其他'};
   const ltbody = document.getElementById('att-leave-tbody');
   if (ltbody) {
     ltbody.innerHTML = leaveRows.length ? leaveRows.map(r => `<tr>
