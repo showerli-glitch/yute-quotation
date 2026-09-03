@@ -1203,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.87 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.88 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5976,7 +5976,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.87', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.88', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6037,7 +6037,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.87', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.88', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7134,7 +7134,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.87';
+  merged.appVersion = '1.2.88';
   return { ok:true, data:merged };
 }
 
@@ -7258,7 +7258,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.87';
+  merged.appVersion = '1.2.88';
   return { ok:true, data:merged };
 }
 
@@ -7370,7 +7370,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.87';
+  merged.appVersion = '1.2.88';
   return { ok:true, data:merged };
 }
 
@@ -7489,7 +7489,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.87';
+  merged.appVersion = '1.2.88';
   return { ok:true, data:merged };
 }
 
@@ -10161,7 +10161,12 @@ function attApproveRecord(id) {
 
 function attComputeDraft(person, month) {
   const cfg = PR_CONFIG[person] || {};
-  const hourly = (cfg.baseSalary || 0) / 30 / 8;
+  // 時薪要用這個人「目前實際底薪」（當月已存的薪資單→上一次存過的月份→員工預設值表），
+  // 不能只看 PR_CONFIG 的預設值，否則底薪已經在薪資管理調整過的人，出勤試算的請假扣款／加班費會用舊的（甚至 0）底薪算。
+  const currentPayroll = PAYROLL.find(r => r.person === person && r.month === month);
+  const priorPayroll = PAYROLL.filter(r => r.person === person && r.month < month).sort((a,b)=>b.month.localeCompare(a.month))[0];
+  const effectiveBaseSalary = currentPayroll?.baseSalary || priorPayroll?.baseSalary || cfg.baseSalary || 0;
+  const hourly = effectiveBaseSalary / 30 / 8;
   const records = attDailyEffectiveRecords(person, month);
   const leaves = ATTENDANCE_LEAVES.filter(r => r.person === person && String(r.date || '').startsWith(month));
   let workMinutes = 0;
@@ -15076,7 +15081,7 @@ const PR_CONFIG = {
          baseSalary:38000, phoneAllowance:0, fullAttendanceBonus:0, dutyAllowance:0, performanceBonus:0, mealAllowance:0,
          laborInsurance:955, healthInsurance:592},
   lu_yanchen: {name:'盧彥辰', role:'設計助理', bank:'銀行未設定', account:'',
-         baseSalary:0, phoneAllowance:0, fullAttendanceBonus:0, dutyAllowance:0, performanceBonus:0, mealAllowance:0,
+         baseSalary:38000, phoneAllowance:0, fullAttendanceBonus:0, dutyAllowance:0, performanceBonus:0, mealAllowance:0,
          laborInsurance:0, healthInsurance:0},
   chen_hongjun: {name:'陳虹君', role:'會計', bank:'銀行未設定', account:'',
          baseSalary:0, phoneAllowance:0, fullAttendanceBonus:0, dutyAllowance:0, performanceBonus:0, mealAllowance:0,
