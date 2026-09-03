@@ -1203,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.85 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.86 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3178,7 +3178,24 @@ body.auth-pending .auth-screen{display:flex}
         </div>
         <div class="form-field">
           <label class="form-label">金額</label>
-          <input class="form-input" id="ap-add-amount" placeholder="例：420,000" type="text">
+          <input class="form-input" id="ap-add-amount" placeholder="例：420,000" type="text" oninput="apUpdateAmortizationPreview()">
+        </div>
+        <div class="form-field form-full" id="ap-amortization-fields" style="display:none;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2)">
+          <div class="form-grid">
+            <div class="form-field form-full">
+              <label class="form-label">攤提項目名稱</label>
+              <input class="form-input" id="ap-add-overhead-item" placeholder="例：法律顧問費攤提">
+            </div>
+            <div class="form-field">
+              <label class="form-label">攤提開始月份</label>
+              <input class="form-input" id="ap-add-amortization-start" type="month" oninput="apUpdateAmortizationPreview()">
+            </div>
+            <div class="form-field">
+              <label class="form-label">攤提期數（月）</label>
+              <input class="form-input" id="ap-add-amortization-months" type="number" min="1" max="120" step="1" placeholder="例：36" oninput="apUpdateAmortizationPreview()">
+            </div>
+            <div class="form-field form-full" id="ap-amortization-preview" style="font-size:12px;line-height:1.7;color:var(--text3)">填入金額、開始月份與期數後顯示攤提預覽。</div>
+          </div>
         </div>
         <div class="form-field form-full" id="ap-locked-payment-hint" style="display:none;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);font-size:12px;color:var(--text3)">
           系統結算款可分段付款：輸入本次付款金額並改為已付款；若小於待付款，系統會新增一筆已付款紀錄並保留原單餘額。
@@ -5953,7 +5970,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.85', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.86', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6014,7 +6031,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.85', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.86', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7079,7 +7096,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.85';
+  merged.appVersion = '1.2.86';
   return { ok:true, data:merged };
 }
 
@@ -7203,7 +7220,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.85';
+  merged.appVersion = '1.2.86';
   return { ok:true, data:merged };
 }
 
@@ -7315,7 +7332,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.85';
+  merged.appVersion = '1.2.86';
   return { ok:true, data:merged };
 }
 
@@ -7434,7 +7451,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.85';
+  merged.appVersion = '1.2.86';
   return { ok:true, data:merged };
 }
 
@@ -11332,7 +11349,7 @@ function openAddPayableModal() {
   const amountEl = document.getElementById('ap-add-amount');
   if (amountEl) amountEl.placeholder = '例：420,000';
   // 清空欄位
-  ['ap-add-vendor','ap-add-amount','ap-add-summary','ap-add-date','ap-add-transfer-date','ap-add-done-date','ap-add-ticket'].forEach(id => {
+  ['ap-add-vendor','ap-add-amount','ap-add-summary','ap-add-date','ap-add-transfer-date','ap-add-done-date','ap-add-ticket','ap-add-overhead-item','ap-add-amortization-start','ap-add-amortization-months'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const bankEl = document.getElementById('ap-add-bank'); if (bankEl) bankEl.value = '';
@@ -11373,6 +11390,9 @@ function openEditPayableModal(id) {
   document.getElementById('ap-add-transfer-date').value = p.transferDate || '';
   document.getElementById('ap-add-done-date').value     = p.doneDate || '';
   document.getElementById('ap-add-ticket').value        = p.ticket || '';
+  document.getElementById('ap-add-overhead-item').value = p.overheadItem || '';
+  document.getElementById('ap-add-amortization-start').value = p.amortizationStartMonth || '';
+  document.getElementById('ap-add-amortization-months').value = p.amortizationMonths || '';
   const bankEl = document.getElementById('ap-add-bank'); if (bankEl) bankEl.value = p.bank || '';
   const statusEl = document.getElementById('ap-add-status'); if (statusEl) statusEl.value = p.status || 'approved';
   const typeEl = document.getElementById('ap-add-payment-type'); if (typeEl) typeEl.value = p.paymentType || 'vendor';
@@ -11405,6 +11425,7 @@ function openEditPayableModal(id) {
   if (lockedHint) lockedHint.style.display = p.systemLocked ? '' : 'none';
   document.querySelectorAll('#ap-profit-case-list input').forEach(el => { el.disabled = !!p.systemLocked; });
   if (p.systemLocked) document.getElementById('ap-modal-title').textContent = '編輯結算款付款資訊';
+  apUpdateAmortizationPreview();
   openModal('modal-add-payable');
 }
 
@@ -11449,6 +11470,9 @@ function apTogglePaymentType(selectedCodes = null) {
   if (vendorCaseField) vendorCaseField.style.display = requiresVendorCase ? '' : 'none';
   const caseEl = document.getElementById('ap-add-case');
   if (caseEl) caseEl.required = requiresVendorCase;
+  const amortizationFields = document.getElementById('ap-amortization-fields');
+  if (amortizationFields) amortizationFields.style.display = type === 'prepaid_expense' ? '' : 'none';
+  apUpdateAmortizationPreview();
   if (isProfit) {
     const list = document.getElementById('ap-profit-case-list');
     if (list) {
@@ -11459,6 +11483,25 @@ function apTogglePaymentType(selectedCodes = null) {
       list.innerHTML = buildCaseCheckboxGroups(profitCases, c => current.includes(c.code), '', { flexItem:true });
     }
   }
+}
+
+function apUpdateAmortizationPreview() {
+  const preview = document.getElementById('ap-amortization-preview');
+  if (!preview) return;
+  const fmt = n => '$' + Math.round(n).toLocaleString('zh-TW');
+  const amount = parseInt((document.getElementById('ap-add-amount')?.value || '').replace(/[^0-9\-]/g,''));
+  const start = document.getElementById('ap-add-amortization-start')?.value || '';
+  const months = parseInt(document.getElementById('ap-add-amortization-months')?.value || '');
+  if (!Number.isFinite(amount) || amount <= 0 || !/^\d{4}-\d{2}$/.test(start) || !Number.isInteger(months) || months < 1) {
+    preview.textContent = '填入金額、開始月份與期數後顯示攤提預覽。';
+    return;
+  }
+  const [year, month] = start.split('-').map(Number);
+  const endDate = new Date(year, month - 1 + months - 1, 1);
+  const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2,'0')}`;
+  const regular = Math.round(amount / months);
+  const last = amount - regular * (months - 1);
+  preview.textContent = `攤提期間 ${start}～${end}，共 ${months} 期；每月 ${fmt(regular)}，最後一期 ${fmt(last)}，合計 ${fmt(amount)}。`;
 }
 
 function syncDerivedReceivableForPayable(payable) {
@@ -11648,6 +11691,9 @@ function submitAddPayable() {
   const bank    = document.getElementById('ap-add-bank').value;
   const status  = document.getElementById('ap-add-status').value;
   const paymentType = document.getElementById('ap-add-payment-type')?.value || 'vendor';
+  const overheadItem = paymentType === 'prepaid_expense' ? (document.getElementById('ap-add-overhead-item')?.value || '').trim() : '';
+  const amortizationStartMonth = paymentType === 'prepaid_expense' ? (document.getElementById('ap-add-amortization-start')?.value || '') : '';
+  const amortizationMonths = paymentType === 'prepaid_expense' ? parseInt(document.getElementById('ap-add-amortization-months')?.value || '') : 0;
   const isProfitType = isProfitPaymentType(paymentType);
   const payableCaseTypes = ['vendor','family_pass_through','private_loan'];
   const shouldKeepCase = payableCaseTypes.includes(paymentType);
@@ -11659,6 +11705,9 @@ function submitAddPayable() {
   if (!vendor)  { showToast('請填寫受款廠商', 'error'); return; }
   if (!amount)  { showToast('請填寫金額', 'error'); return; }
   if (!summary) { showToast('請填寫摘要', 'error'); return; }
+  if (paymentType === 'prepaid_expense' && !overheadItem) { showToast('請填寫攤提項目名稱', 'error'); return; }
+  if (paymentType === 'prepaid_expense' && !/^\d{4}-\d{2}$/.test(amortizationStartMonth)) { showToast('請選擇攤提開始月份', 'error'); return; }
+  if (paymentType === 'prepaid_expense' && (!Number.isInteger(amortizationMonths) || amortizationMonths < 1 || amortizationMonths > 120)) { showToast('攤提期數請填 1～120 個月', 'error'); return; }
   const editPayable = editId ? PAYABLES.find(x => x.id === parseInt(editId)) : null;
   if (paymentType === 'overhead_link' && !`${vendor} ${summary}`.includes('房租') && !editPayable?.overheadItem) {
     showToast('「固定開銷付款連結」目前僅限公司房租，摘要請明確填寫房租', 'error'); return;
@@ -11694,6 +11743,7 @@ function submitAddPayable() {
       } else {
         if (shouldKeepCase && caseVal && !isNaN(amtNum) && !confirmDuplicatePayable({ caseCode:caseVal, amount:amtNum, excludeId:p.id })) return;
         Object.assign(p, { case:shouldKeepCase?caseVal:'', caseName:shouldKeepCase?caseName:'', vendor, summary, paymentType, profitPerson, profitCaseCodes,
+          overheadItem, amortizationStartMonth, amortizationMonths,
           amount:isNaN(amtNum)?p.amount:amtNum, wantDate:date, bank, transferDate, doneDate, ticket,
           invoice, receipt, person, status });
         syncDerivedReceivableForPayable(p);
@@ -11716,7 +11766,7 @@ function submitAddPayable() {
     const row = { id:pyNextId++, case:shouldKeepCase?caseVal:'', caseName:shouldKeepCase?caseName:'', vendor, summary,
       amount:isNaN(amtNum)?0:amtNum, wantDate:date, bank,
       transferDate:transferDate || (status==='paid'?date:''), doneDate:doneDate || (status==='paid'?date:''), ticket, invoice, receipt, person,
-      paymentType, profitPerson, profitCaseCodes, status, note:'' };
+      paymentType, profitPerson, profitCaseCodes, overheadItem, amortizationStartMonth, amortizationMonths, status, note:'' };
     touchRowMeta(row, true);
     PAYABLES.push(row);
     syncDerivedReceivableForPayable(row);
