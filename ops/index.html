@@ -14804,7 +14804,7 @@ function renderProfitShare() {
         <thead><tr style="border-bottom:1px solid var(--border2)">
           <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text3)">人員</th>
           <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">分潤／承擔</th>
-          <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">已請領</th>
+          <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">本批已請領</th>
           <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">結案後抵扣</th>
           <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">未領</th>
           <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text3)">備註</th>
@@ -15009,7 +15009,7 @@ function renderProfitShare() {
           <option value="">全部</option>${monthOpts(PS_OH_END)}
         </select>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin:-2px 0 8px">目前同步月份：${claimMonths}。已鎖定至：${lockedThrough || '尚未鎖定'}；選單只顯示未結算月份。彭／連月薪依此範圍歸屬；工程獎金、分潤預領與結清款則依應付帳款實際付款日計入，不受月份範圍限制。</div>
+      <div style="font-size:11px;color:var(--text3);margin:-2px 0 8px">目前同步月份：${claimMonths}。已鎖定至：${lockedThrough || '尚未鎖定'}；選單只顯示未結算月份。彭／連月薪依此範圍歸屬；只有尚未歸屬歷史結算、且屬於本次所選案件的已付款預領會列入「本批已請領」。</div>
       <div style="margin-bottom:8px">
         <div style="font-size:12px;color:var(--text3);margin-bottom:4px">納入本次結算的個案：</div>
         ${caseChecks || '<span style="font-size:12px;color:var(--text3)">沒有可結算的個案</span>'}
