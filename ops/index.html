@@ -2323,7 +2323,8 @@ body.auth-pending .auth-screen{display:flex}
           <option value="廚具設備">廚具設備</option>
           <option value="燈具／設備及其他">燈具／設備及其他</option>
           <option value="完工清潔">完工清潔</option>
-          <option value="設計製圖費">設計製圖費</option>
+          <option value="設計製圖">設計製圖</option>
+          <option value="專業顧問服務">專業顧問服務</option>
           <option value="建材供應">建材供應</option>
           <option value="傢俱設備">傢俱設備</option>
           <option value="其他">其他</option>
@@ -2629,7 +2630,8 @@ body.auth-pending .auth-screen{display:flex}
             <option value="廚具設備">廚具設備</option>
             <option value="燈具／設備及其他">燈具／設備及其他</option>
             <option value="完工清潔">完工清潔</option>
-            <option value="設計製圖費">設計製圖費</option>
+            <option value="設計製圖">設計製圖</option>
+            <option value="專業顧問服務">專業顧問服務</option>
             <option value="建材供應">建材供應</option>
             <option value="傢俱設備">傢俱設備</option>
             <option value="其他">其他</option>
@@ -4914,6 +4916,7 @@ let VENDORS = [
   {code:'AC-001',name:'上洋產業股份有限公司',trade:'空調',taxId:'12978735',owner:'',tel:'',mobile:'',email:'',address:'新北市五股區五權六路39號',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'AC-002',name:'揚達空調',trade:'空調',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'AC-003',name:'晟廷空調工程行',trade:'空調',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
+  {code:'AC-004',name:'侑昇工程行',trade:'空調',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'ST-001',name:'奇碁科創有限公司',trade:'石材／人造石',taxId:'',owner:'',tel:'02-2602-3099',mobile:'',email:'',address:'',bank:'國泰世華銀行',branch:'南崁分行',account:'135-03-000637-5',accountName:'奇碁科創有限公司',payMethod:'匯款',note:'',status:'有效'},
   {code:'ST-002',name:'石家莊林明正（美容）',trade:'石材／人造石',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'國泰世華銀行',branch:'北投分行',account:'115-03-500090-1',accountName:'石家莊工程行林明正',payMethod:'匯款',note:'',status:'有效'},
   {code:'ST-003',name:'碇國',trade:'石材／人造石',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
@@ -4929,14 +4932,15 @@ let VENDORS = [
   {code:'LT-003',name:'源韋股份有限公司',trade:'燈具／設備及其他',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'玉山銀行',branch:'雙和分行',account:'0129-440-032296',accountName:'源韋股份有限公司',payMethod:'匯款',note:'',status:'有效'},
   {code:'LT-004',name:'華彩光電有限公司',trade:'燈具／設備及其他',taxId:'42993516',owner:'',tel:'02-8792-6066',mobile:'',email:'',address:'台北市內湖區新湖三路168號7樓',bank:'永豐銀行',branch:'三興分行',account:'147-018-0004081-9',accountName:'華彩光電有限公司',payMethod:'匯款',note:'',status:'有效'},
   {code:'LT-005',name:'電火國際有限公司',trade:'燈具／設備及其他',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'玉山銀行',branch:'安南分行',account:'1403940022517',accountName:'電火國際有限公司',payMethod:'匯款',note:'',status:'有效'},
+  {code:'LT-006',name:'澤鑠科技',trade:'燈具／設備及其他',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'CL-001',name:'威美英',trade:'完工清潔',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'中華郵政',branch:'',account:'00010063056595',accountName:'戚美英',payMethod:'匯款',note:'',status:'有效'},
   {code:'CL-002',name:'陳進財',trade:'完工清潔',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'桃園市龜山區農會',branch:'龍壽分部',account:'76804-01-000472-7',accountName:'陳進財',payMethod:'匯款',note:'',status:'有效'},
-  {code:'DS-001',name:'吳毓昌建築師事務所',trade:'設計製圖費',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'國泰世華銀行',branch:'三民分行',account:'057-50-501703-1',accountName:'吳毓昌',payMethod:'匯款',note:'',status:'有效'},
-  {code:'DS-002',name:'宗誠林文宗結構土木事務所',trade:'設計製圖費',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'台北富邦商業銀行',branch:'仁愛分行',account:'00704102006302',accountName:'宗誠結構土木技師事務所',payMethod:'匯款',note:'',status:'有效'},
-  {code:'DS-003',name:'恣在空間整合有限公司 連星羽',trade:'設計製圖費',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'新光銀行',branch:'蘆洲分行',account:'0295-10-100148-6',accountName:'恣在空間室內裝修工程有限公司',payMethod:'匯款',note:'',status:'有效'},
-  {code:'DS-004',name:'李鎮宇',trade:'設計製圖費',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
-  {code:'DS-005',name:'深圳市祺德設計有限公司',trade:'設計製圖費',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
-  {code:'DS-006',name:'連星羽',trade:'設計製圖費',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
+  {code:'CL-003',name:'林繆云',trade:'完工清潔',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'實際做清潔的廠商；請木作廠商森沅代開發票，付款記錄寫「林繆云（森沅發票）」。',status:'有效'},
+  {code:'PS-004',name:'吳毓昌建築師事務所',trade:'專業顧問服務',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'國泰世華銀行',branch:'三民分行',account:'057-50-501703-1',accountName:'吳毓昌',payMethod:'匯款',note:'',status:'有效'},
+  {code:'PS-005',name:'宗誠林文宗結構土木事務所',trade:'專業顧問服務',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'台北富邦商業銀行',branch:'仁愛分行',account:'00704102006302',accountName:'宗誠結構土木技師事務所',payMethod:'匯款',note:'',status:'有效'},
+  {code:'DS-004',name:'李鎮宇',trade:'設計製圖',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
+  {code:'DS-005',name:'深圳市祺德設計有限公司',trade:'設計製圖',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
+  {code:'DS-006',name:'連星羽',trade:'設計製圖',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'SP-001',name:'上順五金行',trade:'建材供應',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'瑞興銀行',branch:'',account:'0084221986691',accountName:'程千綺',payMethod:'匯款',note:'',status:'有效'},
   {code:'SP-002',name:'創意玩家股份有限公司',trade:'建材供應',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'SP-003',name:'富卯實業股份有限公司',trade:'建材供應',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
@@ -4960,8 +4964,10 @@ let VENDORS = [
   {code:'OT-001',name:'南山產物',trade:'其他',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'OT-002',name:'嘉義太保房租',trade:'其他',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'陽信銀行',branch:'向上分行',account:'07702-001767-1',accountName:'周秀貞',payMethod:'匯款',note:'',status:'有效'},
   {code:'OT-003',name:'國豐輪胎',trade:'其他',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
-  {code:'OT-004',name:'柏寶會計事務所',trade:'其他',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
-  {code:'OT-005',name:'統領律師事務所',trade:'其他',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'新光銀行',branch:'古亭分行',account:'0471100889066',accountName:'統領法律事務所',payMethod:'匯款',note:'',status:'有效'},
+  {code:'PS-001',name:'柏實會計事務所',trade:'專業顧問服務',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
+  {code:'PS-002',name:'林振明（柏實）',trade:'專業顧問服務',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'柏實會計事務所記帳人員；過去付款記錄曾用「林振銘」「柏實」等別名。',status:'有效'},
+  {code:'PS-003',name:'統領律師事務所',trade:'專業顧問服務',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'新光銀行',branch:'古亭分行',account:'0471100889066',accountName:'統領法律事務所',payMethod:'匯款',note:'',status:'有效'},
+  {code:'PS-006',name:'台北設計工會',trade:'專業顧問服務',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'OT-006',name:'美兆健檢中心',trade:'其他',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'OT-007',name:'鎔德股份有限公司',trade:'其他',taxId:'38648416',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'OT-008',name:'雨儂花房',trade:'其他',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
@@ -6459,11 +6465,38 @@ function applyDataSnapshot(d) {
   if (!d || typeof d !== 'object') return false;
   if (d.CASES)       { CASES.length = 0;       CASES.push(...d.CASES); }
   if (d.PAYABLES)    { PAYABLES.length = 0;    PAYABLES.push(...d.PAYABLES); }
+  // migration: 森沅（林繆云）清潔款改記為林繆云（森沅發票），實際廠商是林繆云、森沅木作代開發票
+  { const p = PAYABLES.find(x => x.vendor === '森沅（林繆云）' && x.summary === '清潔' && x.amount === 80640); if (p) p.vendor = '林繆云（森沅發票）'; }
   if (d.RECEIVABLES) { RECEIVABLES.length = 0; RECEIVABLES.push(...d.RECEIVABLES); }
   if (d.CLIENTS)     { CLIENTS.length = 0;     CLIENTS.push(...d.CLIENTS); }
   if (d.VENDORS)     { VENDORS.length = 0;     VENDORS.push(...d.VENDORS); }
   // migration: DM-011 莊自強 → TL-009 泥作及貼磚
   { const v = VENDORS.find(x => x.code === 'DM-011' && x.name === '莊自強'); if (v) { v.code = 'TL-009'; v.trade = '泥作及貼磚'; } }
+  // migration: 新增「專業顧問服務」類別（會計師／律師／建築師等），移入既有廠商並補建常用聯絡人
+  { const v = VENDORS.find(x => x.code === 'OT-004' && x.name === '柏寶會計事務所'); if (v) { v.code = 'PS-001'; v.name = '柏實會計事務所'; v.trade = '專業顧問服務'; } }
+  if (!VENDORS.some(x => x.name === '林振明（柏實）')) {
+    VENDORS.push({code:'PS-002',name:'林振明（柏實）',trade:'專業顧問服務',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'柏實會計事務所記帳人員；過去付款記錄曾用「林振銘」「柏實」等別名。',status:'有效'});
+  }
+  { const v = VENDORS.find(x => x.code === 'OT-005' && x.name === '統領律師事務所'); if (v) { v.code = 'PS-003'; v.trade = '專業顧問服務'; } }
+  { const v = VENDORS.find(x => x.code === 'DS-001' && x.name === '吳毓昌建築師事務所'); if (v) { v.code = 'PS-004'; v.trade = '專業顧問服務'; } }
+  { const v = VENDORS.find(x => x.code === 'DS-002' && x.name === '宗誠林文宗結構土木事務所'); if (v) { v.code = 'PS-005'; v.trade = '專業顧問服務'; } }
+  if (!VENDORS.some(x => x.name === '台北設計工會')) {
+    VENDORS.push({code:'PS-006',name:'台北設計工會',trade:'專業顧問服務',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'});
+  }
+  // migration: 設計製圖費類別更名為「設計製圖」（建築師／結構技師已移至專業顧問服務）
+  VENDORS.filter(x => x.trade === '設計製圖費').forEach(x => { x.trade = '設計製圖'; });
+  // migration: 刪除未使用的舊廠商「恣在空間整合有限公司 連星羽」(DS-003)；同名「連星羽」(DS-006) 仍有付款記錄引用，保留
+  { const idx = VENDORS.findIndex(x => x.code === 'DS-003' && x.name === '恣在空間整合有限公司 連星羽'); if (idx >= 0) VENDORS.splice(idx, 1); }
+  // migration: 新增燈具、空調、清潔廠商（原本只在應付帳款用簡稱，未建廠商主檔）
+  if (!VENDORS.some(x => x.name === '澤鑠科技')) {
+    VENDORS.push({code:'LT-006',name:'澤鑠科技',trade:'燈具／設備及其他',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'});
+  }
+  if (!VENDORS.some(x => x.name === '侑昇工程行')) {
+    VENDORS.push({code:'AC-004',name:'侑昇工程行',trade:'空調',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'});
+  }
+  if (!VENDORS.some(x => x.name === '林繆云')) {
+    VENDORS.push({code:'CL-003',name:'林繆云',trade:'完工清潔',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'實際做清潔的廠商；請木作廠商森沅代開發票，付款記錄寫「林繆云（森沅發票）」。',status:'有效'});
+  }
   if (d.EMPLOYEES)   { EMPLOYEES.length = 0;   EMPLOYEES.push(...d.EMPLOYEES); }
   if (d.EXPENSES && d.EXPENSES.length) { EXPENSES.length = 0; EXPENSES.push(...d.EXPENSES); }
   else { EXPENSES.length = 0; EXPENSES.push(...JSON.parse(JSON.stringify(INIT_EXPENSES))); }
@@ -16410,7 +16443,7 @@ function vendorPrefixForTrade(trade) {
   });
   const inferred = Object.entries(counts).sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
   if (inferred) return inferred;
-  const fallback = {'假設及拆運':'DM','土木工程':'TW','水電／照明':'EL','防水':'WP','輕隔間及輕鋼架天花板':'LG','泥作及貼磚':'TL','木作及系統櫃':'WD','門扇':'DR','鋁窗':'AL','鐵件及金屬':'MT','油漆':'PT','地坪':'FL','玻璃及貼膜':'GL','廣告及招牌':'AD','窗簾':'CR','空調':'AC','石材／人造石':'ST','衛浴設備':'BA','廚具設備':'KT','燈具／設備及其他':'EQ','完工清潔':'CL','設計製圖費':'DS','建材供應':'SP','傢俱設備':'FN','其他':'OT'};
+  const fallback = {'假設及拆運':'DM','土木工程':'TW','水電／照明':'EL','防水':'WP','輕隔間及輕鋼架天花板':'LG','泥作及貼磚':'TL','木作及系統櫃':'WD','門扇':'DR','鋁窗':'AL','鐵件及金屬':'MT','油漆':'PT','地坪':'FL','玻璃及貼膜':'GL','廣告及招牌':'AD','窗簾':'CR','空調':'AC','石材／人造石':'ST','衛浴設備':'BA','廚具設備':'KT','燈具／設備及其他':'EQ','完工清潔':'CL','設計製圖':'DS','專業顧問服務':'PS','建材供應':'SP','傢俱設備':'FN','其他':'OT'};
   return fallback[trade] || 'VD';
 }
 function vdSuggestCodeFromTrade() {
