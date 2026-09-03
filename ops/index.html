@@ -13211,7 +13211,7 @@ function expBatchInitEdit(id) {
   if (tbody) tbody.innerHTML = '';
   expRefreshBatchCaseDatalist();
   const mEl = document.getElementById('exp-batch-month');
-  if (mEl) { mEl.value = r.month || ''; mEl.disabled = true; }
+  if (mEl) { mEl.value = r.month || ''; mEl.disabled = false; }
   expRefreshBatchPersonOptions(r.person || currentUser.id, { includeInactive:true });
   const personEl = document.getElementById('exp-batch-person');
   if (personEl) { personEl.value = r.person || currentUser.id; personEl.disabled = true; personEl.style.opacity = '.75'; }
@@ -13367,7 +13367,14 @@ function expBatchMonthChanged() {
   if (!month) return;
   document.querySelectorAll('#exp-batch-tbody tr').forEach(tr => {
     const dateEl = tr.querySelectorAll('input,select')[2];
-    if (dateEl && /^\d{4}-\d{2}-01$/.test(dateEl.value)) dateEl.value = month+'-01';
+    if (!dateEl) return;
+    if (expBatchEditId !== null) {
+      // 修改模式：保留原本的「日」，只把年－月換成新選的月份
+      const day = (dateEl.value && dateEl.value.length >= 10) ? dateEl.value.slice(8,10) : '01';
+      dateEl.value = `${month}-${day}`;
+    } else if (/^\d{4}-\d{2}-01$/.test(dateEl.value)) {
+      dateEl.value = month+'-01';
+    }
   });
 }
 function expBatchInit() {
@@ -13429,6 +13436,7 @@ function submitBatchExpense() {
       const row = pendingRows[0];
       expRemoveLinkedOverhead(r);
       Object.assign(r, {
+        month: row.month,
         caseKey: row.caseKey, caseName: row.caseName,
         date: row.date, item: row.item, amount: row.amount,
         category: row.category, receipt: row.receipt,
