@@ -1556,13 +1556,13 @@ body.auth-pending .auth-screen{display:flex}
       </div>
       <input class="search-input" id="rv-search" placeholder="搜尋買受人、項目、金額、個案編號…" oninput="renderReceivable()" style="height:32px">
       <select class="filter-select" id="rv-filter-case" onchange="renderReceivable()" style="min-width:220px;max-width:280px"><option value="">── 全部個案 ──</option></select>
-      <select class="filter-select" id="rv-filter-year" onchange="renderReceivable()" style="height:32px;min-width:96px">
+      <select class="filter-select" id="rv-filter-year" onchange="renderReceivable()" title="要看全部待收款，請將年份設為「全部年度」並清空日期欄位。" style="height:32px;min-width:96px">
         <option value="">全部年度</option>
         <option value="2025">2025年</option>
         <option value="2026" selected>2026年</option>
       </select>
-      <input class="filter-select" id="rv-date-from" type="date" onchange="renderReceivable()" title="起始日期" style="height:32px;min-width:136px">
-      <input class="filter-select" id="rv-date-to" type="date" onchange="renderReceivable()" title="結束日期" style="height:32px;min-width:136px">
+      <input class="filter-select" id="rv-date-from" type="date" onchange="renderReceivable()" title="要看全部待收款，請將年份設為「全部年度」並清空日期欄位。" style="height:32px;min-width:136px">
+      <input class="filter-select" id="rv-date-to" type="date" onchange="renderReceivable()" title="要看全部待收款，請將年份設為「全部年度」並清空日期欄位。" style="height:32px;min-width:136px">
       <select class="filter-select" id="rv-sort" onchange="renderReceivable()" style="height:32px;min-width:148px">
         <option value="date-desc">日期新到舊</option>
         <option value="date-asc">日期舊到新</option>
