@@ -3175,7 +3175,7 @@ body.auth-pending .auth-screen{display:flex}
         </div>
         <div class="form-field">
           <label class="form-label">受款廠商</label>
-          <input class="form-input" id="ap-add-vendor" placeholder="廠商名稱" list="dl-ap-vendors" autocomplete="off">
+          <input class="form-input" id="ap-add-vendor" placeholder="輸入廠商名稱或代碼搜尋…" title="再次點擊可清除並重新選擇" list="dl-ap-vendors" autocomplete="off" onmousedown="payreqVendorPickerMouseDown(this)">
           <datalist id="dl-ap-vendors"></datalist>
         </div>
         <div class="form-field">
@@ -6467,6 +6467,11 @@ function applyDataSnapshot(d) {
   if (d.PAYABLES)    { PAYABLES.length = 0;    PAYABLES.push(...d.PAYABLES); }
   // migration: 森沅（林繆云）清潔款改記為林繆云（森沅發票），實際廠商是林繆云、森沅木作代開發票
   { const p = PAYABLES.find(x => x.vendor === '森沅（林繆云）' && x.summary === '清潔' && x.amount === 80640); if (p) p.vendor = '林繆云（森沅發票）'; }
+  // migration: 受款廠商曾誤存成「廠商代碼 - 廠商名稱」（picker 選取時整段存進去），只留廠商名稱
+  PAYABLES.forEach(p => {
+    const m = String(p.vendor || '').match(/^[A-Z]{2,3}-\d{3,4}\s*-\s*(.+)$/);
+    if (m) p.vendor = m[1].trim();
+  });
   if (d.RECEIVABLES) { RECEIVABLES.length = 0; RECEIVABLES.push(...d.RECEIVABLES); }
   if (d.CLIENTS)     { CLIENTS.length = 0;     CLIENTS.push(...d.CLIENTS); }
   if (d.VENDORS)     { VENDORS.length = 0;     VENDORS.push(...d.VENDORS); }
@@ -8251,9 +8256,18 @@ function applyDefaultPeriodForPage(page) {
   if (periodInitializedPages.has(page)) return; // 已經套用過一次，之後切換模組要停留在使用者調整過的區間
   periodInitializedPages.add(page);
   const month = currentMonthKey();
+  // 費用申請／應付帳款／應收帳款是清單＋篩選，「不篩選」是有意義的狀態，
+  // 預設不帶月份／年份／日期區間，避免把還沒有日期的待審核／待入帳資料濾掉。
   if (page === 'expense') {
-    setControlValue('exp-filter-month', month);
+    setControlValue('exp-filter-month', '');
   }
+  if (page === 'payable' || page === 'receivable') {
+    const prefix = page === 'payable' ? 'py' : 'rv';
+    setControlValue(`${prefix}-filter-year`, '');
+    setControlValue(`${prefix}-date-from`, '');
+    setControlValue(`${prefix}-date-to`, '');
+  }
+  // 出勤／公司開銷／薪資是「每次只看一個月」的月結表，沒有「全部」狀態，維持預設本月。
   if (page === 'attendance') {
     setControlValue('att-filter-month', month);
   }
@@ -8264,13 +8278,6 @@ function applyDefaultPeriodForPage(page) {
     prRenderMonthOptions(month);
     setControlValue('pr-range-from', month);
     setControlValue('pr-range-to', month);
-  }
-  if (page === 'payable' || page === 'receivable') {
-    const prefix = page === 'payable' ? 'py' : 'rv';
-    const range = monthDateRange(month);
-    setControlValue(`${prefix}-filter-year`, currentYearKey());
-    setControlValue(`${prefix}-date-from`, range.start);
-    setControlValue(`${prefix}-date-to`, range.end);
   }
 }
 
@@ -11714,7 +11721,9 @@ function submitAddPayable() {
   const editId  = document.getElementById('ap-edit-id').value;
   const caseEl  = document.getElementById('ap-add-case');
   const caseVal = caseEl.value;
-  const vendor  = document.getElementById('ap-add-vendor').value.trim();
+  const vendorRaw = document.getElementById('ap-add-vendor').value.trim();
+  // datalist 格式是 "CODE - 廠商名稱"，取後面的名稱；若直接打名字也直接用
+  const vendor  = vendorRaw.includes(' - ') ? vendorRaw.split(' - ').slice(1).join(' - ') : vendorRaw;
   const amount  = document.getElementById('ap-add-amount').value.trim();
   const summary = document.getElementById('ap-add-summary').value.trim();
   const date    = document.getElementById('ap-add-date').value;
