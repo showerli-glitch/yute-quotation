@@ -1203,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.100 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.0 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1758,12 +1758,13 @@ body.auth-pending .auth-screen{display:flex}
     </div>
     <div id="oh-fixed-expense-review-wrap" style="display:none;margin:16px 20px 0;padding:14px 16px;background:var(--warning-bg,rgba(224,176,112,.12));border:1px solid var(--warning);border-radius:10px">
       <div style="font-size:13px;font-weight:700;color:var(--warning);margin-bottom:8px">費用申請對帳建議（2026-04～2026-08，只列出來比對，不會自動覆蓋）</div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">下面月份的固定支出格子已經有金額，同時「固定開銷」費用申請也核准了同名項目，兩邊金額不一定一樣，要用哪個請自己判斷、手動改對應格子。</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">下面月份的固定支出格子已經有金額，同時「固定開銷」費用申請也核准了同名項目，兩邊金額不一定一樣：點「採用目前」保留公司開銷現有數字、點「採用核准」改用費用申請核准合計，選好後這列就不會再提示。</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="border-bottom:1px solid var(--border)">
           <th style="text-align:left;padding:4px 8px">月份</th><th style="text-align:left;padding:4px 8px">項目</th>
           <th style="text-align:right;padding:4px 8px">目前公司開銷金額</th><th style="text-align:right;padding:4px 8px">費用申請核准合計</th>
           <th style="text-align:right;padding:4px 8px">差異</th><th style="text-align:center;padding:4px 8px">核准筆數</th>
+          <th style="text-align:center;padding:4px 8px">操作</th>
         </tr></thead>
         <tbody id="oh-fixed-expense-review-tbody"></tbody>
       </table>
@@ -5990,7 +5991,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.100', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.0', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6051,7 +6052,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.100', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.0', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7174,7 +7175,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.100';
+  merged.appVersion = '1.3.0';
   return { ok:true, data:merged };
 }
 
@@ -7298,7 +7299,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.100';
+  merged.appVersion = '1.3.0';
   return { ok:true, data:merged };
 }
 
@@ -7410,7 +7411,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.100';
+  merged.appVersion = '1.3.0';
   return { ok:true, data:merged };
 }
 
@@ -7529,7 +7530,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.100';
+  merged.appVersion = '1.3.0';
   return { ok:true, data:merged };
 }
 
@@ -13983,6 +13984,7 @@ function expRebuildFixedOverheadLinks() {
     if (idx < 0) return;
     if (g.month < OH_FIXED_EXPENSE_AUTO_LINK_FROM) {
       if (!OVERHEAD[g.month]) return;
+      if (OVERHEAD[g.month].fixedExpenseReviewResolved?.[g.item]) return;
       const current = Number(OVERHEAD[g.month].fixed?.[idx]) || 0;
       ohFixedExpenseReviewList.push({ month:g.month, item:g.item, currentAmount:current, expenseTotal:g.total, diff:g.total - current, count:g.rows.length });
       return;
@@ -14067,6 +14069,10 @@ function renderOverhead() {
           <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace">$${r.expenseTotal.toLocaleString('zh-TW')}</td>
           <td style="padding:5px 8px;text-align:right;font-family:'DM Mono',monospace;color:${r.diff===0?'var(--text3)':'var(--error)'}">${r.diff===0?'—':(r.diff>0?'+':'')+r.diff.toLocaleString('zh-TW')}</td>
           <td style="padding:5px 8px;text-align:center">${r.count} 筆</td>
+          <td style="padding:5px 8px;text-align:center;white-space:nowrap">
+            <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" onclick="ohResolveFixedExpenseReview('${r.month}','${r.item}','keep')">採用目前</button>
+            <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" onclick="ohResolveFixedExpenseReview('${r.month}','${r.item}','adopt')">採用核准</button>
+          </td>
         </tr>`).join('');
     } else {
       reviewWrap.style.display = 'none';
@@ -14126,6 +14132,27 @@ function ohUpdateNote(month, idx, val) {
   if (!Array.isArray(OVERHEAD[month].fixedNotes)) OVERHEAD[month].fixedNotes = OH_FIXED_CONFIG.map(()=>'');
   OVERHEAD[month].fixedNotes[idx] = val.trim();
   saveData();
+}
+// 費用申請對帳建議（2026-04～2026-08）一鍵採用：keep=保留公司開銷目前金額，adopt=改用費用申請核准合計。兩種都會把這列標記為已處理，之後不再提示。
+function ohResolveFixedExpenseReview(month, item, action) {
+  if (!requireManage('overhead')) return;
+  if (!OVERHEAD[month]) return;
+  const idx = OH_FIXED_CONFIG.indexOf(item);
+  if (idx < 0) return;
+  const data = OVERHEAD[month];
+  if (action === 'adopt') {
+    const g = expApprovedFixedOverheadByMonthItem().get(`${month}|${item}`);
+    if (g) {
+      data.fixed[idx] = g.total;
+      const linkedNotes = g.rows.map(e => `費用#${e.id} ${e.item}／${(Number(e.amount)||0).toLocaleString('zh-TW')}`).join('；');
+      data.fixedNotes[idx] = ['依費用申請核准金額採用', linkedNotes].filter(Boolean).join('；');
+    }
+  }
+  data.fixedExpenseReviewResolved = data.fixedExpenseReviewResolved || {};
+  data.fixedExpenseReviewResolved[item] = true;
+  renderOverhead();
+  saveData();
+  showToast(action === 'adopt' ? '已改用費用申請核准合計' : '已保留目前金額，不再提示這列', 'success');
 }
 function ohDeleteFixedItem(idx) {
   if (!requireManage('overhead')) return;
