@@ -1203,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.97 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.98 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5978,7 +5978,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.97', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.98', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6039,7 +6039,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.97', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.98', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7137,7 +7137,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.97';
+  merged.appVersion = '1.2.98';
   return { ok:true, data:merged };
 }
 
@@ -7261,7 +7261,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.97';
+  merged.appVersion = '1.2.98';
   return { ok:true, data:merged };
 }
 
@@ -7373,7 +7373,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.97';
+  merged.appVersion = '1.2.98';
   return { ok:true, data:merged };
 }
 
@@ -7492,7 +7492,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.97';
+  merged.appVersion = '1.2.98';
   return { ok:true, data:merged };
 }
 
@@ -15431,7 +15431,10 @@ function prDeleteMonth() {
 }
 
 function prSelectableUsers() {
-  const people = activeSystemUsers().filter(u => u.id !== 'shower' && (PR_CONFIG[u.id] || employeeById(u.id)));
+  // 離職員工若曾有薪資紀錄，仍要留在名單裡——那筆歷史薪資已經算進公司開銷／分潤等下游總額，
+  // 選單完全排除會讓人看不到、對不起帳，誤以為總額少算或多算。
+  const payrollHistoryIds = new Set(PAYROLL.map(r => r.person).filter(Boolean));
+  const people = activeSystemUsers({ includeIds: [...payrollHistoryIds] }).filter(u => u.id !== 'shower' && (PR_CONFIG[u.id] || employeeById(u.id)));
   if (canManage('payroll')) people.unshift({id:'shower', name:'李鎮宇', role:'股東／分潤提領'});
   return people;
 }
@@ -15469,7 +15472,7 @@ function prRenderEmployeeTabs() {
 
 function prSelectEmp(el, person) {
   if (!canManage('payroll') && person !== currentUser.id) { showToast('您只能查看自己的薪資', 'error'); return; }
-  if (person !== 'shower' && !isActiveEmployeeId(person)) { showToast('此員工已離職，薪資選單已停用', 'warning'); prRenderEmployeeTabs(); return; }
+  // 離職員工的歷史薪資仍要能查／能核對，只是不能再產生新的出勤薪資草稿（那段邏輯本來就只認在職員工）。
   document.querySelectorAll('.pr-emp-tab').forEach(b => { b.classList.remove('btn-primary','active'); b.classList.add('btn-ghost'); });
   el.classList.remove('btn-ghost'); el.classList.add('btn-primary','active');
   prCurrentEmp = person;
