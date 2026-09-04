@@ -1203,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.3.0 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.1 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1757,8 +1757,8 @@ body.auth-pending .auth-screen{display:flex}
       <div class="stat-item"><div class="stat-label">月合計</div><div class="stat-value" id="oh-stat-total">$0</div></div>
     </div>
     <div id="oh-fixed-expense-review-wrap" style="display:none;margin:16px 20px 0;padding:14px 16px;background:var(--warning-bg,rgba(224,176,112,.12));border:1px solid var(--warning);border-radius:10px">
-      <div style="font-size:13px;font-weight:700;color:var(--warning);margin-bottom:8px">費用申請對帳建議（2026-04～2026-08，只列出來比對，不會自動覆蓋）</div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">下面月份的固定支出格子已經有金額，同時「固定開銷」費用申請也核准了同名項目，兩邊金額不一定一樣：點「採用目前」保留公司開銷現有數字、點「採用核准」改用費用申請核准合計，選好後這列就不會再提示。</div>
+      <div style="font-size:13px;font-weight:700;color:var(--warning);margin-bottom:8px">費用申請對帳建議（2026-04 起，只列出來比對，不會自動覆蓋）</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">下面月份的固定支出格子跟「固定開銷」費用申請核准的同名項目金額對不起來：點「採用目前」保留公司開銷現有數字、點「採用核准」改用費用申請核准合計，選好後這列就不會再提示；每個月都會檢查，不會只出現一次。</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="border-bottom:1px solid var(--border)">
           <th style="text-align:left;padding:4px 8px">月份</th><th style="text-align:left;padding:4px 8px">項目</th>
@@ -5991,7 +5991,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.0', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.1', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6052,7 +6052,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.0', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.1', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7175,7 +7175,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.0';
+  merged.appVersion = '1.3.1';
   return { ok:true, data:merged };
 }
 
@@ -7299,7 +7299,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.0';
+  merged.appVersion = '1.3.1';
   return { ok:true, data:merged };
 }
 
@@ -7411,7 +7411,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.0';
+  merged.appVersion = '1.3.1';
   return { ok:true, data:merged };
 }
 
@@ -7530,7 +7530,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.0';
+  merged.appVersion = '1.3.1';
   return { ok:true, data:merged };
 }
 
@@ -13956,20 +13956,17 @@ function expApprovedFixedOverheadByMonthItem() {
   });
   return map;
 }
-// 2026-04～2026-08 已有人工填過數字的月份，只列出來比對，不自動覆蓋；2026-09 起才自動連動寫入。
+// 2026-04 起：固定支出格子如果跟已核准「固定開銷」費用金額對不起來，只列出來讓使用者自己選「採用目前」或「採用核准」，永遠不自動覆蓋、也不鎖定格子
+// （使用者常會先複製上個月數字帶入新月份，若自動連動會把核准金額加在複製的數字上面造成重複計算，所以改成每個月都要人工確認）。
 // 2026-03 及更早維持不動，完全不處理（對過帳的期間）。
-const OH_FIXED_EXPENSE_AUTO_LINK_FROM = '2026-09';
 const OH_FIXED_EXPENSE_REVIEW_FROM = '2026-04';
 let ohFixedExpenseReviewList = [];
 function expRebuildFixedOverheadLinks() {
   const groups = expApprovedFixedOverheadByMonthItem();
   ohFixedExpenseReviewList = [];
-  const autoKeys = new Set([...groups.values()].filter(g => g.month >= OH_FIXED_EXPENSE_AUTO_LINK_FROM).map(g => `${g.month}|${g.item}`));
-  Object.entries(OVERHEAD || {}).forEach(([month, data]) => {
-    if (month < OH_FIXED_EXPENSE_AUTO_LINK_FROM) return;
+  // 還原舊版（v1.2.99～v1.3.0）9月起自動連動鎖定過的欄位，改回人工可編輯，金額退回鎖定前的手動值
+  Object.entries(OVERHEAD || {}).forEach(([, data]) => {
     Object.entries(data?.fixedExpenseManagedItems || {}).forEach(([item, meta]) => {
-      const key = `${month}|${item}`;
-      if (autoKeys.has(key)) return;
       const idx = OH_FIXED_CONFIG.indexOf(item);
       if (idx >= 0) {
         data.fixed[idx] = Number(meta.manualBackup) || 0;
@@ -13982,23 +13979,12 @@ function expRebuildFixedOverheadLinks() {
     if (g.month < OH_FIXED_EXPENSE_REVIEW_FROM) return;
     const idx = OH_FIXED_CONFIG.indexOf(g.item);
     if (idx < 0) return;
-    if (g.month < OH_FIXED_EXPENSE_AUTO_LINK_FROM) {
-      if (!OVERHEAD[g.month]) return;
-      if (OVERHEAD[g.month].fixedExpenseReviewResolved?.[g.item]) return;
-      const current = Number(OVERHEAD[g.month].fixed?.[idx]) || 0;
-      ohFixedExpenseReviewList.push({ month:g.month, item:g.item, currentAmount:current, expenseTotal:g.total, diff:g.total - current, count:g.rows.length });
-      return;
-    }
-    if (!OVERHEAD[g.month]) ohInitMonth(g.month);
-    const data = OVERHEAD[g.month];
-    data.fixedExpenseManagedItems = data.fixedExpenseManagedItems || {};
-    const existing = data.fixedExpenseManagedItems[g.item];
-    const meta = existing || { manualBackup:Number(data.fixed[idx]) || 0, manualNoteBackup:String(data.fixedNotes[idx] || '') };
-    meta.links = g.rows.map(e => ({ expenseId:e.id, amount:Number(e.amount) || 0, item:e.item, date:e.date }));
-    data.fixedExpenseManagedItems[g.item] = meta;
-    data.fixed[idx] = (Number(meta.manualBackup) || 0) + meta.links.reduce((s,r) => s + r.amount, 0);
-    const linkedNotes = g.rows.map(e => `費用#${e.id} ${e.item}／${(Number(e.amount) || 0).toLocaleString('zh-TW')}`).join('；');
-    data.fixedNotes[idx] = [meta.manualNoteBackup, linkedNotes].filter(Boolean).join('；');
+    if (!OVERHEAD[g.month]) return;
+    if (OVERHEAD[g.month].fixedExpenseReviewResolved?.[g.item]) return;
+    const current = Number(OVERHEAD[g.month].fixed?.[idx]) || 0;
+    const diff = g.total - current;
+    if (diff === 0) return;
+    ohFixedExpenseReviewList.push({ month:g.month, item:g.item, currentAmount:current, expenseTotal:g.total, diff, count:g.rows.length });
   });
   ohFixedExpenseReviewList.sort((a,b) => a.month === b.month ? a.item.localeCompare(b.item,'zh-TW') : a.month.localeCompare(b.month));
 }
@@ -14028,8 +14014,7 @@ function renderOverhead() {
       const isPayroll = i === salaryIdx;
       const isLinkedRent = name === '房租' && data.rentPayableManaged;
       const isLinkedFixed = !!data.fixedPayableManagedItems?.[name];
-      const isLinkedExpense = !!data.fixedExpenseManagedItems?.[name];
-      const isLocked = isPayroll || isLinkedRent || isLinkedFixed || isLinkedExpense;
+      const isLocked = isPayroll || isLinkedRent || isLinkedFixed;
       return `
       <tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
         <td style="padding:8px 14px;font-size:12px;white-space:nowrap">${name}</td>
@@ -14044,7 +14029,7 @@ function renderOverhead() {
         </td>
         <td style="padding:4px 8px">
           ${isLocked
-            ? `<span style="font-size:11px;color:var(--text3)">${isPayroll ? '自動同步薪資模組' : isLinkedExpense ? (data.fixedNotes[i] || '由已核准固定開銷費用自動彙總') : (data.fixedNotes[i] || '由已付款應付帳款自動彙總')}</span>`
+            ? `<span style="font-size:11px;color:var(--text3)">${isPayroll ? '自動同步薪資模組' : (data.fixedNotes[i] || '由已付款應付帳款自動彙總')}</span>`
             : `<input type="text" value="${(data.fixedNotes[i]||'').replace(/"/g,'&quot;')}" placeholder="備註…" ${manage?'':'readonly'}
               style="background:transparent;border:none;outline:none;width:100%;font-size:11px;color:var(--text3);padding:2px 4px;border-radius:4px"
               onfocus="this.style.background='var(--surface2)';this.style.border='1px solid var(--border)'"
@@ -14055,7 +14040,7 @@ function renderOverhead() {
       </tr>`;
     }).join('');
   }
-  // 費用申請對帳建議（2026-04～2026-08）
+  // 費用申請對帳建議（2026-04 起，每個月持續檢查）
   const reviewWrap = document.getElementById('oh-fixed-expense-review-wrap');
   const reviewTbody = document.getElementById('oh-fixed-expense-review-tbody');
   if (reviewWrap && reviewTbody) {
@@ -14133,7 +14118,7 @@ function ohUpdateNote(month, idx, val) {
   OVERHEAD[month].fixedNotes[idx] = val.trim();
   saveData();
 }
-// 費用申請對帳建議（2026-04～2026-08）一鍵採用：keep=保留公司開銷目前金額，adopt=改用費用申請核准合計。兩種都會把這列標記為已處理，之後不再提示。
+// 費用申請對帳建議（2026-04 起，每個月都會檢查）一鍵採用：keep=保留公司開銷目前金額，adopt=改用費用申請核准合計。兩種都會把這列標記為已處理，之後不再提示。
 function ohResolveFixedExpenseReview(month, item, action) {
   if (!requireManage('overhead')) return;
   if (!OVERHEAD[month]) return;
