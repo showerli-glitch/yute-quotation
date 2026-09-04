@@ -1203,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.95 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.96 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5978,7 +5978,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.95', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.96', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6039,7 +6039,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.95', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.96', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7137,7 +7137,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.95';
+  merged.appVersion = '1.2.96';
   return { ok:true, data:merged };
 }
 
@@ -7261,7 +7261,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.95';
+  merged.appVersion = '1.2.96';
   return { ok:true, data:merged };
 }
 
@@ -7373,7 +7373,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.95';
+  merged.appVersion = '1.2.96';
   return { ok:true, data:merged };
 }
 
@@ -7492,7 +7492,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.95';
+  merged.appVersion = '1.2.96';
   return { ok:true, data:merged };
 }
 
@@ -11115,6 +11115,21 @@ function renderPayable() {
     if (!searchTextMatches(searchable, kw)) return false;
     return true;
   });
+  // 「全年累計應付」要能超過目前瀏覽的日期區間（跟個案／年份／搜尋一起篩，但不受起訖日期限制）。
+  const yearRows = PAYABLES.filter(p => {
+    if (!canViewPayableRow(p)) return false;
+    if (filterCase && p.case !== filterCase) return false;
+    if (filterYear && !payableDate(p).startsWith(filterYear)) return false;
+    const searchable = [
+      p.vendor, p.summary, p.caseName, p.case, p.person,
+      p.wantDate, p.transferDate, p.doneDate, p.ticket, p.bank,
+      searchAmountText(p.amount),
+      showPaymentType ? paymentTypeLabel(p.paymentType) : '',
+      isProfitPaymentType(p.paymentType) ? psPersonName(p.profitPerson) : '',
+    ].filter(Boolean).join(' ').toLowerCase();
+    if (!searchTextMatches(searchable, kw)) return false;
+    return true;
+  });
   const rows = sortOpsRows(baseRows, sortMode, payableDate, p => p.vendor, p => p.amount);
   const statusLabel = {pending:'待審核', approved:'待付款', paid:'已付款'};
   const statusClass = {pending:'tag-pending', approved:'tag-active', paid:'tag-done'};
@@ -11167,10 +11182,10 @@ function renderPayable() {
         </td>
       </tr>`).join('');
   }
-  updatePayableStats(statsRows);
+  updatePayableStats(statsRows, yearRows);
 }
 
-function updatePayableStats(scopeRows = null) {
+function updatePayableStats(scopeRows = null, yearScopeRows = null) {
   const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
   if (!canSeeFinancialTotals()) {
     set('py-stat-pending-count', '—');
@@ -11199,7 +11214,11 @@ function updatePayableStats(scopeRows = null) {
   const paidDate = p => p.doneDate || p.transferDate || p.wantDate || '';
   // 已付款合計：跟「待審核」「待付款」一樣算目前篩選範圍內的，不要另外跟「今天的真實月份」交集——
   // 不然瀏覽別的月份時，明明畫面上一堆已付款，這裡卻顯示 $0，看起來像沒統計到。
-  const paidScopedYear = selYear ? paid.filter(p => paidDate(p).startsWith(selYear)) : paid;
+  // 全年累計應付：故意不受起訖日期篩選影響（跟個案／年份／搜尋一起篩），不然篩了某個月份區間，
+  // 這裡會跟「已付款合計」算出一樣的數字，看起來像沒有把全年度算進去。
+  const yearBasePayables = yearScopeRows || visiblePayables;
+  const yearPaid = yearScopeRows ? yearBasePayables.filter(p => p.status === 'paid') : paid;
+  const paidScopedYear = selYear ? yearPaid.filter(p => paidDate(p).startsWith(selYear)) : yearPaid;
 
   set('py-stat-paid-amt', '$' + sum(paid).toLocaleString('zh-TW'));
   set('py-stat-paid-count', paid.length + ' 筆');
@@ -12007,6 +12026,21 @@ function renderReceivable() {
     if (!searchTextMatches(searchable, kw)) return false;
     return true;
   });
+  // 「已入帳合計（年度）」要能超過目前瀏覽的日期區間（跟個案／年份／搜尋一起篩，但不受起訖日期限制）。
+  const yearRows = RECEIVABLES.filter(r => {
+    if (filterCase && r.case !== filterCase) return false;
+    if (!userCanViewCaseFinancials(r.case, 'receivable')) return false;
+    if (filterYear && !receivableDate(r).startsWith(filterYear)) return false;
+    const searchable = [
+      r.buyer, r.item, r.caseName, r.case, r.invoiceNo, r.progress, r.bank,
+      r.collectDate, r.invoiceDate, r.retentionDue,
+      searchAmountText(r.collectAmt),
+      searchAmountText(r.invoiceAmt),
+      searchAmountText(r.contractAmt),
+    ].filter(Boolean).join(' ');
+    if (!searchTextMatches(searchable, kw)) return false;
+    return true;
+  });
   const rows = sortOpsRows(statsRows.filter(r => {
     const collected = receivableIsCollected(r);
     if (rvTab_current === 'collected' && !collected) return false;
@@ -12063,10 +12097,10 @@ function renderReceivable() {
         </td>
       </tr>`).join('');
   }
-  updateReceivableStats(statsRows);
+  updateReceivableStats(statsRows, yearRows);
 }
 
-function updateReceivableStats(scopeRows = null) {
+function updateReceivableStats(scopeRows = null, yearScopeRows = null) {
   const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
   if (!canSeeFinancialTotals()) {
     set('rv-stat-month-amt', '—');
@@ -12083,9 +12117,11 @@ function updateReceivableStats(scopeRows = null) {
   // 已入帳合計：跟「待收款」一樣算目前篩選範圍內的，不要另外跟「今天的真實月份」交集——
   // 不然瀏覽別的月份時，明明畫面上一堆已入帳，這裡卻顯示 $0，看起來像沒統計到。
   const monthRows = visibleRows.filter(r => receivableIsCollected(r));
+  // 年度累計入帳：故意不受起訖日期篩選影響，不然篩了某個月份區間，這裡會跟「已入帳合計」算出一樣的數字。
+  const yearBaseRows = yearScopeRows || visibleRows;
   const yearRows  = selYearRv
-    ? visibleRows.filter(r => r.collectDate?.startsWith(selYearRv) && receivableIsCollected(r))
-    : visibleRows.filter(r => receivableIsCollected(r));
+    ? yearBaseRows.filter(r => r.collectDate?.startsWith(selYearRv) && receivableIsCollected(r))
+    : yearBaseRows.filter(r => receivableIsCollected(r));
   const pending   = visibleRows.filter(r => r.status==='pending');
   const noInv     = visibleRows.filter(r => rvNeedsInvoice(r) && !r.invoiceNo);
   const sum = (arr, field) => arr.reduce((s,r) => s+(r[field]||0), 0);
