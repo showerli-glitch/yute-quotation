@@ -1203,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.2.96 · 2026</div>
+    <div class="sidebar-ver">Codex v1.2.97 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5978,7 +5978,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.96', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.2.97', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6039,7 +6039,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.2.96', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.2.97', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7137,7 +7137,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.96';
+  merged.appVersion = '1.2.97';
   return { ok:true, data:merged };
 }
 
@@ -7261,7 +7261,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.96';
+  merged.appVersion = '1.2.97';
   return { ok:true, data:merged };
 }
 
@@ -7373,7 +7373,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.96';
+  merged.appVersion = '1.2.97';
   return { ok:true, data:merged };
 }
 
@@ -7492,7 +7492,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.2.96';
+  merged.appVersion = '1.2.97';
   return { ok:true, data:merged };
 }
 
@@ -8207,6 +8207,39 @@ function activateDefaultPageForUser() {
   if (!canAccess(target)) return false;
   navTo(target, navElForPage(target));
   return true;
+}
+
+// 偵測手機／瀏覽器快取住舊版頁面：曾實際發生過（時薪算成舊版的 0、假別顯示英文代碼 bereavement）
+// 使用者以為是功能壞掉，其實只是手機還在跑部署前的舊 JS。定期比對線上版本號，不一致就提示重新整理。
+let opsNewVersionNoticeShown = false;
+function opsShowNewVersionBanner(newVersion) {
+  if (document.getElementById('ops-new-version-banner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'ops-new-version-banner';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--warning);color:#fff;padding:10px 16px;font-size:13px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.15)';
+  bar.innerHTML = `<span>系統已發布新版本（${tfEsc(newVersion)}），部分功能可能顯示不正確，請重新整理頁面。</span>
+    <button onclick="location.reload()" style="background:#fff;color:var(--warning);border:none;border-radius:6px;padding:4px 12px;font-weight:600;cursor:pointer;font-size:12px">立即重新整理</button>
+    <button onclick="document.getElementById('ops-new-version-banner').remove()" style="background:transparent;border:1px solid #fff;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px">稍後</button>`;
+  document.body.prepend(bar);
+}
+async function opsCheckForNewVersion() {
+  if (!OPS_AUTH_ENFORCED) return; // 本機 file:// 開發模式不檢查
+  if (opsNewVersionNoticeShown) return;
+  try {
+    const res = await fetch(window.location.pathname, { cache: 'no-store' });
+    if (!res.ok) return;
+    const html = await res.text();
+    const remoteMatch = html.match(/sidebar-ver">Codex (v[\d.]+)/);
+    const currentMatch = document.querySelector('.sidebar-ver')?.textContent.match(/Codex (v[\d.]+)/);
+    if (remoteMatch && currentMatch && remoteMatch[1] !== currentMatch[1]) {
+      opsNewVersionNoticeShown = true;
+      opsShowNewVersionBanner(remoteMatch[1]);
+    }
+  } catch (e) { /* 網路異常就跳過，不要吵使用者 */ }
+}
+if (typeof window !== 'undefined') {
+  setTimeout(opsCheckForNewVersion, 15000);
+  setInterval(opsCheckForNewVersion, 5 * 60 * 1000);
 }
 
 function firstAccessiblePage() {
