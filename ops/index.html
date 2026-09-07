@@ -1203,7 +1203,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.3.4 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.5 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -5989,7 +5989,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.4', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.5', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6050,7 +6050,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.4', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.5', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -6522,6 +6522,18 @@ function applyDataSnapshot(d) {
   if (d.TAX_LIABILITIES) { TAX_LIABILITIES.length = 0; TAX_LIABILITIES.push(...d.TAX_LIABILITIES); }
   if (Array.isArray(d.TEST_FEEDBACK)) { TEST_FEEDBACK.length = 0; TEST_FEEDBACK.push(...d.TEST_FEEDBACK); }
   if (Array.isArray(d.ATTENDANCE_RECORDS)) { ATTENDANCE_RECORDS.length = 0; ATTENDANCE_RECORDS.push(...d.ATTENDANCE_RECORDS); }
+  // migration: 修正盧彥辰 2026-09-04 出勤——當天測試出勤系統時刪除了真正的 GPS 上班紀錄又手動補登回去，
+  // 導致下班 GPS 打卡找不到當天既有的 GPS 紀錄、另外新開一筆，變成「手動 08:22 上班無下班」＋「GPS 17:50 下班無上班」兩筆，合併回一筆。
+  {
+    const day = ATTENDANCE_RECORDS.filter(r => r.person === 'lu_yanchen' && r.date === '2026-09-04');
+    const inRow = day.find(r => r.source === 'manual' && r.inTime === '08:22' && !r.outTime);
+    const outRow = day.find(r => r.source === 'gps' && r.outTime === '17:50' && !r.inTime);
+    if (inRow && outRow) {
+      outRow.inTime = '08:22';
+      outRow.note = [outRow.note, '已合併 09-04 因測試誤拆分的上班紀錄'].filter(Boolean).join('；');
+      ATTENDANCE_RECORDS = ATTENDANCE_RECORDS.filter(r => r !== inRow);
+    }
+  }
   if (Array.isArray(d.ATTENDANCE_LEAVES)) { ATTENDANCE_LEAVES.length = 0; ATTENDANCE_LEAVES.push(...d.ATTENDANCE_LEAVES); }
   if (Array.isArray(d.AUDIT_LOGS)) { AUDIT_LOGS.length = 0; AUDIT_LOGS.push(...d.AUDIT_LOGS); }
   if (d.ATTENDANCE_SETTINGS && typeof d.ATTENDANCE_SETTINGS === 'object') Object.assign(ATTENDANCE_SETTINGS, d.ATTENDANCE_SETTINGS);
@@ -7173,7 +7185,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.4';
+  merged.appVersion = '1.3.5';
   return { ok:true, data:merged };
 }
 
@@ -7297,7 +7309,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.4';
+  merged.appVersion = '1.3.5';
   return { ok:true, data:merged };
 }
 
@@ -7409,7 +7421,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.4';
+  merged.appVersion = '1.3.5';
   return { ok:true, data:merged };
 }
 
@@ -7528,7 +7540,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.4';
+  merged.appVersion = '1.3.5';
   return { ok:true, data:merged };
 }
 
