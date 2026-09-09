@@ -12057,6 +12057,12 @@ function rvTab(el, tab) {
   renderReceivable();
 }
 
+function receivableFilterDate(row) {
+  if (row.collectDate || row.invoiceDate || row.retentionDue) return row.collectDate || row.invoiceDate || row.retentionDue;
+  const isRetention = row.receivableType === 'retention' || /\u4fdd\u56fa|\u4fdd\u7559\u6b3e/.test(row.item || '');
+  return isRetention ? (CASES.find(c => c.code === row.case)?.retentionDue || '') : '';
+}
+
 function refreshReceivableYearOptions() {
   const el = document.getElementById('rv-filter-year');
   if (!el) return;
@@ -12064,7 +12070,7 @@ function refreshReceivableYearOptions() {
   const currentYear = String(new Date().getFullYear());
   const years = new Set(['2025', currentYear]);
   RECEIVABLES.forEach(r => {
-    const effectiveDate = r.collectDate || r.invoiceDate || r.retentionDue || '';
+    const effectiveDate = receivableFilterDate(r);
     const match = String(effectiveDate).match(/^(\d{4})-/);
     if (match) years.add(match[1]);
   });
@@ -12086,7 +12092,7 @@ function renderReceivable() {
   const fromDate = document.getElementById('rv-date-from')?.value || '';
   const toDate = document.getElementById('rv-date-to')?.value || '';
   const sortMode = document.getElementById('rv-sort')?.value || 'date-desc';
-  const receivableDate = r => r.collectDate || r.invoiceDate || r.retentionDue || '';
+  const receivableDate = receivableFilterDate;
   RECEIVABLES.forEach(normalizeReceivableStatus);
   const statsRows = RECEIVABLES.filter(r => {
     if (filterCase && r.case !== filterCase) return false;
@@ -12152,7 +12158,7 @@ function renderReceivable() {
         <td class="rv-col-collection" style="padding:8px 10px;font-size:12px">
           <div class="rv-cell-stack">
             <div class="rv-cell-main">${r.collectAmt ? '$'+r.collectAmt.toLocaleString('zh-TW') : '—'}</div>
-            <div class="rv-cell-sub">${r.collectDate || (r.retentionDue ? '預計 '+r.retentionDue : '待入帳')}</div>
+            <div class="rv-cell-sub">${r.collectDate || (receivableFilterDate(r) ? '預計 '+receivableFilterDate(r) : '待入帳')}</div>
             <div class="rv-cell-sub" title="${r.bank||''}">${bankShort(r.bank)}</div>
           </div>
         </td>
