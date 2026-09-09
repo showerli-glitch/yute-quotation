@@ -4960,7 +4960,7 @@ let VENDORS = [
   {code:'CL-003',name:'林繆云',trade:'完工清潔',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'實際做清潔的廠商；請木作廠商森沅代開發票，付款記錄寫「林繆云（森沅發票）」。',status:'有效'},
   {code:'PS-004',name:'吳毓昌建築師事務所',trade:'專業顧問服務',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'國泰世華銀行',branch:'三民分行',account:'057-50-501703-1',accountName:'吳毓昌',payMethod:'匯款',note:'',status:'有效'},
   {code:'PS-005',name:'宗誠林文宗結構土木事務所',trade:'專業顧問服務',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'台北富邦商業銀行',branch:'仁愛分行',account:'00704102006302',accountName:'宗誠結構土木技師事務所',payMethod:'匯款',note:'',status:'有效'},
-  {code:'DS-004',name:'李鎮宇',trade:'設計製圖',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
+  {code:'DS-001',name:'李鎮宇',trade:'設計製圖',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'DS-005',name:'深圳市祺德設計有限公司',trade:'設計製圖',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'DS-006',name:'連星羽',trade:'設計製圖',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'},
   {code:'SP-001',name:'上順五金行',trade:'建材供應',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'瑞興銀行',branch:'',account:'0084221986691',accountName:'程千綺',payMethod:'匯款',note:'',status:'有效'},
@@ -6508,6 +6508,8 @@ function applyDataSnapshot(d) {
   { const v = VENDORS.find(x => x.code === 'OT-005' && x.name === '統領律師事務所'); if (v) { v.code = 'PS-003'; v.trade = '專業顧問服務'; } }
   { const v = VENDORS.find(x => x.code === 'DS-001' && x.name === '吳毓昌建築師事務所'); if (v) { v.code = 'PS-004'; v.trade = '專業顧問服務'; } }
   { const v = VENDORS.find(x => x.code === 'DS-002' && x.name === '宗誠林文宗結構土木事務所'); if (v) { v.code = 'PS-005'; v.trade = '專業顧問服務'; } }
+  // migration: 李鎮宇（DS-004）改為 DS-001（原吳毓昌事務所已移出 DS-001，代碼空出）
+  { const v = VENDORS.find(x => x.code === 'DS-004' && x.name === '李鎮宇'); if (v) { v.code = 'DS-001'; } }
   if (!VENDORS.some(x => x.name === '台北設計工會')) {
     VENDORS.push({code:'PS-006',name:'台北設計工會',trade:'專業顧問服務',taxId:'',owner:'',tel:'',mobile:'',email:'',address:'',bank:'',branch:'',account:'',accountName:'',payMethod:'匯款',note:'',status:'有效'});
   }
