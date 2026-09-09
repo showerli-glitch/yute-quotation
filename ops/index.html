@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.24 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.25 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -6005,7 +6005,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.24', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.25', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6066,7 +6066,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.24', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.25', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7158,7 +7158,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.24';
+  merged.appVersion = '1.3.25';
   return { ok:true, data:merged };
 }
 
@@ -7282,7 +7282,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.24';
+  merged.appVersion = '1.3.25';
   return { ok:true, data:merged };
 }
 
@@ -7394,7 +7394,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.24';
+  merged.appVersion = '1.3.25';
   return { ok:true, data:merged };
 }
 
@@ -7513,7 +7513,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.24';
+  merged.appVersion = '1.3.25';
   return { ok:true, data:merged };
 }
 
@@ -15757,6 +15757,93 @@ function ownerWithdrawalRows(month = '') {
   }).sort((a,b) => ownerWithdrawalDate(b).localeCompare(ownerWithdrawalDate(a)) || (b.id||0) - (a.id||0));
 }
 
+// 找出最近一個「已有股東／分潤提領紀錄」且早於目前月份的月份，不強制要求是連續上一個月
+// （中間可能有月份沒有任何提領紀錄），這樣「複製上個月」在有資料斷層時仍能找到最近可複製的來源。
+function prPreviousOwnerWithdrawalMonth(month) {
+  const months = [...new Set(PAYABLES.filter(r => r.ownerWithdrawalType).map(r => ownerWithdrawalDate(r).slice(0,7)))]
+    .filter(m => prIsValidMonth(m) && m < month)
+    .sort();
+  return months[months.length - 1] || '';
+}
+
+function prCopyOwnerWithdrawalFromLastMonth() {
+  if (!requireManage('payroll', '您沒有新增股東／分潤提領的權限')) return;
+  const month = document.getElementById('pr-filter-month')?.value || '';
+  if (!month) { showToast('請先選擇月份', 'error'); return; }
+  const prevMonth = prPreviousOwnerWithdrawalMonth(month);
+  const prevRows = prevMonth ? ownerWithdrawalRows(prevMonth) : [];
+  if (!prevRows.length) { showToast('找不到可複製的上個月股東／分潤提領紀錄', 'error'); return; }
+  if (!confirm(`確定要把 ${prevMonth} 的 ${prevRows.length} 筆股東／分潤提領複製到 ${month} 嗎？\n日期會依原本的「日」對應到本月（月底日期不足會自動調整）；金額、類型、帳戶、提領人照抄；狀態一律設為「待付款」，請於實際入帳後再改成已付款。`)) return;
+
+  const daysInMonth = new Date(Number(month.slice(0,4)), Number(month.slice(5,7)), 0).getDate();
+  const existingInMonth = ownerWithdrawalRows(month);
+  let copiedCount = 0;
+  prevRows.forEach(src => {
+    const srcDate = ownerWithdrawalDate(src);
+    const day = Math.min(Number(srcDate.slice(8,10)) || 1, daysInMonth);
+    const newDate = `${month}-${String(day).padStart(2,'0')}`;
+    // 避免重複點擊把同一筆複製兩次：同人、同類型、同金額、同帳戶、同日期已存在就跳過。
+    const isDuplicate = existingInMonth.some(r =>
+      r.shareholderPerson === src.shareholderPerson &&
+      r.ownerWithdrawalType === src.ownerWithdrawalType &&
+      (r.amount||0) === (src.amount||0) &&
+      (r.bank||'') === (src.bank||'') &&
+      ownerWithdrawalDate(r) === newDate
+    );
+    if (isDuplicate) return;
+    const label = ownerWithdrawalTypeLabel(src.ownerWithdrawalType);
+    const defaultNote = `${srcDate} ${label}`;
+    const note = (src.note && src.note !== defaultNote) ? src.note : `${newDate} ${label}`;
+    const personName = psPersonName(src.shareholderPerson) || src.vendor || '';
+    const row = {
+      id: pyNextId++,
+      sourceKey: `owner-withdrawal-${src.shareholderPerson}-${src.ownerWithdrawalType}-${newDate}-${Date.now()}-${copiedCount}`,
+      case:'', caseName:'',
+      vendor: src.vendor || personName,
+      summary: label,
+      amount: src.amount || 0,
+      wantDate: newDate,
+      transferDate: '',
+      doneDate: '',
+      ticket: '',
+      bank: src.bank || '',
+      invoice: '無',
+      receipt: '無',
+      person: currentUser.name,
+      paymentType: src.paymentType,
+      profitPerson: src.profitPerson || '',
+      profitCaseCodes: [],
+      ownerWithdrawalType: src.ownerWithdrawalType,
+      shareholderPerson: src.shareholderPerson,
+      status: 'approved',
+      note
+    };
+    touchRowMeta(row, true);
+    PAYABLES.push(row);
+    existingInMonth.push(row);
+    copiedCount++;
+    recordAuditLog('create', 'ownerWithdrawal', row.id, null, auditSummary(), {
+      riskLevel:'high',
+      targetLabel:`${personName}／${label}（複製自 ${prevMonth}）`,
+      diff:[
+        { field:'amount', beforeValue:null, afterValue:row.amount },
+        { field:'paymentType', beforeValue:null, afterValue:row.paymentType },
+        { field:'copiedFromMonth', beforeValue:null, afterValue:prevMonth }
+      ]
+    });
+  });
+
+  if (!copiedCount) { showToast('本月已有相同的提領紀錄，未新增', 'error'); return; }
+
+  normalizeProfitPayables();
+  renderOwnerWithdrawalPanel();
+  renderPayrollRangeOverview();
+  renderPayable();
+  renderProfitShare();
+  saveData();
+  showToast(`已從 ${prevMonth} 複製 ${copiedCount} 筆到 ${month}（狀態為待付款）✓`, 'success');
+}
+
 function togglePayrollRangeOverview() {
   prRangeExpanded = !prRangeExpanded;
   renderPayrollRangeOverview();
@@ -15884,7 +15971,10 @@ function renderOwnerWithdrawalPanel() {
           <div style="font-size:13px;font-weight:700">股東／分潤提領</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px">${month || '目前月份'}：已付款 $${sum(paid).toLocaleString('zh-TW')}／待付款 $${sum(pending).toLocaleString('zh-TW')}</div>
         </div>
-        ${canManage('payroll') ? '<button class="btn btn-ghost btn-sm" onclick="openOwnerWithdrawalModal()">＋ 新增提領</button>' : ''}
+        ${canManage('payroll') ? `<div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="prCopyOwnerWithdrawalFromLastMonth()">複製上個月</button>
+          <button class="btn btn-ghost btn-sm" onclick="openOwnerWithdrawalModal()">＋ 新增提領</button>
+        </div>` : ''}
       </div>
       <div style="overflow-x:auto">
         <table style="width:100%;min-width:900px;border-collapse:collapse">
