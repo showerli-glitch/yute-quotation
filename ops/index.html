@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.22 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.23 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -6005,7 +6005,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.22', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.23', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6066,7 +6066,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.22', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.23', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7158,7 +7158,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.22';
+  merged.appVersion = '1.3.23';
   return { ok:true, data:merged };
 }
 
@@ -7282,7 +7282,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.22';
+  merged.appVersion = '1.3.23';
   return { ok:true, data:merged };
 }
 
@@ -7394,7 +7394,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.22';
+  merged.appVersion = '1.3.23';
   return { ok:true, data:merged };
 }
 
@@ -7513,7 +7513,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.22';
+  merged.appVersion = '1.3.23';
   return { ok:true, data:merged };
 }
 
@@ -14830,8 +14830,12 @@ function psComputeData() {
     const caseNet = preTaxNet + taxReserve;
     return { ...c, ohRatio, ohShare, preTaxNet, taxReserve, caseNet };
   });
-  const grandPreTaxNet = caseRows.reduce((s,c) => s + c.preTaxNet, 0);
-  const grandNet = caseRows.reduce((s,c) => s + c.caseNet, 0);
+  // 本批個案若全部虧損（沒有任何毛利為正的個案），動態開銷無法用個案毛利比例分攤，
+  // 但這筆開銷是公司實際成本，不能悄悄從結算數字中消失、也不能算進公司承擔——
+  // 依規定仍要按各分潤人在本批個案的分潤比例加總當權重，直接分攤到分潤人身上。
+  const unallocatedOverhead = allocatableGross > 0 ? 0 : dynamicOverheadTotal;
+  const grandPreTaxNet = caseRows.reduce((s,c) => s + c.preTaxNet, 0) - unallocatedOverhead;
+  const grandNet = caseRows.reduce((s,c) => s + c.caseNet, 0) - unallocatedOverhead;
   const grandTax = caseRows.reduce((s,c) => s + c.taxReserve, 0);
   const grandInvoice = caseRows.reduce((s,c) => s + c.invoiceTotal, 0);
 
@@ -14841,6 +14845,17 @@ function psComputeData() {
     if (!(p in personGross)) personGross[p] = 0;
     personGross[p] += c.caseNet * r;
   }));
+  if (unallocatedOverhead > 0) {
+    const ratioWeight = {};
+    caseRows.forEach(c => Object.entries(c.ratios).forEach(([p,r]) => { ratioWeight[p] = (ratioWeight[p] || 0) + r; }));
+    const weightSum = Object.values(ratioWeight).reduce((s,v) => s + v, 0);
+    if (weightSum > 0) {
+      Object.entries(ratioWeight).forEach(([p,w]) => {
+        if (!(p in personGross)) personGross[p] = 0;
+        personGross[p] -= unallocatedOverhead * (w / weightSum);
+      });
+    }
+  }
   const persons = [...new Set([...participants.map(p => p.id), ...Object.keys(personGross)])];
   const profitPayables = psUnsettledProfitPayables('', selectedCodes);
   const adjustments = psOutstandingPostCloseAdjustments();
