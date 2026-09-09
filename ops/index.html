@@ -11741,9 +11741,7 @@ function apTogglePaymentType(selectedCodes = null) {
         : [...list.querySelectorAll('input:checked')].map(x => x.value);
       const canUseForProfitAdvance = c => c.status !== '結案' && psIsProfitSettlementCase(c)
         && userCanViewCaseFinancials(c.code, 'profit');
-      const profitCases = CASES.filter(c => (
-        type === 'profit_advance' ? canUseForProfitAdvance(c) : c.status === '結案'
-      ) || current.includes(c.code));
+      const profitCases = CASES.filter(c => canUseForProfitAdvance(c) || current.includes(c.code));
       list.innerHTML = buildCaseCheckboxGroups(profitCases, c => current.includes(c.code), '', { flexItem:true });
       if (!profitCases.length) list.innerHTML = '<span style="padding:6px;color:var(--text3);font-size:12px">目前沒有可關聯的未結案分潤個案</span>';
     }
