@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.20 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.21 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -6005,7 +6005,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.20', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.21', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6066,7 +6066,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.20', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.21', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7158,7 +7158,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.20';
+  merged.appVersion = '1.3.21';
   return { ok:true, data:merged };
 }
 
@@ -7282,7 +7282,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.20';
+  merged.appVersion = '1.3.21';
   return { ok:true, data:merged };
 }
 
@@ -7394,7 +7394,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.20';
+  merged.appVersion = '1.3.21';
   return { ok:true, data:merged };
 }
 
@@ -7513,7 +7513,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.20';
+  merged.appVersion = '1.3.21';
   return { ok:true, data:merged };
 }
 
@@ -15619,14 +15619,16 @@ function prDeleteMonth() {
   showToast('月份已刪除 ✓','success');
 }
 
-// 離職員工在「到職～離職」區間內都要能被選到（即使當月薪資還沒建立，也要能新增）；
-// 區間外、且當月沒有薪資紀錄則隱藏。startDate／endDate 不明時（例：離職日待補）不主動隱藏，避免擋到補登。
+// 員工只在「到職～離職」區間內才能被選到（即使當月薪資還沒建立，也要能新增）；
+// 區間外、且當月沒有薪資紀錄則隱藏。在職員工不檢查離職日（沒有離職日），但仍檢查到職日
+// （例：盧彥辰 2026-06 到職，6 月之前不應出現）。startDate／endDate 不明時不主動隱藏，避免擋到補登。
 function prPersonActiveForMonth(id, month) {
-  if (!month || isActiveEmployeeId(id)) return true;
+  if (!month) return true;
   const emp = employeeById(id);
   if (!emp) return true;
+  const active = isActiveEmployeeId(id);
   const startMonth = emp.startDate ? emp.startDate.slice(0,7) : '';
-  const endMonth = emp.endDate ? emp.endDate.slice(0,7) : '';
+  const endMonth = active ? '' : (emp.endDate ? emp.endDate.slice(0,7) : '');
   if (startMonth && month < startMonth) return false;
   if (endMonth && month > endMonth) return false;
   return true;
@@ -15635,12 +15637,15 @@ function prPersonActiveForMonth(id, month) {
 function prSelectableUsers(month = '') {
   // 離職員工若曾有薪資紀錄，仍要留在名單裡——那筆歷史薪資已經算進公司開銷／分潤等下游總額，
   // 選單完全排除會讓人看不到、對不起帳，誤以為總額少算或多算。
-  // 但離職員工只在「到職～離職區間」或「當月確實有薪資紀錄」時顯示，避免離職後的月份仍出現舊人名
-  // （例：陳虹君 2026-07-15 離職，2026-08 起不應再出現；但區間內即使當月尚未建立紀錄仍可選取以新增）。
+  // 但每個人只在「到職～離職區間」或「當月確實有薪資紀錄」時顯示，避免離職後的月份仍出現舊人名、
+  // 或到職前的月份提早出現（例：陳虹君 2026-07-15 離職 2026-08 起不再顯示；盧彥辰 2026-06-01 到職，
+  // 之前月份不顯示；區間內即使當月尚未建立紀錄仍可選取以新增）。
+  // 注意：不能沿用 activeSystemUsers()，它只看「目前是否在職」、不看月份，會讓在職員工繞過到職日檢查。
   const payrollHistoryIds = new Set(PAYROLL.map(r => r.person).filter(Boolean));
   const monthRecordIds = month ? new Set(PAYROLL.filter(r => r.month === month).map(r => r.person)) : null;
-  const includeIds = [...payrollHistoryIds].filter(id => (monthRecordIds && monthRecordIds.has(id)) || prPersonActiveForMonth(id, month));
-  const people = activeSystemUsers({ includeIds }).filter(u => u.id !== 'shower' && (PR_CONFIG[u.id] || employeeById(u.id)));
+  const candidateIds = new Set([...payrollHistoryIds, ...USERS.filter(u => isActiveEmployeeId(u.id)).map(u => u.id)]);
+  const people = USERS.filter(u => candidateIds.has(u.id) && ((monthRecordIds && monthRecordIds.has(u.id)) || prPersonActiveForMonth(u.id, month)))
+    .filter(u => u.id !== 'shower' && (PR_CONFIG[u.id] || employeeById(u.id)));
   if (canManage('payroll')) people.unshift({id:'shower', name:'李鎮宇', role:'股東／分潤提領'});
   return people;
 }
