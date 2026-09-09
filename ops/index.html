@@ -1204,7 +1204,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.3.7 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.8 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -6012,7 +6012,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.7', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.8', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6073,7 +6073,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.7', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.8', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7208,7 +7208,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.7';
+  merged.appVersion = '1.3.8';
   return { ok:true, data:merged };
 }
 
@@ -7332,7 +7332,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.7';
+  merged.appVersion = '1.3.8';
   return { ok:true, data:merged };
 }
 
@@ -7444,7 +7444,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.7';
+  merged.appVersion = '1.3.8';
   return { ok:true, data:merged };
 }
 
@@ -7563,7 +7563,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.7';
+  merged.appVersion = '1.3.8';
   return { ok:true, data:merged };
 }
 
@@ -8931,6 +8931,15 @@ function dashboardSortOpenCases(rows) {
   if (mode === 'code-asc') return list.sort((a,b) => byText(a,b,'code'));
   if (mode === 'code-desc') return list.sort((a,b) => byText(b,a,'code'));
   return list.sort((a,b) => dashboardCaseEntryDate(b).localeCompare(dashboardCaseEntryDate(a)) || byText(b,a,'code'));
+}
+
+// 共用個案總覽排列：未結案依目前排序設定，已結案統一置底。
+function dashboardSortCasesLikeOverview(rows) {
+  const list = (Array.isArray(rows) ? rows : []).filter(Boolean);
+  return [
+    ...dashboardSortOpenCases(list.filter(c => c.status !== '結案')),
+    ...list.filter(c => c.status === '結案')
+  ];
 }
 
 function dcToggleClosedCases() {
@@ -12629,6 +12638,13 @@ function fmtNum(n) {
 // ── 淨利潤儀表板篩選狀態 ──
 let pfSelYears = new Set(); // 空 = 全部年份
 let pfSelCases = new Set(); // 空 = 全部案件
+let pfClosedCollapsed = localStorage.getItem('yutesign-ops-profit-closed-collapsed') !== '0';
+
+function pfToggleClosedCases() {
+  pfClosedCollapsed = !pfClosedCollapsed;
+  localStorage.setItem('yutesign-ops-profit-closed-collapsed', pfClosedCollapsed ? '1' : '0');
+  renderProfit();
+}
 
 function pfSelectDetailCase(code) {
   const sel = document.getElementById('pf-detail-case');
@@ -12676,7 +12692,7 @@ function pfToggleCaseDropdown() {
     // Rebuild checkboxes
     const container = document.getElementById('pf-case-checkboxes');
     if (container) {
-      const visibleCases = CASES.filter(c => userCanViewCaseFinancials(c.code, 'profit'));
+      const visibleCases = dashboardSortCasesLikeOverview(CASES.filter(c => userCanViewCaseFinancials(c.code, 'profit')));
       container.innerHTML = buildCaseCheckboxGroups(visibleCases, c => pfSelCases.size === 0 || pfSelCases.has(c.code), 'pfCaseCheckChange()');
       const allCb = document.getElementById('pf-case-all');
       if (allCb) allCb.checked = pfSelCases.size === 0;
@@ -12742,7 +12758,7 @@ function renderProfit() {
   const expApproved = EXPENSES.filter(e => e.status === 'approved' && yearOk(e.month) && e.caseKey !== '固定開銷' && e.postCloseTreatment !== 'company_absorb');
 
   // ── 3. 每個案件毛利計算（依案件篩選） ──
-  const caseRows = CASES.filter(c => c.accountingTreatment !== 'receivable_from_related_party' && caseOk(c.code)).map(c => {
+  const caseRows = dashboardSortCasesLikeOverview(CASES.filter(c => c.accountingTreatment !== 'receivable_from_related_party' && caseOk(c.code))).map(c => {
     const isFamilyPassThroughCase = isFamilyPassThroughCaseRecord(c);
     const casePaidReceivables = caseReceivableRows(c.code, { dateOk: d => yearOk(d) }).filter(receivableIsCollected);
     const casePaidPayables = casePayableRows(c.code, { dateOk: d => yearOk(d), costControlOnly: true }).filter(p => p.status === 'paid');
@@ -12802,7 +12818,7 @@ function renderProfit() {
   const tfoot = document.getElementById('pf-case-tfoot');
   if (tbody) {
     const stCls  = { '進行中': 'tag-active', '已完工': 'tag-done', '結案': 'tag-inactive' };
-    tbody.innerHTML = caseRows.map(c => {
+    const renderCaseRow = c => {
       const marginPct  = c.contract > 0 ? ((c.gross / c.contract) * 100).toFixed(1) : '—';
       const collectPct = c.contract > 0 ? ((c.collected / c.contract) * 100).toFixed(1) : '—';
       const grossColor = c.gross >= 0 ? 'var(--accent)' : 'var(--error)';
@@ -12827,7 +12843,14 @@ function renderProfit() {
         <td style="padding:10px 10px;text-align:center;font-size:12px;color:var(--text2)">${collectPct !== '—' ? collectPct + '%' : '—'}</td>
         <td style="padding:10px 10px;text-align:center"><span class="tag ${stCls[c.status] || 'tag-active'}">${c.status || '進行中'}</span></td>
       </tr>`;
-    }).join('') +
+    };
+    const openRows = caseRows.filter(c => c.status !== '結案');
+    const closedRows = caseRows.filter(c => c.status === '結案');
+    const closedSection = closedRows.length ? `
+      <tr><td colspan="10" style="padding:5px 14px;border-top:2px solid var(--border2);background:var(--surface2);font-size:11px;color:var(--text3)">
+        <div style="display:flex;align-items:center;gap:8px"><span>已結案個案（${closedRows.length}）</span><button type="button" class="btn btn-ghost btn-sm" onclick="pfToggleClosedCases()" style="font-size:10px;padding:2px 8px">${pfClosedCollapsed ? '展開 ▾' : '收折 ▴'}</button></div>
+      </td></tr>${pfClosedCollapsed ? '' : closedRows.map(renderCaseRow).join('')}` : '';
+    tbody.innerHTML = openRows.map(renderCaseRow).join('') + closedSection +
     // 未指定案件的付款（有就顯示）
     (uncatCost > 0 ? `<tr style="border-bottom:1px solid var(--border);opacity:.75" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <td style="padding:10px 14px;white-space:nowrap">
@@ -14735,7 +14758,7 @@ function psComputeData() {
   const expApproved = EXPENSES.filter(e => e.status === 'approved' && e.caseKey !== '固定開銷' && e.postCloseTreatment !== 'company_absorb');
   const salaryIdx = OH_FIXED_CONFIG.indexOf('員工薪資');
 
-  const unsettledCases = CASES.filter(psIsProfitSettlementCase).sort(psCaseNameSort);
+  const unsettledCases = dashboardSortCasesLikeOverview(CASES.filter(psIsProfitSettlementCase));
   const selectedCodes = Array.isArray(PS_SELECTED_CASES) ? PS_SELECTED_CASES : unsettledCases.map(c=>c.code);
   const selectedCases = unsettledCases.filter(c => selectedCodes.includes(c.code));
 
@@ -15148,29 +15171,11 @@ function renderProfitShare() {
     </div>`;
 
   if (!canSeeAll) {
-    const modeOptions = {
-      '三人': psRatioLabel(PROFIT_SPLIT_RATIOS['三人']),
-      '李連6040': psRatioLabel(PROFIT_SPLIT_RATIOS['李連6040']),
-      '李': psRatioLabel(PROFIT_SPLIT_RATIOS['李']),
-      '自訂': '自訂人員與比例',
-      '不分潤': '不分潤（全數留公司）',
-    };
-    const myModeCases = CASES.filter(c => !c.psSettled && ['完工','已完工','結案'].includes(c.status) && c.profitSplit && (psGetSplitRatio(c)[currentUser.id] || 0) > 0).sort(psCaseNameSort);
-    const myModeRows = myModeCases.map(c => `
-      <tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:7px 12px;font-size:12px">${c.name}<div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace">${c.code}</div></td>
-        <td style="padding:7px 12px;text-align:right;font-size:12px;color:var(--text2)">${c.profitSplit ? (modeOptions[c.profitSplit]||c.profitSplit) : '未設定'}</td>
-      </tr>`).join('');
-    const myModePanel = `
-      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px">
-        <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:600">結案個案分潤模式</div>
-        <table style="width:100%;border-collapse:collapse"><tbody>${myModeRows || '<tr><td style="padding:14px;color:var(--text3);font-size:12px">目前沒有您參與分潤的結案個案</td></tr>'}</tbody></table>
-      </div>`;
-
     const myCaseRows = caseRows.filter(c => (c.ratios[currentUser.id] || 0) > 0);
     const myCaseRowsHtml = myCaseRows.map(c => `
       <tr style="border-bottom:1px solid var(--border)">
         <td style="padding:8px 14px;font-size:12px">${c.name}</td>
+        <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--accent)">${Math.round((c.ratios[currentUser.id] || 0) * 1000) / 10}%</td>
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${fmt(c.gross)}</td>
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--text3)">${(c.ohRatio*100).toFixed(2)}%</td>
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--error)">${fmt(c.ohShare)}</td>
@@ -15178,13 +15183,14 @@ function renderProfitShare() {
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${fmt(c.invoiceTotal)}</td>
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--error)">${fmt(c.taxReserve)}</td>
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--success)">${fmt(c.caseNet)}</td>
-      </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text3);font-size:12px">本次結算範圍內沒有您參與分潤的個案</td></tr>`;
+      </tr>`).join('') || `<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text3);font-size:12px">本次結算範圍內沒有您參與分潤的個案</td></tr>`;
     const myCaseTable = `
       <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px">
         <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:600">個案淨利明細（本次結算範圍）</div>
         <table style="width:100%;border-collapse:collapse">
           <thead><tr style="border-bottom:1px solid var(--border2)">
             <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text3)">個案名稱</th>
+            <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">我的分潤比例</th>
             <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">毛利</th>
             <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">開銷佔比</th>
             <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">開銷</th>
@@ -15242,7 +15248,7 @@ function renderProfitShare() {
         </div>
       </div>`;
 
-    container.innerHTML = myModePanel + myCaseTable + personTable + mySettlementTable + payoutTable + `
+    container.innerHTML = myCaseTable + personTable + mySettlementTable + payoutTable + `
       <div style="margin-top:10px;font-size:11px;color:var(--text3)">
         ※ 分潤／承擔＝稅後個案淨利（毛利扣除公司開銷分攤與預留營業所得稅）× 您在該案的分潤比例；負數代表需由後續分潤抵扣。
       </div>`;
@@ -15253,7 +15259,8 @@ function renderProfitShare() {
   const allMonths = psAvailableOverheadMonths();
   psNormalizeOhRange(allMonths);
   const lockedThrough = psSettlementCutoffMonth();
-  const modeCases = CASES.filter(c => !c.psSettled && !c.excludeFromProfitReports).sort(psCaseNameSort);
+  const modeCases = dashboardSortCasesLikeOverview(CASES.filter(c => !c.psSettled && !c.excludeFromProfitReports));
+  const modeParticipants = psParticipantList();
   const modeOptions = [
     ['', '未設定'],
     ['三人', psRatioLabel(PROFIT_SPLIT_RATIOS['三人'])],
@@ -15262,19 +15269,26 @@ function renderProfitShare() {
     ['自訂', '自訂人員與比例'],
     ['不分潤', '不分潤（全數留公司）'],
   ];
-  const modeRows = modeCases.map(c => `
+  const modeRows = modeCases.map(c => {
+    const ratios = psGetSplitRatio(c);
+    const ratioInputs = c.profitSplit === '自訂' ? `<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:6px">
+      ${modeParticipants.map(p => `<label style="font-size:11px;color:var(--text3);white-space:nowrap">${p.name} <input type="number" min="0" max="100" step="0.1" value="${Math.round((ratios[p.id] || 0) * 1000) / 10}" onchange="psSetRatio('${c.code}','${p.id}',this.value)" style="width:62px;text-align:right;background:transparent;border:1px solid var(--border);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;padding:3px 5px;color:var(--text)">%</label>`).join('')}
+    </div>` : '';
+    return `
     <tr style="border-bottom:1px solid var(--border)">
       <td style="padding:7px 12px;font-size:12px">${c.name}<div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace">${c.code}</div></td>
       <td style="padding:7px 12px;text-align:right">
         <select onchange="psSetProfitMode('${c.code}',this.value)" style="min-width:310px;max-width:100%;font-size:12px;padding:4px 7px;border:1px solid var(--border);border-radius:5px;background:var(--surface);color:var(--text)">
           ${modeOptions.map(([v,label]) => `<option value="${v}" ${(c.profitSplit||'')===v?'selected':''}>${label}</option>`).join('')}
         </select>
+        ${ratioInputs}
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   const modePanel = `
     <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px">
-      <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:600">個案分潤模式</div>
-      <div style="padding:8px 14px;font-size:11px;color:var(--text3)">這裡只列會進員工分潤儀表的個案；進行中個案可先設定比例，真正結算前仍需人工勾選確認。親友、維修、代開發票、私人借支等成本追蹤案留在個案總覽／成本控制表，不進員工分潤。</div>
+      <div style="padding:10px 14px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:10px"><span style="font-size:13px;font-weight:600">個案分潤模式與比例</span><button class="btn btn-ghost btn-sm" onclick="psOpenProfitParticipantModal()">＋ 新增分潤人員</button></div>
+      <div style="padding:8px 14px;font-size:11px;color:var(--text3)">選擇預設模式即套用對應比例；選「自訂」時直接在同一列調整各人百分比。親友、維修、代開發票、私人借支等成本追蹤案不進員工分潤。</div>
       <table style="width:100%;border-collapse:collapse"><tbody>${modeRows || '<tr><td style="padding:14px;color:var(--text3);font-size:12px">目前沒有待設定的分潤個案</td></tr>'}</tbody></table>
     </div>`;
   const selectedCodes = data.selectedCodes;
@@ -15399,49 +15413,6 @@ function renderProfitShare() {
       </div>
     </div>`;
 
-  // ── 各案件分潤比例（OWNER/FINANCE 可調整）──
-  let ratioTable = '';
-  if (caseRows.length) {
-    const participantMap = new Map(psParticipantList().map(p => [p.id,p]));
-    caseRows.forEach(c => Object.keys(c.ratios||{}).forEach(id => {
-      if (!participantMap.has(id)) participantMap.set(id, { id, name:psPersonName(id) });
-    }));
-    const participants = [...participantMap.values()];
-    const ratioRows = caseRows.map(c => {
-      const pct = p => Math.round((c.ratios[p] || 0) * 1000) / 10;
-      const sum = Object.values(c.ratios || {}).reduce((s,r) => s + (r||0), 0);
-      const sumWarn = Math.abs(sum - 1) > 0.001 ? `<span style="color:var(--error);font-size:10px"> 加總${(sum*100).toFixed(1)}%</span>` : '';
-      const inputCell = p => `
-        <td style="padding:4px 8px;text-align:right">
-          <input type="number" min="0" max="100" step="0.1" value="${pct(p)}"
-            style="width:64px;text-align:right;background:transparent;border:1px solid var(--border);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;padding:3px 5px;color:var(--text)"
-            onchange="psSetRatio('${c.code}','${p}',this.value)"> %
-        </td>`;
-      return `
-        <tr style="border-bottom:1px solid var(--border)">
-          <td style="padding:8px 14px;font-size:12px">${c.name}${sumWarn}</td>
-          <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${fmt(c.gross)}</td>
-          ${participants.map(p => inputCell(p.id)).join('')}
-        </tr>`;
-    }).join('');
-    ratioTable = `
-      <div style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-        <div style="padding:10px 14px;background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-          <div style="font-size:13px;font-weight:600">各個案分潤比例設定</div>
-          <button class="btn btn-ghost btn-sm" onclick="psOpenProfitParticipantModal()">＋ 新增分潤人員</button>
-        </div>
-        <div style="overflow-x:auto"><table style="width:100%;min-width:${420 + participants.length*110}px;border-collapse:collapse">
-          <thead><tr style="border-bottom:1px solid var(--border2)">
-            <th style="padding:8px 14px;text-align:left;font-size:11px;color:var(--text3)">個案名稱</th>
-            <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">個案毛利</th>
-            ${participants.map(p => `<th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3);white-space:nowrap">${p.name}</th>`).join('')}
-          </tr></thead>
-          <tbody>${ratioRows}</tbody>
-        </table></div>
-        <div style="padding:8px 14px;font-size:11px;color:var(--text3)">每個案子獨立設定比例；不參與該案的人填 0%，參與者合計 100%。調整後立即套用並自動儲存，該案會切成自訂比例。新增或編輯分潤人員後，回到淨利潤頁會自動加入比例欄位。</div>
-      </div>`;
-  }
-
   // ── 結算歷史 ──
   let historyHtml = '';
   if (PROFIT_SETTLEMENTS.length) {
@@ -15504,7 +15475,6 @@ function renderProfitShare() {
     ${mainSection}
     <div style="margin-top:14px">${personTable}</div>
     ${payoutTable}
-    ${ratioTable}
     ${historyHtml}
     <div style="margin-top:10px;font-size:11px;color:var(--text3)">
       ※ 開銷佔比＝正毛利個案毛利／正毛利合計；預留營業所得稅總額＝納入個案總銷售額×稅率，再依正毛利占比分攤；毛利為負的個案不分攤公司開銷與預留稅，金額直接為 0。稅前個案淨利＝毛利＋開銷；稅後個案淨利＝稅前個案淨利－預留營業所得稅；人員分潤／承擔＝Σ(稅後個案淨利×該人於該案的分潤比例)，負數代表該分潤人按比例承擔或由後續分潤抵扣。
