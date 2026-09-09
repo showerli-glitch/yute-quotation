@@ -572,6 +572,7 @@ body.auth-pending .auth-screen{display:flex}
 #page-receivable .rv-table .rv-col-date{width:104px}
 #page-receivable .rv-table .rv-col-buyer{width:170px;min-width:170px}
 #page-receivable .rv-table .rv-col-item{width:170px;min-width:170px}
+#page-receivable .rv-table .rv-col-receivable-amount{width:118px}
 #page-receivable .rv-table .rv-col-amount{width:118px}
 #page-receivable .rv-table .rv-col-bank{width:80px}
 #page-receivable .rv-table .rv-col-invoice-amount{width:118px}
@@ -1203,7 +1204,7 @@ body.auth-pending .auth-screen{display:flex}
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
       <button class="btn btn-ghost btn-sm" id="btn-clear-data" style="width:100%;font-size:11px;color:var(--text3)" onclick="clearData()">清除所有資料</button>
     </div>
-    <div class="sidebar-ver">Codex v1.3.6 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.7 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1586,6 +1587,7 @@ body.auth-pending .auth-screen{display:flex}
               <th class="rv-col-date" style="padding:10px 14px;text-align:center;white-space:nowrap">入帳日期</th>
               <th class="rv-col-buyer" style="padding:10px 14px;text-align:left;white-space:nowrap">買受人名稱</th>
               <th class="rv-col-item" style="padding:10px 14px;text-align:left;white-space:nowrap">項目</th>
+              <th class="rv-col-receivable-amount" style="padding:10px 14px;text-align:right;white-space:nowrap">本次應收</th>
               <th class="rv-col-amount" style="padding:10px 14px;text-align:right;white-space:nowrap">入帳金額</th>
               <th class="rv-col-bank" style="padding:10px 14px;text-align:center;white-space:nowrap">入帳銀行</th>
               <th class="rv-col-invoice-amount" style="padding:10px 14px;text-align:right;white-space:nowrap">發票金額</th>
@@ -3305,6 +3307,14 @@ body.auth-pending .auth-screen{display:flex}
           <input class="form-input" id="rv-inv-date" type="date">
         </div>
         <div class="form-field">
+          <label class="form-label">本次應收金額</label>
+          <input class="form-input" id="rv-receivable-amount" inputmode="numeric" placeholder="例：841,000">
+        </div>
+        <div class="form-field">
+          <label class="form-label">發票金額</label>
+          <input class="form-input" id="rv-inv-amount" inputmode="numeric" placeholder="可含前期合併開票金額">
+        </div>
+        <div class="form-field">
           <label class="form-label">實際收款日</label>
           <input class="form-input" id="rv-collect-date" type="date">
         </div>
@@ -3372,6 +3382,10 @@ body.auth-pending .auth-screen{display:flex}
           <input class="form-input" id="rv-add-item" placeholder="例：裝修工程款、木作工程">
         </div>
         <div class="form-field">
+          <label class="form-label">本次應收金額</label>
+          <input class="form-input" id="rv-add-receivable-amt" placeholder="未收款也可填；不需開發票亦可使用" type="text">
+        </div>
+        <div class="form-field">
           <label class="form-label">入帳金額</label>
           <input class="form-input" id="rv-add-collect-amt" placeholder="例：753,000" type="text">
         </div>
@@ -3380,7 +3394,7 @@ body.auth-pending .auth-screen{display:flex}
           <input class="form-input" id="rv-add-collect-date" type="date">
         </div>
         <div class="form-field form-full" style="padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text3)">
-          有填入帳金額或入帳日期即視為已入帳；兩者都空白則列待入帳。
+          「本次應收」是這一筆應向客戶收取的金額；「發票金額」可填合併前期後的開票總額。只有填入實際入帳金額或日期才會列為已入帳。
         </div>
         <div class="form-field">
           <label class="form-label">入帳銀行</label>
@@ -3403,7 +3417,7 @@ body.auth-pending .auth-screen{display:flex}
           <input class="form-input" id="rv-add-retention-due" type="date">
         </div>
         <div class="form-field form-full" id="rv-retention-help" style="display:none;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text3)">
-          保固款尚未收款時：入帳金額留空，在「發票金額」填寫應收保固款金額，並選擇到期日。到帳後再使用「標記已收款」填入實際入帳資料。
+          保固款尚未收款時：入帳金額留空，在「本次應收金額」填寫保固款，並選擇到期日；發票尚未開立可留空。到帳後再使用「標記已收款」填入實際入帳資料。
         </div>
         <div class="form-field">
           <label class="form-label">發票日期</label>
@@ -4043,6 +4057,15 @@ function receivableIsCollected(row) {
   return Number(row?.collectAmt || 0) > 0 || !!row?.collectDate;
 }
 
+// 本次應收金額與發票金額是不同概念。舊資料沒有 receivableAmt 時，
+// 已收款以實際入帳金額、未收款以發票／合約金額相容顯示，避免搬移時改寫正式資料。
+function receivableExpectedAmount(row) {
+  const explicit = Number(row?.receivableAmt || 0);
+  if (explicit > 0) return explicit;
+  if (receivableIsCollected(row)) return Number(row?.collectAmt || 0);
+  return Number(row?.invoiceAmt || row?.contractAmt || 0);
+}
+
 function normalizeReceivableStatus(row) {
   if (!row) return row;
   row.status = receivableIsCollected(row) ? 'collected' : 'pending';
@@ -4065,7 +4088,7 @@ function caseCollectedAmount(caseCode, options = {}) {
 
 function caseReceivableTotalAmount(caseCode, options = {}) {
   return caseReceivableRows(caseCode, options)
-    .reduce((s, r) => s + (Number(r.collectAmt || r.invoiceAmt || r.contractAmt) || 0), 0);
+    .reduce((s, r) => s + receivableExpectedAmount(r), 0);
 }
 
 function casePayableRows(caseCode, { dateOk = null, costControlOnly = false } = {}) {
@@ -5989,7 +6012,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.6', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.7', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6050,7 +6073,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.6', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.7', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7185,7 +7208,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.6';
+  merged.appVersion = '1.3.7';
   return { ok:true, data:merged };
 }
 
@@ -7309,7 +7332,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.6';
+  merged.appVersion = '1.3.7';
   return { ok:true, data:merged };
 }
 
@@ -7421,7 +7444,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.6';
+  merged.appVersion = '1.3.7';
   return { ok:true, data:merged };
 }
 
@@ -7540,7 +7563,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.6';
+  merged.appVersion = '1.3.7';
   return { ok:true, data:merged };
 }
 
@@ -8814,7 +8837,7 @@ function closeCaseIfReady(caseCode) {
   const c = CASES.find(x => x.code === caseCode);
   if (!c) return;
   if (c.status === '結案') { showToast('此個案已結案', 'warning'); return; }
-  const pendingReceivables = RECEIVABLES.filter(r => r.case === caseCode && !receivableIsCollected(r) && Number(r.invoiceAmt || r.contractAmt || r.collectAmt || 0) > 0);
+  const pendingReceivables = RECEIVABLES.filter(r => r.case === caseCode && !receivableIsCollected(r) && receivableExpectedAmount(r) > 0);
   const pendingPayables = PAYABLES.filter(p => p.case === caseCode && p.status !== 'paid' && Number(p.amount || 0) > 0);
   const warnings = [];
   if (pendingReceivables.length) warnings.push(`尚有 ${pendingReceivables.length} 筆應收未入帳`);
@@ -12105,6 +12128,7 @@ function renderReceivable() {
     const searchable = [
       r.buyer, r.item, r.caseName, r.case, r.invoiceNo, r.progress, r.bank,
       r.collectDate, r.invoiceDate, r.retentionDue,
+      searchAmountText(r.receivableAmt),
       searchAmountText(r.collectAmt),
       searchAmountText(r.invoiceAmt),
       searchAmountText(r.contractAmt),
@@ -12120,6 +12144,7 @@ function renderReceivable() {
     const searchable = [
       r.buyer, r.item, r.caseName, r.case, r.invoiceNo, r.progress, r.bank,
       r.collectDate, r.invoiceDate, r.retentionDue,
+      searchAmountText(r.receivableAmt),
       searchAmountText(r.collectAmt),
       searchAmountText(r.invoiceAmt),
       searchAmountText(r.contractAmt),
@@ -12132,7 +12157,7 @@ function renderReceivable() {
     if (rvTab_current === 'collected' && !collected) return false;
     if (rvTab_current === 'pending' && collected) return false;
     return true;
-  }), sortMode, receivableDate, r => r.buyer, r => r.collectAmt || r.invoiceAmt || 0);
+  }), sortMode, receivableDate, r => r.buyer, r => receivableExpectedAmount(r));
   const statusLabel = {pending:'待收款', collected:'已入帳'};
   const statusClass = {pending:'tag-pending', collected:'tag-done'};
   const bankShort = b => {
@@ -12144,7 +12169,7 @@ function renderReceivable() {
   const tbody = document.getElementById('rv-tbody');
   if (!tbody) return;
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;padding:32px;color:var(--text3)">無資料</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="17" style="text-align:center;padding:32px;color:var(--text3)">無資料</td></tr>`;
   } else {
     tbody.innerHTML = rows.map((r,i) => `
       <tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
@@ -12156,6 +12181,7 @@ function renderReceivable() {
         <td class="rv-col-date" style="padding:10px 14px;text-align:center;font-size:12px;white-space:nowrap">${r.collectDate||'<span style="color:var(--text3)">待入帳</span>'}</td>
         <td class="rv-col-buyer" style="padding:10px 14px;font-size:12px">${r.buyer||'—'}</td>
         <td class="rv-col-item" style="padding:10px 14px;font-size:12px;color:var(--text2)">${r.item||'—'}</td>
+        <td class="rv-col-receivable-amount" style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">${receivableExpectedAmount(r) ? '$'+receivableExpectedAmount(r).toLocaleString('zh-TW') : '<span style="color:var(--text3)">—</span>'}</td>
         <td class="rv-col-amount" style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">${r.collectAmt ? '$'+r.collectAmt.toLocaleString('zh-TW') : '<span style="color:var(--text3)">—</span>'}</td>
         <td class="rv-col-bank" style="padding:10px 14px;text-align:center;font-size:12px">${bankShort(r.bank)}</td>
         <td class="rv-col-invoice-amount" style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${r.invoiceAmt ? '$'+r.invoiceAmt.toLocaleString('zh-TW') : '—'}</td>
@@ -12217,7 +12243,7 @@ function updateReceivableStats(scopeRows = null, yearScopeRows = null) {
   set('rv-stat-month-count',  monthRows.length+' 筆');
   set('rv-stat-year-amt',     '$'+sum(yearRows,'collectAmt').toLocaleString('zh-TW'));
   set('rv-stat-year-count',   yearRows.length+' 筆');
-  set('rv-stat-pending-amt',  pending.length ? '$'+sum(pending,'invoiceAmt').toLocaleString('zh-TW') : '—');
+  set('rv-stat-pending-amt',  pending.length ? '$'+pending.reduce((s,r) => s + receivableExpectedAmount(r), 0).toLocaleString('zh-TW') : '—');
   set('rv-stat-pending-count', pending.length+' 筆');
   set('rv-stat-noinv-count',  noInv.length+' 筆');
 }
@@ -12231,8 +12257,10 @@ function openInvoice(id) {
     `<b>${r.caseName}</b> — ${r.item||''}<br>入帳金額：<b>$${(r.collectAmt||0).toLocaleString('zh-TW')}</b>`;
   document.getElementById('rv-inv-number').value   = r.invoiceNo || '';
   document.getElementById('rv-inv-date').value     = r.invoiceDate || '';
+  document.getElementById('rv-receivable-amount').value = receivableExpectedAmount(r) ? receivableExpectedAmount(r).toLocaleString('zh-TW') : '';
+  document.getElementById('rv-inv-amount').value = r.invoiceAmt ? r.invoiceAmt.toLocaleString('zh-TW') : '';
   document.getElementById('rv-collect-date').value = r.collectDate || '';
-  const defaultCollectAmt = r.collectAmt || r.invoiceAmt || 0;
+  const defaultCollectAmt = r.collectAmt || receivableExpectedAmount(r) || 0;
   document.getElementById('rv-collect-amount').value = defaultCollectAmt ? defaultCollectAmt.toLocaleString('zh-TW') : '';
   document.getElementById('rv-collect-bank').value = r.bank || '';
   document.getElementById('rv-inv-note').value     = r.note || '';
@@ -12242,16 +12270,26 @@ function openInvoice(id) {
 function confirmInvoiceOnly() {
   if (!requireManage('receivable')) return;
   if (!rvInvoiceTarget) return;
+  const parseAmt = id => parseInt((document.getElementById(id).value || '').replace(/[^0-9]/g,'')) || 0;
+  const hadCollection = receivableIsCollected(rvInvoiceTarget);
+  if (hadCollection && !confirm('這會清除目前的入帳日期、入帳金額與收款帳戶，並改回「待入帳」。確定繼續？')) return;
   Object.assign(rvInvoiceTarget, {
+    receivableAmt: parseAmt('rv-receivable-amount'),
+    invoiceAmt:  parseAmt('rv-inv-amount'),
     invoiceNo:   document.getElementById('rv-inv-number').value.trim(),
     invoiceDate: document.getElementById('rv-inv-date').value,
+    collectDate: '',
+    collectAmt:  0,
+    bank:        '',
+    status:      'pending',
     note:        document.getElementById('rv-inv-note').value
   });
+  normalizeReceivableStatus(rvInvoiceTarget);
   touchRowMeta(rvInvoiceTarget);
   closeModal('modal-invoice');
   refreshAccountingLinkedViews(rvInvoiceTarget.case);
   saveData();
-  showToast('已儲存發票資訊 ✓', 'success');
+  showToast('已儲存發票資訊並改為待入帳 ✓', 'success');
 }
 
 function confirmCollected() {
@@ -12260,11 +12298,14 @@ function confirmCollected() {
   const collectDate = document.getElementById('rv-collect-date').value;
   const collectAmt  = parseInt((document.getElementById('rv-collect-amount').value || '').replace(/[^0-9]/g,'')) || 0;
   const bank        = document.getElementById('rv-collect-bank').value;
+  const parseOptionalAmt = id => parseInt((document.getElementById(id).value || '').replace(/[^0-9]/g,'')) || 0;
   if (!collectDate) { showToast('請填寫入帳日期', 'error'); return; }
   if (!collectAmt)  { showToast('請填寫實際入帳金額', 'error'); return; }
   if (!bank)        { showToast('請選擇入帳帳戶', 'error'); return; }
   Object.assign(rvInvoiceTarget, {
     status: 'collected', collectDate, collectAmt, bank,
+    receivableAmt: parseOptionalAmt('rv-receivable-amount') || rvInvoiceTarget.receivableAmt || collectAmt,
+    invoiceAmt:  parseOptionalAmt('rv-inv-amount'),
     invoiceNo:   document.getElementById('rv-inv-number').value.trim() || rvInvoiceTarget.invoiceNo,
     invoiceDate: document.getElementById('rv-inv-date').value || rvInvoiceTarget.invoiceDate,
     note:        document.getElementById('rv-inv-note').value
@@ -12381,7 +12422,7 @@ function openAddReceivableModal() {
   document.getElementById('rv-modal-title').textContent = '新增收款紀錄';
   document.getElementById('rv-submit-btn').textContent  = '新增';
   // 清空欄位
-  ['rv-add-buyer','rv-add-item','rv-add-collect-amt','rv-add-collect-date',
+  ['rv-add-buyer','rv-add-item','rv-add-receivable-amt','rv-add-collect-amt','rv-add-collect-date',
    'rv-add-invoice-amt','rv-add-invoice-date','rv-add-invoice-no',
    'rv-add-contract-amt','rv-add-progress','rv-add-note'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
@@ -12412,6 +12453,7 @@ function openEditReceivableModal(id) {
   const clientEl = document.getElementById('rv-add-client'); if (clientEl) clientEl.value = r.client || caseClient || '';
   document.getElementById('rv-add-buyer').value        = r.buyer       || '';
   document.getElementById('rv-add-item').value         = r.item        || '';
+  document.getElementById('rv-add-receivable-amt').value = r.receivableAmt ? r.receivableAmt.toLocaleString('zh-TW') : (receivableExpectedAmount(r) ? receivableExpectedAmount(r).toLocaleString('zh-TW') : '');
   document.getElementById('rv-add-collect-amt').value  = r.collectAmt  ? r.collectAmt.toLocaleString('zh-TW') : '';
   document.getElementById('rv-add-collect-date').value = r.collectDate || '';
   const bankEl = document.getElementById('rv-add-bank'); if (bankEl) bankEl.value = r.bank || '';
@@ -12437,6 +12479,7 @@ function cloneReceivable(id) {
   document.getElementById('rv-modal-title').textContent = '複製應收帳款';
   document.getElementById('rv-submit-btn').textContent = '建立新應收';
   document.getElementById('rv-add-collect-amt').value = '';
+  document.getElementById('rv-add-receivable-amt').value = '';
   document.getElementById('rv-add-collect-date').value = '';
   document.getElementById('rv-add-bank').value = '';
   document.getElementById('rv-add-invoice-date').value = '';
@@ -12473,6 +12516,7 @@ function submitAddReceivable() {
   const caseVal = caseEl.value;
   const item    = document.getElementById('rv-add-item').value.trim();
   const parseAmt = s => parseInt((s||'').replace(/[^0-9]/g,'')) || 0;
+  const receivableAmt = parseAmt(document.getElementById('rv-add-receivable-amt').value);
   const collectAmt  = parseAmt(document.getElementById('rv-add-collect-amt').value);
   const collectDate = document.getElementById('rv-add-collect-date').value;
   const iAmtRaw     = document.getElementById('rv-add-invoice-amt').value.trim();
@@ -12484,7 +12528,7 @@ function submitAddReceivable() {
   const client = CLIENTS.find(c => c.code === clientCode);
   const retentionDue = receivableType === 'retention' ? (document.getElementById('rv-add-retention-due')?.value || '') : '';
   let affectedCase = caseVal;
-  if (receivableType === 'retention' && !invoiceAmt) { showToast('請填寫保固保留款金額','error'); return; }
+  if (receivableType === 'retention' && !receivableAmt) { showToast('請填寫保固保留款的本次應收金額','error'); return; }
   if (receivableType === 'retention' && !retentionDue) { showToast('請選擇保固款到期日','error'); return; }
 
   if (editId) {
@@ -12494,7 +12538,7 @@ function submitAddReceivable() {
       const before = auditClone(r);
       affectedCase = caseVal || r.case || '';
       const caseName = caseVal ? (caseEl.selectedOptions[0].text.split(' ').slice(1).join(' ')) : r.caseName;
-      const duplicateAmt = collectAmt || invoiceAmt || contractAmt;
+      const duplicateAmt = receivableAmt || collectAmt || invoiceAmt || contractAmt;
       if (!confirmDuplicateReceivable({ caseCode:(caseVal || r.case), amount:duplicateAmt, excludeId:r.id })) return;
       Object.assign(r, {
         case:        caseVal || r.case,
@@ -12504,6 +12548,7 @@ function submitAddReceivable() {
         collectDate,
         buyer:       document.getElementById('rv-add-buyer').value.trim(),
         item:        item || r.item,
+        receivableAmt,
         collectAmt,
         bank:        document.getElementById('rv-add-bank').value,
         invoiceAmt,
@@ -12519,12 +12564,12 @@ function submitAddReceivable() {
       touchRowMeta(r);
       if (receivableType === 'retention') {
         const c = CASES.find(x => x.code === (caseVal || r.case));
-        if (c) { c.retentionAmt = invoiceAmt; c.retentionDue = retentionDue; }
+        if (c) { c.retentionAmt = receivableAmt; c.retentionDue = retentionDue; }
       }
       recordAuditLog('update', 'receivable', r.id, before, r, {
         riskLevel:['collected','pending'].includes(r.status) ? 'high' : 'medium',
         targetLabel:`${r.buyer || '付款方未填'}／${r.item || '收款項目未填'}`,
-        fields:['status','collectAmt','collectDate','buyer','item','invoiceAmt','invoiceDate','invoiceNo','case','caseName','client','clientName','receivableType','retentionDue']
+        fields:['status','receivableAmt','collectAmt','collectDate','buyer','item','invoiceAmt','invoiceDate','invoiceNo','case','caseName','client','clientName','receivableType','retentionDue']
       });
     }
     closeModal('modal-add-receivable');
@@ -12535,7 +12580,7 @@ function submitAddReceivable() {
     // 新增模式
     if (!caseVal) { showToast('請選擇個案名稱', 'error'); return; }
     if (!item)    { showToast('請填寫項目', 'error'); return; }
-    if (!confirmDuplicateReceivable({ caseCode:caseVal, amount:(collectAmt || invoiceAmt || contractAmt) })) return;
+    if (!confirmDuplicateReceivable({ caseCode:caseVal, amount:(receivableAmt || collectAmt || invoiceAmt || contractAmt) })) return;
     const caseName = caseEl.selectedOptions[0].text.split(' ').slice(1).join(' ');
     const row = {
       id: rvNextId++, case: caseVal, caseName,
@@ -12543,7 +12588,7 @@ function submitAddReceivable() {
       clientName: client?.shortName || '',
       collectDate,
       buyer:       document.getElementById('rv-add-buyer').value.trim(),
-      item, collectAmt,
+      item, receivableAmt, collectAmt,
       bank:        document.getElementById('rv-add-bank').value,
       invoiceAmt, invoiceDate: document.getElementById('rv-add-invoice-date').value,
       invoiceNo:   document.getElementById('rv-add-invoice-no').value.trim(),
@@ -12558,7 +12603,7 @@ function submitAddReceivable() {
     RECEIVABLES.push(row);
     if (receivableType === 'retention') {
       const c = CASES.find(x => x.code === caseVal);
-      if (c) { c.retentionAmt = invoiceAmt; c.retentionDue = retentionDue; }
+      if (c) { c.retentionAmt = receivableAmt; c.retentionDue = retentionDue; }
     }
     recordAuditLog('create', 'receivable', row.id, null, row, {
       riskLevel:'high',
@@ -12835,7 +12880,7 @@ function renderProfit() {
       .sort((a,b) => detailDate(a).localeCompare(detailDate(b)));
     const sum = (rows, getter) => rows.reduce((s,row) => s + (Number(getter(row)) || 0), 0);
     const revenueActual = sum(revenueRows, r => r.collectAmt);
-    const receivableTotal = sum(revenueRows, r => r.collectAmt || r.invoiceAmt || 0);
+    const receivableTotal = sum(revenueRows, r => receivableExpectedAmount(r));
     const invoiceTotal = sum(revenueRows.filter(r => r.invoiceDate || r.invoiceNo), r => r.invoiceAmt);
     const payableTotal = sum(costRows.filter(p => p.status === 'paid'), p => p.amount);
     const expenseTotal = sum(expenseRows, e => e.amount);
