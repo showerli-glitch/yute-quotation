@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.21 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.22 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -6005,7 +6005,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.21', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.22', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6066,7 +6066,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.21', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.22', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7158,7 +7158,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.21';
+  merged.appVersion = '1.3.22';
   return { ok:true, data:merged };
 }
 
@@ -7282,7 +7282,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.21';
+  merged.appVersion = '1.3.22';
   return { ok:true, data:merged };
 }
 
@@ -7394,7 +7394,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.21';
+  merged.appVersion = '1.3.22';
   return { ok:true, data:merged };
 }
 
@@ -7513,7 +7513,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.21';
+  merged.appVersion = '1.3.22';
   return { ok:true, data:merged };
 }
 
@@ -15070,6 +15070,13 @@ function renderTaxManagement() {
 // ══════════════════════════════════
 // PROFIT SHARE MODULE
 // ══════════════════════════════════
+let psPayoutSettledCollapsed = localStorage.getItem('yutesign-ops-profitshare-payout-settled-collapsed') !== '0';
+function psTogglePayoutSettled() {
+  psPayoutSettledCollapsed = !psPayoutSettledCollapsed;
+  localStorage.setItem('yutesign-ops-profitshare-payout-settled-collapsed', psPayoutSettledCollapsed ? '1' : '0');
+  renderProfitShare();
+}
+
 function renderProfitShare() {
   const container = document.getElementById('ps-container');
   if (!container) return;
@@ -15127,7 +15134,8 @@ function renderProfitShare() {
 
   const allProfitPayables = PAYABLES.filter(isProfitSharePayout);
   const visibleProfitPayables = canSeeAll ? allProfitPayables : allProfitPayables.filter(r => profitOffsetPerson(r) === currentUser.id);
-  const payoutRows = visibleProfitPayables.slice().sort((a,b) => String(a.doneDate||a.transferDate||a.wantDate).localeCompare(String(b.doneDate||b.transferDate||b.wantDate))).map(r => {
+  const byDoneDate = (a,b) => String(a.doneDate||a.transferDate||a.wantDate).localeCompare(String(b.doneDate||b.transferDate||b.wantDate));
+  const renderPayoutRow = r => {
     const noteFull = `${r.note||r.summary||''}${r.psSettled?' · 已納入結算':''}`;
     const noteShort = compactPayoutNote(r);
     return `
@@ -15141,7 +15149,15 @@ function renderProfitShare() {
         <div style="display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden">${esc(noteShort)}</div>
       </td>
     </tr>`;
-  }).join('');
+  };
+  const payoutColspan = canSeeAll ? 6 : 5;
+  // 已納入結算的領款紀錄會隨時間持續累積；預設收折只顯示未結算，避免清單無限變長。
+  const unsettledPayables = visibleProfitPayables.filter(r => !r.psSettled).sort(byDoneDate);
+  const settledPayables = visibleProfitPayables.filter(r => r.psSettled).sort(byDoneDate);
+  const payoutRows = unsettledPayables.map(renderPayoutRow).join('') + (settledPayables.length ? `
+    <tr><td colspan="${payoutColspan}" style="padding:5px 14px;border-top:2px solid var(--border2);background:var(--surface2);font-size:11px;color:var(--text3)">
+      <div style="display:flex;align-items:center;gap:8px"><span>已結算領款（${settledPayables.length}）</span><button type="button" class="btn btn-ghost btn-sm" onclick="psTogglePayoutSettled()" style="font-size:10px;padding:2px 8px">${psPayoutSettledCollapsed ? '展開 ▾' : '收折 ▴'}</button></div>
+    </td></tr>${psPayoutSettledCollapsed ? '' : settledPayables.map(renderPayoutRow).join('')}` : '');
   const payoutTable = `
     <div style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
       <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:600">分潤領款紀錄（來自已付款應付帳款）</div>
@@ -15163,7 +15179,7 @@ function renderProfitShare() {
           <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--text3)">關聯個案</th>
           <th style="padding:7px 12px;text-align:left;font-size:11px;color:var(--text3)">備註</th>
         </tr></thead>
-        <tbody>${payoutRows || `<tr><td colspan="${canSeeAll?6:5}" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">尚無分潤領款紀錄</td></tr>`}</tbody>
+        <tbody>${payoutRows || `<tr><td colspan="${payoutColspan}" style="padding:14px;text-align:center;color:var(--text3);font-size:12px">尚無分潤領款紀錄</td></tr>`}</tbody>
       </table>
       </div>
     </div>`;
