@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.26 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.27 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3923,6 +3923,7 @@ let opsCloudPendingSync = false;
 let opsCloudPendingSnapshot = null;
 let opsCloudConflictModalShown = false;
 let opsCloudPendingSince = null;
+let opsCloudSaveInFlight = false;
 let opsCloudStuckModalShown = false;
 let opsCloudWatchdogTimer = null;
 let opsCloudConsecutiveFailures = 0;
@@ -6009,7 +6010,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.26', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.27', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6070,7 +6071,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.26', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.27', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7162,7 +7163,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.26';
+  merged.appVersion = '1.3.27';
   return { ok:true, data:merged };
 }
 
@@ -7286,7 +7287,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.26';
+  merged.appVersion = '1.3.27';
   return { ok:true, data:merged };
 }
 
@@ -7398,7 +7399,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.26';
+  merged.appVersion = '1.3.27';
   return { ok:true, data:merged };
 }
 
@@ -7517,7 +7518,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.26';
+  merged.appVersion = '1.3.27';
   return { ok:true, data:merged };
 }
 
@@ -7638,18 +7639,33 @@ function opsCloudRetrySyncNow() {
 function opsCloudFlushPendingSave() {
   if (!opsCloudPendingSnapshot || opsApplyingRemote) return;
   if (!opsCloudReady) return; // 還沒連上雲端，等下一次 watchdog tick 再試
+  // 存檔本身是兩段網路來回（先讀一次雲端確認沒衝突、再寫入），單趟若超過 4 秒（watchdog 週期）
+  // 就可能跟下一次 watchdog tick 或下一筆修改的存檔同時送出。兩個 opsCloudSaveNow() 同時在路上時，
+  // 後送出的那個讀到「雲端已經是前一個自己剛寫入的版本」，卻因為前一個還沒把 opsCloudLastSavedAt
+  // 更新完成，就會誤判成「被別人（或別的分頁）覆蓋」而跳出衝突視窗——實際上只是自己跟自己搶跑。
+  // 這裡用 opsCloudSaveInFlight 擋掉重疊呼叫；存檔期間如果又有新的修改進來，等這次存完再補送一次。
+  if (opsCloudSaveInFlight) return;
   const frozen = opsCloudPendingSnapshot;
   clearTimeout(opsCloudSaveTimer);
   opsCloudSaveTimer = null;
+  opsCloudSaveInFlight = true;
   setSaveIndicator('syncing');
   opsCloudSaveNow(frozen).then(() => {
+    opsCloudSaveInFlight = false;
     opsCloudConsecutiveFailures = 0;
-    opsCloudPendingSync = false;
-    opsCloudPendingSnapshot = null;
-    opsCloudPendingSince = null;
-    hideSyncStuckModalIfShown();
-    setSaveIndicator('synced');
+    if (opsCloudPendingSnapshot === frozen) {
+      opsCloudPendingSync = false;
+      opsCloudPendingSnapshot = null;
+      opsCloudPendingSince = null;
+      hideSyncStuckModalIfShown();
+      setSaveIndicator('synced');
+    } else {
+      // 存檔期間又累積了更新的修改，立刻補送最新版本，不要等下一次 watchdog tick。
+      setSaveIndicator('synced');
+      opsCloudFlushPendingSave();
+    }
   }).catch(e => {
+    opsCloudSaveInFlight = false;
     opsCloudConsecutiveFailures++;
     console.warn('OPS cloud save failed:', e);
     updateDataStatus(frozen);
@@ -7667,11 +7683,15 @@ function opsCloudFlushPendingSave() {
       }).then(merged => {
         if (merged) {
           opsCloudConsecutiveFailures = 0;
-          opsCloudPendingSync = false;
-          opsCloudPendingSnapshot = null;
-          opsCloudPendingSince = null;
           hideSyncStuckModalIfShown();
           setSaveIndicator('synced');
+          if (opsCloudPendingSnapshot === frozen) {
+            opsCloudPendingSync = false;
+            opsCloudPendingSnapshot = null;
+            opsCloudPendingSince = null;
+          } else {
+            opsCloudFlushPendingSave();
+          }
         } else {
           showCloudConflictModal();
         }
