@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.25 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.26 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3209,6 +3209,10 @@ body.auth-pending .auth-screen{display:flex}
         <div class="form-field form-full">
           <label class="form-label">摘要</label>
           <input class="form-input" id="ap-add-summary" placeholder="例：水電材料、油漆工程">
+        </div>
+        <div class="form-field form-full">
+          <label class="form-label">備註</label>
+          <input class="form-input" id="ap-add-note" placeholder="內部備註，例：付款方式或折抵說明">
         </div>
         <div class="form-field">
           <label class="form-label">希望付款日</label>
@@ -6005,7 +6009,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.25', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.26', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6066,7 +6070,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.25', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.26', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7158,7 +7162,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.25';
+  merged.appVersion = '1.3.26';
   return { ok:true, data:merged };
 }
 
@@ -7282,7 +7286,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.25';
+  merged.appVersion = '1.3.26';
   return { ok:true, data:merged };
 }
 
@@ -7394,7 +7398,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.25';
+  merged.appVersion = '1.3.26';
   return { ok:true, data:merged };
 }
 
@@ -7513,7 +7517,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.25';
+  merged.appVersion = '1.3.26';
   return { ok:true, data:merged };
 }
 
@@ -11621,7 +11625,7 @@ function openAddPayableModal() {
   const amountEl = document.getElementById('ap-add-amount');
   if (amountEl) amountEl.placeholder = '例：420,000';
   // 清空欄位
-  ['ap-add-vendor','ap-add-amount','ap-add-summary','ap-add-date','ap-add-transfer-date','ap-add-done-date','ap-add-ticket','ap-add-overhead-item','ap-add-amortization-start','ap-add-amortization-months'].forEach(id => {
+  ['ap-add-vendor','ap-add-amount','ap-add-summary','ap-add-note','ap-add-date','ap-add-transfer-date','ap-add-done-date','ap-add-ticket','ap-add-overhead-item','ap-add-amortization-start','ap-add-amortization-months'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const bankEl = document.getElementById('ap-add-bank'); if (bankEl) bankEl.value = '';
@@ -11658,6 +11662,7 @@ function openEditPayableModal(id) {
   document.getElementById('ap-add-vendor').value  = p.vendor  || '';
   document.getElementById('ap-add-amount').value  = p.amount  ? p.amount.toLocaleString('zh-TW') : '';
   document.getElementById('ap-add-summary').value = p.summary || '';
+  document.getElementById('ap-add-note').value    = p.note || '';
   document.getElementById('ap-add-date').value    = p.wantDate || '';
   document.getElementById('ap-add-transfer-date').value = p.transferDate || '';
   document.getElementById('ap-add-done-date').value     = p.doneDate || '';
@@ -11683,7 +11688,7 @@ function openEditPayableModal(id) {
   setRadio('rg-ap-rec', p.receipt || '有');
   fillActiveUserNameSelect('ap-add-person', p.person || currentUser.name, { includeInactive:true });
   const personEl = document.getElementById('ap-add-person'); if (personEl) personEl.value = p.person || '';
-  const lockedIds = ['ap-add-vendor','ap-add-summary','ap-add-payment-type','ap-add-profit-person','ap-add-person'];
+  const lockedIds = ['ap-add-vendor','ap-add-payment-type','ap-add-profit-person','ap-add-person'];
   lockedIds.forEach(fieldId => {
     const el = document.getElementById(fieldId);
     if (el) el.disabled = !!p.systemLocked;
@@ -11867,7 +11872,7 @@ function buildProfitSettlementPayable(settlement, personRow) {
     psSettled: true,
     case:'', caseName:'',
     vendor:personRow.name,
-    summary:`分潤結算 #${settlement.id}未領款`,
+    summary:`分潤結算（單號 ${settlement.id}）未領款`,
     amount,
     wantDate:settlement.date || '', transferDate:'', doneDate:'', ticket:'', bank:'',
     invoice:'無', receipt:'無', person:currentUser.name,
@@ -11911,6 +11916,10 @@ function payPartialSystemLockedPayable(p, amtNum, info) {
   if (payAmount <= 0) { showToast('請填寫本次付款金額', 'error'); return { ok:false }; }
   if (payAmount > currentAmount) { showToast('本次付款金額不可大於待付款餘額', 'error'); return { ok:false }; }
   const payDate = info.doneDate || info.transferDate || info.date || new Date().toISOString().slice(0,10);
+  // 這筆結算款可能分好幾次付／折抵；使用者填的摘要與備註只用來標記「這一段」的說明，
+  // 不覆蓋剩餘未領款母單原本的摘要與備註（母單之後可能還要再拆、再標另一段的說明）。
+  const appliedSummary = info.summary !== undefined && info.summary !== '' ? info.summary : p.summary;
+  const appliedNote = info.note !== undefined ? info.note : p.note;
   if (payAmount < currentAmount) {
     const paidRow = {
       ...p,
@@ -11918,6 +11927,7 @@ function payPartialSystemLockedPayable(p, amtNum, info) {
       sourceKey: `${p.sourceKey || `profit-settlement-${p.settlementId || 'manual'}-${p.profitPerson || p.vendor}`}-pay-${Date.now()}`,
       parentPayableId: p.id,
       amount: payAmount,
+      summary: appliedSummary,
       wantDate: info.date || p.wantDate || '',
       bank: info.bank,
       transferDate: info.transferDate || payDate,
@@ -11925,7 +11935,7 @@ function payPartialSystemLockedPayable(p, amtNum, info) {
       ticket: info.ticket,
       status:'paid',
       psSettled:true,
-      note: `${p.note || ''}${p.note ? '；' : ''}分段付款 ${payDate} ${payAmount.toLocaleString('zh-TW')}`
+      note: `${appliedNote || ''}${appliedNote ? '；' : ''}分段付款 ${payDate} ${payAmount.toLocaleString('zh-TW')}`
     };
     touchRowMeta(paidRow, true);
     PAYABLES.push(paidRow);
@@ -11946,6 +11956,8 @@ function payPartialSystemLockedPayable(p, amtNum, info) {
   }
   Object.assign(p, {
     amount: currentAmount,
+    summary: appliedSummary,
+    note: appliedNote,
     wantDate: info.date || p.wantDate || '',
     bank: info.bank,
     status:'paid',
@@ -11967,6 +11979,7 @@ function submitAddPayable() {
   const vendor  = vendorRaw.includes(' - ') ? vendorRaw.split(' - ').slice(1).join(' - ') : vendorRaw;
   const amount  = document.getElementById('ap-add-amount').value.trim();
   const summary = document.getElementById('ap-add-summary').value.trim();
+  const note    = document.getElementById('ap-add-note').value.trim();
   const date    = document.getElementById('ap-add-date').value;
   const transferDate = document.getElementById('ap-add-transfer-date').value;
   const doneDate     = document.getElementById('ap-add-done-date').value;
@@ -12014,10 +12027,10 @@ function submitAddPayable() {
         if (isNaN(amtNum)) { showToast('金額格式不正確', 'error'); return; }
         let payResult = { ok:true };
         if (status === 'paid') {
-          payResult = payPartialSystemLockedPayable(p, amtNum, { date, transferDate, doneDate, ticket, bank });
+          payResult = payPartialSystemLockedPayable(p, amtNum, { date, transferDate, doneDate, ticket, bank, summary, note });
           if (!payResult.ok) return;
         } else {
-          Object.assign(p, { wantDate:date, bank, status, transferDate, doneDate, ticket, psSettled:true });
+          Object.assign(p, { wantDate:date, bank, status, transferDate, doneDate, ticket, psSettled:true, summary, note });
           p.doneDate = '';
         }
         touchRowMeta(p);
@@ -12028,7 +12041,7 @@ function submitAddPayable() {
         return;
       } else {
         if (shouldKeepCase && caseVal && !isNaN(amtNum) && !confirmDuplicatePayable({ caseCode:caseVal, amount:amtNum, excludeId:p.id })) return;
-        Object.assign(p, { case:shouldKeepCase?caseVal:'', caseName:shouldKeepCase?caseName:'', vendor, summary, paymentType, profitPerson, profitCaseCodes,
+        Object.assign(p, { case:shouldKeepCase?caseVal:'', caseName:shouldKeepCase?caseName:'', vendor, summary, note, paymentType, profitPerson, profitCaseCodes,
           overheadItem, amortizationStartMonth, amortizationMonths,
           amount:isNaN(amtNum)?p.amount:amtNum, wantDate:date, bank, transferDate, doneDate, ticket,
           invoice, receipt, person, status });
@@ -12052,7 +12065,7 @@ function submitAddPayable() {
     const row = { id:pyNextId++, case:shouldKeepCase?caseVal:'', caseName:shouldKeepCase?caseName:'', vendor, summary,
       amount:isNaN(amtNum)?0:amtNum, wantDate:date, bank,
       transferDate:transferDate || (status==='paid'?date:''), doneDate:doneDate || (status==='paid'?date:''), ticket, invoice, receipt, person,
-      paymentType, profitPerson, profitCaseCodes, overheadItem, amortizationStartMonth, amortizationMonths, status, note:'' };
+      paymentType, profitPerson, profitCaseCodes, overheadItem, amortizationStartMonth, amortizationMonths, status, note };
     touchRowMeta(row, true);
     PAYABLES.push(row);
     syncDerivedReceivableForPayable(row);
