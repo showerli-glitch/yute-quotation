@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.35 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.36 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -6023,7 +6023,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.35', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.36', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6084,7 +6084,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.35', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.36', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7176,7 +7176,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.35';
+  merged.appVersion = '1.3.36';
   return { ok:true, data:merged };
 }
 
@@ -7300,7 +7300,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.35';
+  merged.appVersion = '1.3.36';
   return { ok:true, data:merged };
 }
 
@@ -7412,7 +7412,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.35';
+  merged.appVersion = '1.3.36';
   return { ok:true, data:merged };
 }
 
@@ -7531,7 +7531,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.35';
+  merged.appVersion = '1.3.36';
   return { ok:true, data:merged };
 }
 
@@ -14492,7 +14492,16 @@ function psRatioLabel(ratios) {
 }
 
 function psIsProfitSettlementCase(c) {
-  return !!(c && c.profitSplit && !c.excludeFromProfitReports && (c.splitRatio || PROFIT_SPLIT_RATIOS[c.profitSplit]) && !c.psSettled);
+  if (!(c && c.profitSplit && !c.excludeFromProfitReports && (c.splitRatio || PROFIT_SPLIT_RATIOS[c.profitSplit]))) return false;
+  if (!c.psSettled) return true;
+  // 已經結算過的個案，只有在結算基準日之後又有新的已收款／已付款／費用（例如保固款、保留款這種
+  // 結案後才進帳的款項），才代表有新增毛利可以再跑一次增量結算；沒有結算基準日的舊資料維持原本
+  // 「結算過就不再出現」的行為，避免把舊資料意外判定成可再結算。
+  const cutoff = c.psSettledThrough || c.closedDate || '';
+  if (!cutoff) return false;
+  return RECEIVABLES.some(r => r.case === c.code && receivableIsCollected(r) && String(r.collectDate||'') > cutoff)
+    || PAYABLES.some(p => p.case === c.code && p.status === 'paid' && String(p.doneDate||'') > cutoff)
+    || EXPENSES.some(e => e.caseKey === c.code && e.status === 'approved' && e.postCloseTreatment !== 'company_absorb' && String(e.date || (e.month ? e.month+'-01' : '') || '') > cutoff);
 }
 
 // 預留營業所得稅率（可調整，預設3%）
@@ -14613,6 +14622,9 @@ function psRunSettlement() {
       cs.psSettled = true;
       cs.status = '結案';
       cs.closedDate = cs.closedDate || new Date().toISOString().slice(0,10);
+      // 每次結算（含增量結算）都要往前推進結算基準日，下次再有新款項進帳時，
+      // 才知道要從這裡開始算新的，不會又把這次剛分完的重算一次。
+      cs.psSettledThrough = settlementDate;
     }
   });
   result.ohMonths.forEach(m => {
@@ -14837,21 +14849,37 @@ function psComputeData() {
 
   let grandGross = 0;
   const baseRows = selectedCases.map(c => {
-    const recordedRevenue = rvPaid.filter(r => r.case === c.code).reduce((s,r) => s + (r.collectAmt||0), 0);
-    const recordedCost = pyPaid.filter(p => p.case === c.code).reduce((s,p) => s + (p.amount||0), 0);
-    const useOverride = shouldUseCaseFinancialOverride(c);
+    // 個案結算過一次之後（psSettled），若後續又有新的已收款／已付款／費用（例如保固款、保留款
+    // 這種結案後才進帳的款項），這個案會再次被 psIsProfitSettlementCase 選入可結算名單，這裡就要
+    // 只算「結算基準日之後」新增的部分，不能連同上次已經分過的舊金額一起重算一次。
+    // 結算基準日優先用 psSettledThrough（每次結算後更新）；沒有的話（例如舊資料只有結案時間）
+    // 退回用 closedDate；兩者都沒有就代表這是第一次結算，cutoff 空字串＝全部都算，行為跟以前一樣。
+    const cutoff = c.psSettled ? (c.psSettledThrough || c.closedDate || '') : '';
+    const isIncrementalRound = !!cutoff;
+    const rvRows = rvPaid.filter(r => r.case === c.code && (!cutoff || String(r.collectDate||'') > cutoff));
+    const pyRows = pyPaid.filter(p => p.case === c.code && (!cutoff || String(p.doneDate||'') > cutoff));
+    const expRows = expApproved.filter(e => e.caseKey === c.code && (!cutoff || String(e.date || (e.month ? e.month+'-01' : '') || '') > cutoff));
+    // 歷史核對用的 override（revenueOverride 等）是第一次結算時的精確對帳快照，不適用於增量這一輪，
+    // 一律改用即時數字重算，只算 cutoff 之後的新交易。
+    const useOverride = shouldUseCaseFinancialOverride(c) && !isIncrementalRound;
+    const recordedRevenue = rvRows.reduce((s,r) => s + (r.collectAmt||0), 0);
+    const recordedCost = pyRows.reduce((s,p) => s + (p.amount||0), 0);
     const revenue = useOverride && Number.isFinite(c.revenueOverride) ? c.revenueOverride : recordedRevenue;
     const cost    = useOverride && Number.isFinite(c.vendorCostOverride) ? c.vendorCostOverride : recordedCost;
-    const expCost = expApproved.filter(e => e.caseKey === c.code).reduce((s,e) => s + (e.amount||0), 0);
-    const calculatedTaxCost = rvPaid.filter(r => r.case === c.code).reduce((s,r) => s + ((r.invoiceAmt||0)/1.05*0.05/2), 0);
-    const taxCost = Number.isFinite(c.taxCostOverride) ? c.taxCostOverride : calculatedTaxCost;
+    const expCost = expRows.reduce((s,e) => s + (e.amount||0), 0);
+    const calculatedTaxCost = rvRows.reduce((s,r) => s + ((r.invoiceAmt||0)/1.05*0.05/2), 0);
+    const taxCost = (useOverride && Number.isFinite(c.taxCostOverride)) ? c.taxCostOverride : calculatedTaxCost;
     const calculatedGross = revenue - cost - expCost - taxCost;
     const gross   = useOverride && Number.isFinite(c.grossOverride) ? c.grossOverride : calculatedGross;
-    const invoiceTotal = rvPaid.filter(r => r.case === c.code).reduce((s,r) => s + (r.invoiceAmt||0), 0);
+    const invoiceTotal = rvRows.reduce((s,r) => s + (r.invoiceAmt||0), 0);
     grandGross += gross;
+    // 增量這一輪依政策確認：不套用原本那次結算的固定開銷／稅務 override 數字（那些數字已經在第一次
+    // 結算時用掉了），一律當作「沒有 override」，開銷份額固定為 0、稅務照這批正常比例重新預留。
+    const fixedOverheadShare = isIncrementalRound ? 0 : c.fixedOverheadShare;
+    const taxReserveOverride = isIncrementalRound ? undefined : c.taxReserveOverride;
     return {
       code:c.code, name:c.name, gross, calculatedGross, invoiceTotal, ratios:psGetSplitRatio(c),
-      fixedOverheadShare:c.fixedOverheadShare, taxReserveOverride:c.taxReserveOverride,
+      fixedOverheadShare, taxReserveOverride, isIncrementalRound,
       reconciliationNote:c.reconciliationNote || ''
     };
   });
@@ -15070,9 +15098,12 @@ function taxDeleteLiability(id) {
 function taxOpenIncomeEstimate() {
   const cases = CASES.filter(psIsProfitSettlementCase);
   return cases.reduce((sum, c) => {
-    if (Number.isFinite(c.taxReserveOverride)) return sum + Math.abs(Number(c.taxReserveOverride));
+    // 已結算過、這次是增量結算（保固款等結案後才進帳的款項）的個案，只算結算基準日之後新增的
+    // 發票金額；taxReserveOverride 是第一次結算用的歷史對帳數字，增量這輪不適用。
+    const cutoff = c.psSettled ? (c.psSettledThrough || c.closedDate || '') : '';
+    if (!cutoff && Number.isFinite(c.taxReserveOverride)) return sum + Math.abs(Number(c.taxReserveOverride));
     const invoiceTotal = RECEIVABLES
-      .filter(r => r.case === c.code && receivableIsCollected(r))
+      .filter(r => r.case === c.code && receivableIsCollected(r) && (!cutoff || String(r.collectDate||'') > cutoff))
       .reduce((s,r) => s + (Number(r.invoiceAmt) || 0), 0);
     return sum + invoiceTotal * PS_TAX_RATE;
   }, 0);
