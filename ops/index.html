@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.31 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.32 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -6010,7 +6010,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.31', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.32', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6071,7 +6071,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.31', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.32', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7163,7 +7163,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.31';
+  merged.appVersion = '1.3.32';
   return { ok:true, data:merged };
 }
 
@@ -7287,7 +7287,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.31';
+  merged.appVersion = '1.3.32';
   return { ok:true, data:merged };
 }
 
@@ -7399,7 +7399,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.31';
+  merged.appVersion = '1.3.32';
   return { ok:true, data:merged };
 }
 
@@ -7518,7 +7518,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.31';
+  merged.appVersion = '1.3.32';
   return { ok:true, data:merged };
 }
 
@@ -13637,7 +13637,11 @@ function expBatchCaseChanged(select) {
   else select.dataset.caseKey = '';
   const closed = resolved ? isClosedCase(resolved.key) : false;
   treatment.disabled = !closed;
-  treatment.value = closed ? (treatment.value || 'post_close_cost') : '';
+  // 修改既有費用時不要用「案子現在是否結案」硬蓋掉處理方式：這筆費用可能本來就是結案前的
+  // 正常費用，只是案子後來才結案，使用者只是要修正日期之類的小地方，不該被迫或被悄悄
+  // 改成「結案後補成本」而誤扣到分潤。新增列（非編輯模式）才維持原本「結案就預設要選」的行為。
+  if (closed && expBatchEditId === null) treatment.value = treatment.value || 'post_close_cost';
+  else if (!closed) treatment.value = '';
   treatment.style.opacity = closed ? '1' : '.55';
 }
 
@@ -13860,6 +13864,11 @@ function submitBatchExpense() {
   const status = 'pending';
   let errMsg = '';
   const pendingRows = [];
+  // 只有「新增」列會強制要求選結案後處理方式；編輯既有費用時完全尊重下拉選單目前的值
+  // （包含選回「一般費用」），不再強迫分類。原因：案子現在是否結案，跟這筆費用當初是不是
+  // 結案前的正常費用無關，硬性要求會讓使用者為了改個日期之類的小地方，被迫（或先前版本裡
+  // 被悄悄預設）誤標成「結案後補成本」而錯扣到分潤；也讓已經被誤標過的舊資料，能在編輯時
+  // explicit 選回「一般費用」自行修正，不會被擋。
   document.querySelectorAll('#exp-batch-tbody tr').forEach((tr,i)=>{
     const ins = tr.querySelectorAll('input,select');
     const caseEl=ins[0], treatmentEl=ins[1], dateEl=ins[2], itemEl=ins[3], amtEl=ins[4], catEl=ins[5], recEl=ins[6], noteEl=ins[7];
@@ -13871,8 +13880,9 @@ function submitBatchExpense() {
     if (!item)  { if(!errMsg) errMsg=`第 ${i+1} 列：請填付款項目`; return; }
     if (!amtV)  { if(!errMsg) errMsg=`第 ${i+1} 列：請填金額`; return; }
     const isClosed = caseInfo.key !== '固定開銷' && isClosedCase(caseInfo.key);
-    const postCloseTreatment = isClosed ? (treatmentEl.value || 'post_close_cost') : '';
-    if (isClosed && !['post_close_cost','company_absorb'].includes(postCloseTreatment)) {
+    const requireTreatment = isClosed && expBatchEditId === null;
+    const postCloseTreatment = requireTreatment ? (treatmentEl.value || 'post_close_cost') : (['post_close_cost','company_absorb'].includes(treatmentEl.value) ? treatmentEl.value : '');
+    if (requireTreatment && !['post_close_cost','company_absorb'].includes(postCloseTreatment)) {
       if (!errMsg) errMsg=`第 ${i+1} 列：請選擇結案後處理方式`;
       return;
     }
