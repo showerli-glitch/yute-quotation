@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.30 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.31 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -6010,7 +6010,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.30', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.31', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6071,7 +6071,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.30', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.31', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7163,7 +7163,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.30';
+  merged.appVersion = '1.3.31';
   return { ok:true, data:merged };
 }
 
@@ -7287,7 +7287,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.30';
+  merged.appVersion = '1.3.31';
   return { ok:true, data:merged };
 }
 
@@ -7399,7 +7399,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.30';
+  merged.appVersion = '1.3.31';
   return { ok:true, data:merged };
 }
 
@@ -7518,7 +7518,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.30';
+  merged.appVersion = '1.3.31';
   return { ok:true, data:merged };
 }
 
@@ -15135,6 +15135,15 @@ function psTogglePayoutSettled() {
   renderProfitShare();
 }
 
+// 開銷月份清單常常包含還沒發生的未來月份（例如員工薪資排到很後面月份、固定開銷先建好空白月），
+// 預設收折未來月份，只顯示已發生（含當月）的，避免清單看起來很長又沒意義。
+let psOhFutureCollapsed = localStorage.getItem('yutesign-ops-profitshare-oh-future-collapsed') !== '0';
+function psToggleOhFuture() {
+  psOhFutureCollapsed = !psOhFutureCollapsed;
+  localStorage.setItem('yutesign-ops-profitshare-oh-future-collapsed', psOhFutureCollapsed ? '1' : '0');
+  renderProfitShare();
+}
+
 function renderProfitShare() {
   const container = document.getElementById('ps-container');
   if (!container) return;
@@ -15420,11 +15429,19 @@ function renderProfitShare() {
       <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--success)">${fmt(c.caseNet)}</td>
     </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text3);font-size:12px">沒有可顯示的個案</td></tr>`;
 
-  const ohSideRows = ohMonths.map(m => `
+  const thisMonthKey = localDateKey().slice(0,7);
+  const renderOhSideRow = m => `
     <tr style="border-bottom:1px solid var(--border)">
       <td style="padding:6px 14px;font-size:12px">${m.month}</td>
       <td style="padding:6px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${fmt(m.total)}</td>
-    </tr>`).join('') || `<tr><td colspan="2" style="text-align:center;padding:14px;color:var(--text3);font-size:12px">無未結算開銷月份</td></tr>`;
+    </tr>`;
+  const ohPastMonths = ohMonths.filter(m => m.month <= thisMonthKey);
+  const ohFutureMonths = ohMonths.filter(m => m.month > thisMonthKey);
+  const ohSideRows = ohPastMonths.map(renderOhSideRow).join('') + (ohFutureMonths.length ? `
+    <tr><td colspan="2" style="padding:5px 14px;border-top:2px solid var(--border2);background:var(--surface2);font-size:11px;color:var(--text3)">
+      <div style="display:flex;align-items:center;gap:8px"><span>未來月份（${ohFutureMonths.length}）</span><button type="button" class="btn btn-ghost btn-sm" onclick="psToggleOhFuture()" style="font-size:10px;padding:2px 8px">${psOhFutureCollapsed ? '展開 ▾' : '收折 ▴'}</button></div>
+    </td></tr>${psOhFutureCollapsed ? '' : ohFutureMonths.map(renderOhSideRow).join('')}` : '')
+    || `<tr><td colspan="2" style="text-align:center;padding:14px;color:var(--text3);font-size:12px">無未結算開銷月份</td></tr>`;
 
   const payrollRows = payrollBreakdown.map(p => `
     <tr style="border-bottom:1px solid var(--border)">
@@ -15439,17 +15456,11 @@ function renderProfitShare() {
       <div class="kpi-card"><div class="kpi-label">個人分潤／承擔合計</div><div class="kpi-val" style="font-size:18px;color:${allocatedProfit < 0 ? 'var(--error)' : 'var(--accent)'}">${fmt(allocatedProfit)}</div><div class="kpi-sub">${psParticipantList().map(p=>p.name).join('／')}</div></div>
       <div class="kpi-card" style="border-color:var(--success);background:var(--success-bg)"><div class="kpi-label">公司保留淨利</div><div class="kpi-val" style="font-size:18px;color:var(--success)">${fmt(companyRetained)}</div><div class="kpi-sub">不分潤個案及未分配餘額</div></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div style="margin-bottom:14px">
       <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:600">員工薪資加總</div>
         <table style="width:100%;border-collapse:collapse"><tbody>${payrollRows}</tbody>
           <tfoot><tr style="font-weight:700;border-top:1px solid var(--border)"><td style="padding:7px 12px">合計</td><td></td><td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace">${fmt(payrollGrandTotal)}</td></tr></tfoot>
-        </table>
-      </div>
-      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
-        <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:600">公司開銷各月份</div>
-        <table style="width:100%;border-collapse:collapse"><tbody>${ohMonths.map(m => `<tr style="border-bottom:1px solid var(--border)"><td style="padding:7px 12px;font-size:12px">${m.month}</td><td style="padding:7px 12px;font-size:10px;color:var(--text3)">固定 ${fmt(m.fixed)}／營運薪資 ${fmt(m.payroll)}</td><td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${fmt(m.total)}</td></tr>`).join('')}</tbody>
-          <tfoot><tr style="font-weight:700;border-top:1px solid var(--border)"><td style="padding:7px 12px">合計</td><td></td><td style="padding:7px 12px;text-align:right;font-family:'DM Mono',monospace">${fmt(overheadTotal)}</td></tr></tfoot>
         </table>
       </div>
     </div>`;
