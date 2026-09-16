@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.34 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.35 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3070,10 +3070,14 @@ body.auth-pending .auth-screen{display:flex}
         </div>
         <div class="form-field form-full">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-            <input type="checkbox" id="edit-case-no-overhead">
-            不分攤公司開銷（此個案結算時開銷份額固定為 0，只預留營業所得稅）
+            <input type="checkbox" id="edit-case-no-overhead" onchange="editCaseNoOverheadChange()">
+            開銷份額用固定金額（不用動態比例分攤）
           </label>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">適合已結案個案後續才進帳的保固款／保留款：只是現金晚到，不是新的營運成本，不需要再分攤一次公司開銷。</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">適合已結案個案後續才進帳的保固款／保留款：只是現金晚到，不是新的營運成本。金額填 0 代表完全不分攤開銷、只預留營業所得稅；若這個案原本就有精確核對過的歷史開銷數字（像上洋嘉義），會顯示在下面，不是 0。</div>
+          <div id="edit-case-no-overhead-amt-wrap" style="display:none;margin-top:8px">
+            <label class="form-label" style="font-size:12px">固定開銷金額</label>
+            <input class="form-input" id="edit-case-no-overhead-amt" type="text" placeholder="例：0" style="max-width:200px">
+          </div>
         </div>
       </div>
       <div id="edit-case-locked-notice" style="display:none;margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--text3)">
@@ -6019,7 +6023,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.34', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.35', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6080,7 +6084,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.34', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.35', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7172,7 +7176,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.34';
+  merged.appVersion = '1.3.35';
   return { ok:true, data:merged };
 }
 
@@ -7296,7 +7300,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.34';
+  merged.appVersion = '1.3.35';
   return { ok:true, data:merged };
 }
 
@@ -7408,7 +7412,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.34';
+  merged.appVersion = '1.3.35';
   return { ok:true, data:merged };
 }
 
@@ -7527,7 +7531,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.34';
+  merged.appVersion = '1.3.35';
   return { ok:true, data:merged };
 }
 
@@ -10956,7 +10960,13 @@ function openEditCase(caseCode) {
   document.getElementById('edit-case-ratio-wrap').style.display = pm === '自訂' ? '' : 'none';
   document.getElementById('edit-case-locked-notice').style.display = c.psSettled ? '' : 'none';
   document.getElementById('edit-case-no-overhead').checked = Number.isFinite(c.fixedOverheadShare);
+  document.getElementById('edit-case-no-overhead-amt').value = Number.isFinite(c.fixedOverheadShare) ? c.fixedOverheadShare.toLocaleString('zh-TW') : '0';
+  document.getElementById('edit-case-no-overhead-amt-wrap').style.display = Number.isFinite(c.fixedOverheadShare) ? '' : 'none';
   openModal('modal-edit-case');
+}
+function editCaseNoOverheadChange() {
+  const checked = document.getElementById('edit-case-no-overhead').checked;
+  document.getElementById('edit-case-no-overhead-amt-wrap').style.display = checked ? '' : 'none';
 }
 function editCaseProfitModeChange() {
   const pm = document.getElementById('edit-case-profit-mode').value;
@@ -10994,8 +11004,9 @@ function submitEditCase() {
   }
   const noOverhead = document.getElementById('edit-case-no-overhead').checked;
   if (noOverhead) {
-    // 保留原本已有的精確歷史金額（例如舊資料核對過的固定攤提數字），沒有的話才預設為 0。
-    editCaseTarget.fixedOverheadShare = Number.isFinite(editCaseTarget.fixedOverheadShare) ? editCaseTarget.fixedOverheadShare : 0;
+    // 直接讀畫面上的金額，不要悄悄套用舊值——固定金額是多少必須讓使用者自己看得到、自己填。
+    const amtRaw = document.getElementById('edit-case-no-overhead-amt').value.trim();
+    editCaseTarget.fixedOverheadShare = parseInt(amtRaw.replace(/[^0-9]/g,'')) || 0;
   } else {
     delete editCaseTarget.fixedOverheadShare;
   }
