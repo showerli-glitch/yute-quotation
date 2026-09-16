@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.36 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.37 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -3078,6 +3078,21 @@ body.auth-pending .auth-screen{display:flex}
             <label class="form-label" style="font-size:12px">固定開銷金額</label>
             <input class="form-input" id="edit-case-no-overhead-amt" type="text" placeholder="例：0" style="max-width:200px">
           </div>
+        </div>
+        <div class="form-field form-full" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+          <label class="form-label">保固款／保留款</label>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div>
+              <label style="font-size:11px;color:var(--text3)">金額</label>
+              <input class="form-input" id="edit-case-retention-amt" type="text" placeholder="例：450,000" style="width:140px">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3)">預計／實際到期日</label>
+              <input class="form-input" id="edit-case-retention-due" type="date" style="width:160px">
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="caseGenerateRetentionReceivable()">生成保固款應收</button>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">按下後會帶著這裡的金額、到期日開啟「新增收款紀錄」視窗，確認無誤後按新增送出。正式開發票、收款後，這個案會自動重新出現在分潤結算的可選名單，只結算這筆新增的部分，不會動到原本已經分過的分潤。</div>
         </div>
       </div>
       <div id="edit-case-locked-notice" style="display:none;margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--text3)">
@@ -6023,7 +6038,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.36', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.37', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6084,7 +6099,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.36', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.37', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7176,7 +7191,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.36';
+  merged.appVersion = '1.3.37';
   return { ok:true, data:merged };
 }
 
@@ -7300,7 +7315,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.36';
+  merged.appVersion = '1.3.37';
   return { ok:true, data:merged };
 }
 
@@ -7412,7 +7427,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.36';
+  merged.appVersion = '1.3.37';
   return { ok:true, data:merged };
 }
 
@@ -7531,7 +7546,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.36';
+  merged.appVersion = '1.3.37';
   return { ok:true, data:merged };
 }
 
@@ -10962,6 +10977,8 @@ function openEditCase(caseCode) {
   document.getElementById('edit-case-no-overhead').checked = Number.isFinite(c.fixedOverheadShare);
   document.getElementById('edit-case-no-overhead-amt').value = Number.isFinite(c.fixedOverheadShare) ? c.fixedOverheadShare.toLocaleString('zh-TW') : '0';
   document.getElementById('edit-case-no-overhead-amt-wrap').style.display = Number.isFinite(c.fixedOverheadShare) ? '' : 'none';
+  document.getElementById('edit-case-retention-amt').value = c.retentionAmt ? c.retentionAmt.toLocaleString('zh-TW') : '';
+  document.getElementById('edit-case-retention-due').value = c.retentionDue || '';
   openModal('modal-edit-case');
 }
 function editCaseNoOverheadChange() {
@@ -11010,11 +11027,38 @@ function submitEditCase() {
   } else {
     delete editCaseTarget.fixedOverheadShare;
   }
+  const retentionAmtRaw = document.getElementById('edit-case-retention-amt').value.trim();
+  const retentionAmt = parseInt(retentionAmtRaw.replace(/[^0-9]/g,'')) || 0;
+  if (retentionAmt > 0) editCaseTarget.retentionAmt = retentionAmt; else delete editCaseTarget.retentionAmt;
+  const retentionDue = document.getElementById('edit-case-retention-due').value;
+  if (retentionDue) editCaseTarget.retentionDue = retentionDue; else delete editCaseTarget.retentionDue;
   closeModal('modal-edit-case');
   renderCases();
   renderDashboard();
   saveData();
   showToast(`${name} 已更新 ✓`, 'success');
+}
+
+// 個案編輯視窗「生成保固款應收」：只是幫忙把個案裡填好的保固款金額／到期日帶進「新增收款紀錄」
+// 視窗，方便使用者不用重打一次；實際的應收紀錄仍要在那個視窗按下新增才會真的建立。
+function caseGenerateRetentionReceivable() {
+  if (!editCaseTarget) return;
+  const c = editCaseTarget;
+  const amtRaw = document.getElementById('edit-case-retention-amt').value.trim();
+  const amt = parseInt(amtRaw.replace(/[^0-9]/g,'')) || 0;
+  if (amt <= 0) { showToast('請先填寫保固款金額', 'error'); return; }
+  const due = document.getElementById('edit-case-retention-due').value;
+  closeModal('modal-edit-case');
+  openAddReceivableModal();
+  const caseEl = document.getElementById('rv-add-case'); if (caseEl) caseEl.value = c.code;
+  const clientEl = document.getElementById('rv-add-client'); if (clientEl) clientEl.value = c.clientName || c.client || '';
+  document.getElementById('rv-add-buyer').value = c.clientName || c.client || '';
+  document.getElementById('rv-add-item').value = '保固保留款';
+  document.getElementById('rv-add-receivable-amt').value = amt.toLocaleString('zh-TW');
+  const typeEl = document.getElementById('rv-add-type'); if (typeEl) typeEl.value = 'retention';
+  const dueEl = document.getElementById('rv-add-retention-due'); if (dueEl) dueEl.value = due;
+  rvToggleReceivableType();
+  showToast('已帶入保固款資料，確認無誤後按「新增」送出', 'success');
 }
 
 // ══════════════════════════════════
