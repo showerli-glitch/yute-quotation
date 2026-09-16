@@ -1199,7 +1199,7 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost btn-sm" id="btn-cloud-push" style="width:100%;font-size:11px;color:var(--error)" onclick="opsCloudPushLocalNow()" title="會用這台電腦的資料整包覆蓋 Firebase 正式資料，略過衝突檢查">⚠ 上傳本機快照</button>
       <input type="file" id="backup-import-file" style="display:none" onchange="importBackupFile(this)">
     </div>
-    <div class="sidebar-ver">Codex v1.3.33 · 2026</div>
+    <div class="sidebar-ver">Codex v1.3.34 · 2026</div>
   </div>
 </nav>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -1261,6 +1261,7 @@ body.auth-pending .auth-screen{display:flex}
     <div class="sec-hd">
       <div class="sec-title">個案總覽</div>
       <div style="display:flex;align-items:center;gap:8px">
+      <input class="search-input" id="case-search" placeholder="搜尋個案編號、名稱、客戶…" oninput="renderCases()" style="height:32px">
       <select class="filter-select" id="case-sort" onchange="renderCases()" style="height:32px;min-width:142px" aria-label="未結案個案排序">
         <option value="entry-desc">進案時間新到舊</option>
         <option value="entry-asc">進案時間舊到新</option>
@@ -1993,6 +1994,7 @@ body.auth-pending .auth-screen{display:flex}
           <div id="pf-case-checkboxes"></div>
         </div>
       </div>
+      <input class="search-input" id="pf-case-search" placeholder="搜尋個案編號、名稱、客戶…" oninput="renderProfit()" style="height:32px;min-width:200px">
       <span style="font-size:13px;color:var(--text2)">明細個案</span>
       <select class="filter-select" id="pf-detail-case" onchange="renderProfit()" style="height:32px;min-width:220px;max-width:320px">
         <option value="">自動選擇</option>
@@ -3065,6 +3067,13 @@ body.auth-pending .auth-screen{display:flex}
             <span style="font-size:12px">彭俞豪</span><input class="form-input" id="edit-ratio-peng"   type="number" min="0" max="100" step="1" style="width:64px">%
             <span style="font-size:12px">連星羽</span><input class="form-input" id="edit-ratio-lien"   type="number" min="0" max="100" step="1" style="width:64px">%
           </div>
+        </div>
+        <div class="form-field form-full">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="edit-case-no-overhead">
+            不分攤公司開銷（此個案結算時開銷份額固定為 0，只預留營業所得稅）
+          </label>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">適合已結案個案後續才進帳的保固款／保留款：只是現金晚到，不是新的營運成本，不需要再分攤一次公司開銷。</div>
         </div>
       </div>
       <div id="edit-case-locked-notice" style="display:none;margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--text3)">
@@ -6010,7 +6019,7 @@ function createDataSnapshot() {
   normalizeCompanyData();
   syncPayrollEmployeeAccountsFromConfig();
   return {
-    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.33', companyId:COMPANY_ID,
+    format:'yutesign-ops-backup', formatVersion:1, appVersion:'1.3.34', companyId:COMPANY_ID,
     CASES, PAYABLES, RECEIVABLES, EXPENSES, COMPANY_ALLOCATIONS, TAX_LIABILITIES, TEST_FEEDBACK, ATTENDANCE_RECORDS, ATTENDANCE_LEAVES, ATTENDANCE_SETTINGS, OVERHEAD, OH_FIXED_CONFIG: [...OH_FIXED_CONFIG], PAYROLL, PAYROLL_MONTHS, PAYROLL_DELETED_MONTHS, PAYROLL_EMPLOYEE_ACCOUNTS, DELETED_SOURCE_KEYS, CLIENTS, VENDORS, EMPLOYEES,
     USER_PERMISSIONS: JSON.parse(JSON.stringify(USER_PERMISSIONS)),
     PROFIT_SETTLEMENTS, PS_TAX_RATE, AUDIT_LOGS,
@@ -6071,7 +6080,7 @@ function recordAuditLog(action, targetType, targetId, before, after, options = {
       riskLevel: options.riskLevel || 'medium',
       requestId: options.requestId || '',
       sessionId: opsAuthenticatedEmail || actor.id || '',
-      clientInfo: { appVersion:'1.3.33', userAgent:navigator.userAgent },
+      clientInfo: { appVersion:'1.3.34', userAgent:navigator.userAgent },
       schemaVersion: 1
     };
     AUDIT_LOGS.unshift(row);
@@ -7163,7 +7172,7 @@ function opsCloudMergeSingleCollection(baseData, localData, remoteData, config) 
   if (config.nextIdField) merged[config.nextIdField] = Math.max(mergedRows.nextId, Number(remoteData?.[config.nextIdField]) || 1, Number(localData?.[config.nextIdField]) || 1);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.33';
+  merged.appVersion = '1.3.34';
   return { ok:true, data:merged };
 }
 
@@ -7287,7 +7296,7 @@ function opsCloudMergeOverhead(baseData, localData, remoteData) {
   merged.AUDIT_LOGS = opsCloudMergeAuditLogs(remoteData, localData);
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.33';
+  merged.appVersion = '1.3.34';
   return { ok:true, data:merged };
 }
 
@@ -7399,7 +7408,7 @@ function opsCloudMergeReceivables(baseData, localData, remoteData) {
   merged.rvNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.33';
+  merged.appVersion = '1.3.34';
   return { ok:true, data:merged };
 }
 
@@ -7518,7 +7527,7 @@ function opsCloudMergePayables(baseData, localData, remoteData) {
   merged.pyNextId = Math.max(nextId, opsCloudNextNumericId(mergedRows));
   merged.auditNextId = Math.max(Number(remoteData.auditNextId) || 1, Number(localData.auditNextId) || 1, opsCloudNextNumericId(merged.AUDIT_LOGS));
   merged.savedAt = new Date().toISOString();
-  merged.appVersion = '1.3.33';
+  merged.appVersion = '1.3.34';
   return { ok:true, data:merged };
 }
 
@@ -8925,7 +8934,9 @@ function renderCases() {
   dcUpdateCaseBtn();
   const tbody = document.getElementById('case-tbody');
   const visibleCases = CASES.filter(c => userCanViewCaseFinancials(c.code, 'dashboard') || userCanViewCaseFinancials(c.code, 'profit'));
-  const data = dcSelCases === null ? visibleCases : visibleCases.filter(c => dcSelCases.has(c.code));
+  const selected = dcSelCases === null ? visibleCases : visibleCases.filter(c => dcSelCases.has(c.code));
+  const caseKw = (document.getElementById('case-search')?.value || '').toLowerCase();
+  const data = selected.filter(c => searchTextMatches([c.code, c.name, c.clientName].filter(Boolean).join(' '), caseKw));
   const canSetLocation = ['shower','nc'].includes(currentUser?.id) && canManage('dashboard');
   document.querySelectorAll('#case-table .case-location-col').forEach(el => { el.style.display = canSetLocation ? '' : 'none'; });
   const statusTag = {
@@ -10944,6 +10955,7 @@ function openEditCase(caseCode) {
   document.getElementById('edit-ratio-lien').value   = Math.round((ratio.lien  ||0)*100) || '';
   document.getElementById('edit-case-ratio-wrap').style.display = pm === '自訂' ? '' : 'none';
   document.getElementById('edit-case-locked-notice').style.display = c.psSettled ? '' : 'none';
+  document.getElementById('edit-case-no-overhead').checked = Number.isFinite(c.fixedOverheadShare);
   openModal('modal-edit-case');
 }
 function editCaseProfitModeChange() {
@@ -10979,6 +10991,13 @@ function submitEditCase() {
     editCaseTarget.profitSplit = '三人';
     editCaseTarget.excludeFromProfitReports = false;
     delete editCaseTarget.splitRatio;
+  }
+  const noOverhead = document.getElementById('edit-case-no-overhead').checked;
+  if (noOverhead) {
+    // 保留原本已有的精確歷史金額（例如舊資料核對過的固定攤提數字），沒有的話才預設為 0。
+    editCaseTarget.fixedOverheadShare = Number.isFinite(editCaseTarget.fixedOverheadShare) ? editCaseTarget.fixedOverheadShare : 0;
+  } else {
+    delete editCaseTarget.fixedOverheadShare;
   }
   closeModal('modal-edit-case');
   renderCases();
@@ -12869,8 +12888,10 @@ function renderProfit() {
         <td style="padding:10px 10px;text-align:center"><span class="tag ${stCls[c.status] || 'tag-active'}">${c.status || '進行中'}</span></td>
       </tr>`;
     };
-    const openRows = caseRows.filter(c => c.status !== '結案');
-    const closedRows = caseRows.filter(c => c.status === '結案');
+    const caseKw = (document.getElementById('pf-case-search')?.value || '').toLowerCase();
+    const searchedRows = caseRows.filter(c => searchTextMatches([c.code, c.name, c.clientName].filter(Boolean).join(' '), caseKw));
+    const openRows = searchedRows.filter(c => c.status !== '結案');
+    const closedRows = searchedRows.filter(c => c.status === '結案');
     const closedSection = closedRows.length ? `
       <tr><td colspan="10" style="padding:5px 14px;border-top:2px solid var(--border2);background:var(--surface2);font-size:11px;color:var(--text3)">
         <div style="display:flex;align-items:center;gap:8px"><span>已結案個案（${closedRows.length}）</span><button type="button" class="btn btn-ghost btn-sm" onclick="pfToggleClosedCases()" style="font-size:10px;padding:2px 8px">${pfClosedCollapsed ? '展開 ▾' : '收折 ▴'}</button></div>
