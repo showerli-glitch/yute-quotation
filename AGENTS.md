@@ -131,8 +131,16 @@ Do not add extra approval stops between these gates unless a change could affect
 
 Update this section after every completed slice with the commit, entry files, validation evidence, remaining legacy modules, known risks, and next step.
 
-- Foundation: not started.
-- Receivables: not started.
-- Payables: not started.
-- Expenses: not started.
-- Deferred legacy modules: cases, clients, vendors, quotations, vendor pay requests, payments/cash position, cost control/profit/profit share, bank reconciliation, payroll, attendance, overhead, tax, feedback, system notes, employees.
+- Foundation: complete in `49d0774` (`refactor(ops): extract shared foundation`). Entry files are `ops/js/core/types.js`, `config.js`, `data.js`, `accounting.js`, and `ui.js`; `ops/index.html` loads them in that order before the remaining inline application code.
+- Receivables: complete in `f85456f` (`refactor(ops): extract receivables module`). Entry file is `ops/js/modules/receivables.js`.
+- Payables: complete in `e4225df` (`refactor(ops): extract payables module`). Entry file is `ops/js/modules/payables.js`.
+- Expenses: complete in `3f88f32` (`refactor(ops): extract expenses module`). Entry file is `ops/js/modules/expenses.js`.
+- Gate 2 verification at `3f88f32` plus the follow-up verification/docs commit:
+  - `node scripts/verify-ops-modularization.mjs`: 8 local scripts have valid JavaScript syntax; 7 extracted source blocks and 300 moved function bodies match `pre-refactor-baseline-20260922` byte-for-byte after normalizing only the intentional file header/newline boundaries.
+  - `firebase-database.rules.json` parses as JSON; `git diff --check` passes.
+  - Local browser smoke: all 8 local scripts load with zero console errors/warnings. The full local development-mode smoke covered all 18 existing pages and rendered the existing seed collections (payables 275, receivables 32, expenses 228) without changing production data.
+  - Production Firebase verification was read-only. Before, during, and after all four slices, the cloud snapshot remained at `2026/09/22 17:38`: CASES 27; PAYABLES 572 (pending 1 / $120,000; approved 2 / $17,296; paid 569 / $43,860,677.25); RECEIVABLES 74 (collected 69 / $53,280,699; pending 5 / $1,572,421; missing invoice 1); EXPENSES 836 (pending $123; approved $1,793,709; total $1,793,832). A final production-page refresh showed the same timestamp and counts. No production create/update/delete action was performed.
+  - `ops/index.html` is 10,473 lines versus 17,419 lines at the baseline. The remaining size is intentional because deferred modules stay in place for the next batch.
+- Known risks/limits: the repository still has no package-based lint/typecheck/build/test runner or CI; classic-script global load order remains a runtime contract; production write flows were not exercised because this batch explicitly forbids production writes. The authenticated modular branch cannot be exercised against production Firebase until it is served from an authorized HTTP(S) preview/origin, so Gate 2 evidence combines byte-for-byte extraction checks, local full-page smoke tests, and separate read-only production data/UI checks.
+- Deferred legacy modules: cases, clients, vendors, quotations, vendor pay requests, payments/cash position, cost control/profit/profit share, bank reconciliation, payroll, attendance, overhead, tax, feedback, system notes, employees. They remain inline because they are explicitly outside this batch.
+- Next step: stop at Gate 2 for user review. After approval, prepare Gate 3 evidence only: refresh the Firebase backup, compare `ops-modularize` with the production baseline, rerun complete verification, and stop again before merging to `main` or deploying GitHub Pages.
