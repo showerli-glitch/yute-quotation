@@ -117,7 +117,7 @@ function extractSlice({ startMarker, endMarker, target, title }) {
 function payables() {
   extractSlice({
     startMarker: '// ══════════════════════════════════\n// PAYABLE MODULE',
-    endMarker: '// ══════════════════════════════════\n// RECEIVABLE MODULE',
+    endMarker: '\n</script>\n<script src="js/modules/receivables.js"',
     target: 'ops/js/modules/payables.js',
     title: '應付模組',
   });
