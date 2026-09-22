@@ -99,6 +99,28 @@ In scope:
 
 Explicitly out of scope for this batch: cases, clients, vendors, quotations, vendor pay-request workflow as its own module, payment/cash-position modules, profit/cost-control modules, bank reconciliation, Figma/mobile redesign, and all new features. Cross-module helper calls needed to preserve current behavior are allowed; do not proactively move those modules.
 
+## Gate 1 structural baseline and approved adjustment
+
+The original Gate 1 map approved on 2026-09-22 proposed a fine-grained split: four CSS files under `ops/styles/`; `contracts`, `config`, `utils`, `access`, `ui`, `accounting`, `storage`, and `cloud` files under `ops/scripts/core/`; and separate `data.js`, `view.js`, and `module.js` files for each of receivables, payables, and expenses. It also proposed moving the selected pages and modal markup into JavaScript view templates while retaining `ops/index.html` as the shell and integration entry.
+
+Implementation deliberately converged on a coarser structure to preserve behavior through contiguous, byte-for-byte source moves:
+
+| Original Gate 1 target | Approved implemented target | Difference and reason |
+|---|---|---|
+| `ops/styles/core.css`, `receivables.css`, `payables.css`, `expenses.css` | CSS remains inline in `ops/index.html` | The baseline cascade contains shared and interleaved selectors. Leaving it in place avoids changing selector order, specificity, responsive behavior, or the appearance of deferred modules. |
+| Receivable/payable/expense `view.js` files | Static page and modal HTML remains in `ops/index.html` | The baseline views are literal HTML rather than JavaScript templates. Moving them would require template injection and initialization changes instead of a mechanical source move. |
+| `ops/scripts/core/contracts.js` | `ops/js/core/types.js` | Naming/path changed only; it remains documentation-only JSDoc and does not alter runtime data. |
+| Separate `config.js`, `utils.js`, `access.js`, `storage.js`, and `cloud.js` | `ops/js/core/config.js`, `data.js`, and `ui.js` | The baseline data script has tightly ordered global state, seed/migration, permissions, persistence, authentication, and Firebase synchronization. `data.js` intentionally keeps the large contiguous dependency block together; safely isolated UI/search/row helpers are in `ui.js`. This preserves classic-script declaration order and global entry points. |
+| `ops/scripts/core/accounting.js` | `ops/js/core/accounting.js` | Path changed; the accounting predicates and calculations were moved byte-for-byte without formula changes. |
+| Receivables `data.js` / `view.js` / `module.js` | State/seed stays in `ops/js/core/data.js`, static HTML stays in `ops/index.html`, and behavior is in `ops/js/modules/receivables.js` | Avoids rewriting initialization or view mounting while still separating the receivable feature functions. |
+| Payables `data.js` / `view.js` / `module.js` | State/seed stays in `ops/js/core/data.js`, static HTML stays in `ops/index.html`, and behavior is in `ops/js/modules/payables.js` | Avoids rewriting initialization or view mounting while still separating the payable feature functions. The separate vendor pay-request workflow remains inline and out of scope. |
+| Expenses `data.js` / `view.js` / `module.js` | The contiguous expense data/behavior block is in `ops/js/modules/expenses.js`; static HTML stays in `ops/index.html` | Preserves ordering and the existing overhead/profit side-effect calls without moving those deferred modules. |
+
+The approved split order remains unchanged: foundation, receivables, payables, then expenses. The coarser structure does not authorize formula, schema, API, permission, UI behavior, or historical-data changes; it only changes extraction granularity and target paths.
+
+- Approval status: **已取得使用者核准**. On 2026-09-23, the user explicitly ratified this implemented structure as the new Gate 1 baseline, including the decision not to force-split CSS or static HTML and to prioritize the lower-risk contiguous extraction. This supersedes the original fine-grained Gate 1 file map for this batch.
+- Process note: the implementation reached this coarser structure before the difference was documented. The technical choice was consistent with the minimum-risk objective, but the map change should have been reported before Gate 2 was presented. This section records both the deviation and its subsequent explicit approval.
+
 ## Required execution gates
 
 1. Before code changes, present an existing-file-to-target-module map and the split order; stop for approval.
@@ -135,12 +157,13 @@ Update this section after every completed slice with the commit, entry files, va
 - Receivables: complete in `f85456f` (`refactor(ops): extract receivables module`). Entry file is `ops/js/modules/receivables.js`.
 - Payables: complete in `e4225df` (`refactor(ops): extract payables module`). Entry file is `ops/js/modules/payables.js`.
 - Expenses: complete in `3f88f32` (`refactor(ops): extract expenses module`). Entry file is `ops/js/modules/expenses.js`.
-- Gate 2 verification at `3f88f32` plus the follow-up verification/docs commit:
+- Gate 2 verification at `3f88f32` plus verification commit `1083e1a`:
   - `node scripts/verify-ops-modularization.mjs`: 8 local scripts have valid JavaScript syntax; 7 extracted source blocks and 300 moved function bodies match `pre-refactor-baseline-20260922` byte-for-byte after normalizing only the intentional file header/newline boundaries.
   - `firebase-database.rules.json` parses as JSON; `git diff --check` passes.
   - Local browser smoke: all 8 local scripts load with zero console errors/warnings. The full local development-mode smoke covered all 18 existing pages and rendered the existing seed collections (payables 275, receivables 32, expenses 228) without changing production data.
   - Production Firebase verification was read-only. Before, during, and after all four slices, the cloud snapshot remained at `2026/09/22 17:38`: CASES 27; PAYABLES 572 (pending 1 / $120,000; approved 2 / $17,296; paid 569 / $43,860,677.25); RECEIVABLES 74 (collected 69 / $53,280,699; pending 5 / $1,572,421; missing invoice 1); EXPENSES 836 (pending $123; approved $1,793,709; total $1,793,832). A final production-page refresh showed the same timestamp and counts. No production create/update/delete action was performed.
   - `ops/index.html` is 10,473 lines versus 17,419 lines at the baseline. The remaining size is intentional because deferred modules stay in place for the next batch.
+- Gate 2 structural acceptance: complete on 2026-09-23. The user explicitly approved the coarser implemented structure documented above as the replacement Gate 1 baseline; therefore the retained inline CSS/static HTML and consolidated `data.js`/single-file feature modules are intentional, accepted outcomes rather than outstanding Gate 2 defects.
 - Known risks/limits: the repository still has no package-based lint/typecheck/build/test runner or CI; classic-script global load order remains a runtime contract; production write flows were not exercised because this batch explicitly forbids production writes. The authenticated modular branch cannot be exercised against production Firebase until it is served from an authorized HTTP(S) preview/origin, so Gate 2 evidence combines byte-for-byte extraction checks, local full-page smoke tests, and separate read-only production data/UI checks.
 - Deferred legacy modules: cases, clients, vendors, quotations, vendor pay requests, payments/cash position, cost control/profit/profit share, bank reconciliation, payroll, attendance, overhead, tax, feedback, system notes, employees. They remain inline because they are explicitly outside this batch.
-- Next step: stop at Gate 2 for user review. After approval, prepare Gate 3 evidence only: refresh the Firebase backup, compare `ops-modularize` with the production baseline, rerun complete verification, and stop again before merging to `main` or deploying GitHub Pages.
+- Next step: Gate 2 is complete. A subsequent task may prepare Gate 3 evidence only: first re-check the current `origin/main`/production baseline, then create a fresh read-only Firebase backup outside the repository, compare `ops-modularize` with that verified baseline, rerun complete verification, and stop again before merging to `main`, pushing `main`, or deploying GitHub Pages. The modular branch has not yet been pushed or deployed.
