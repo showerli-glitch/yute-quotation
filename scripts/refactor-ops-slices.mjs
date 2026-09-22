@@ -108,7 +108,7 @@ function foundation() {
 function extractSlice({ startMarker, endMarker, target, title }) {
   let html = fs.readFileSync(indexPath, 'utf8');
   const block = range(html, startMarker, endMarker, title);
-  const replacement = `<script src="${target.replace(/^ops\//, '')}"></script>\n`;
+  const replacement = `</script>\n<script src="${target.replace(/^ops\//, '')}"></script>\n<script>\n`;
   html = html.replace(block, replacement);
   writeNew(target, block.trim());
   fs.writeFileSync(indexPath, html);
