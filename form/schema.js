@@ -14,6 +14,8 @@ const LEAD_ROOT_PATH = 'leads/yutesign';
 const LEAD_DB_PATH = LEAD_ROOT_PATH + '/items';
 const LEAD_EDIT_PATH = LEAD_ROOT_PATH + '/edits';
 const LEAD_EDIT_DAYS = 7;
+// Apps Script 寄備份信的網頁應用程式網址（form/apps-script/Code.gs）；空字串代表不寄信
+const LEAD_MAIL_ENDPOINT = '';
 
 const LEAD_STATUSES = [
   { value: 'new', label: '新進' },

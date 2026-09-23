@@ -7,8 +7,8 @@
 <link rel="icon" href="../favicon.ico">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script src="schema.js?v=20260923b"></script>
-<script src="form-ui.js?v=20260923b"></script>
+<script src="schema.js?v=20260923c"></script>
+<script src="form-ui.js?v=20260923c"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif; background: #f8f4ef; color: #3a2e24; min-height: 100vh; padding: 2rem 1rem; }
@@ -95,6 +95,7 @@
   <div class="form-section done" id="done" hidden>
     <h2 id="done-title">已收到您的需求表</h2>
     <p id="done-text">感謝您的填寫，宇德會盡快與您聯繫。<br>若有平面圖或參考照片，可在聯繫時一併提供。</p>
+    <p id="done-mail" style="margin-top:14px" hidden></p>
     <div id="done-link" hidden>
       <p style="margin-top:18px">若填錯或想補充需求，<strong>7 天內</strong>可用下面這個專屬連結修改：<br>（請自行保存，此連結不會再顯示；請勿轉傳給他人）</p>
       <div class="link-box"><input type="text" id="edit-link" readonly><button type="button" id="copy-link">複製連結</button></div>
@@ -143,11 +144,26 @@ function withTimeout(promise, ms) {
   return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
 }
 
-function showDone({ title, text, link }) {
+// 通知 Apps Script 寄備份信；只送 token，收件人與內容由 Apps Script 回資料庫讀取
+function requestBackupMail(token, values) {
+  if (!LEAD_MAIL_ENDPOINT || !values.email) return false;
+  fetch(LEAD_MAIL_ENDPOINT, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ token }),
+  }).catch(e => console.warn('backup mail request failed:', e));
+  return true;
+}
+
+function showDone({ title, text, link, mailTo }) {
   formEl.hidden = true;
   document.getElementById('done').hidden = false;
   if (title) document.getElementById('done-title').textContent = title;
   if (text) document.getElementById('done-text').textContent = text;
+  const mailNote = document.getElementById('done-mail');
+  mailNote.hidden = !mailTo;
+  if (mailTo) mailNote.textContent = `我們也寄了一份填寫內容備份和修改連結到 ${mailTo}，若幾分鐘內沒收到，請檢查垃圾郵件匣。`;
   if (link) {
     document.getElementById('done-link').hidden = false;
     document.getElementById('edit-link').value = link;
@@ -178,7 +194,8 @@ async function createLead(values) {
       updatedAt: TS,
     },
   }), 20000);
-  showDone({ link: leadEditUrl(token) });
+  const mailed = requestBackupMail(token, values);
+  showDone({ link: leadEditUrl(token), mailTo: mailed ? values.email : '' });
 }
 
 async function saveEdit(values) {
@@ -195,7 +212,8 @@ async function saveEdit(values) {
     [`items/${leadId}/history/${historyId}`]: { at: TS, by: 'customer', changes, token: editToken },
   }), 20000);
   editRecord.form = values;
-  showDone({ title: '已更新您的需求表', text: '修改內容已送出，宇德會依最新內容與您聯繫。', link: location.href });
+  const mailed = requestBackupMail(editToken, values);
+  showDone({ title: '已更新您的需求表', text: '修改內容已送出，宇德會依最新內容與您聯繫。', link: location.href, mailTo: mailed ? values.email : '' });
   return true;
 }
 
