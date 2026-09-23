@@ -11,17 +11,12 @@
 <script src="form-ui.js?v=20260923b"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif; background: #ede8e0; color: #3a2e24; min-height: 100vh; padding: 2rem 1rem; }
+  body { font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif; background: #f4f0ea; color: #3a2e24; min-height: 100vh; padding: 2rem 1rem; }
   .page-wrap { max-width: 720px; margin: 0 auto; }
-  .page-header { text-align: center; margin-bottom: 2rem; padding: 2.25rem 1.5rem 2.5rem; background: #7d6a55; border-radius: 14px; color: #fff; }
-  .brand { display: inline-flex; align-items: center; gap: 16px; margin-bottom: 22px; color: #f5ede2; }
-  .brand svg { width: 58px; height: 58px; flex-shrink: 0; }
-  .brand-text { text-align: left; }
-  .brand-en { font-size: 22px; letter-spacing: 0.52em; margin-right: -0.52em; font-weight: 400; line-height: 1; padding-bottom: 8px; border-bottom: 1px solid rgba(245,237,226,0.7); }
-  .brand-zh { font-size: 12px; letter-spacing: 0.42em; margin-top: 8px; color: #efe4d4; white-space: nowrap; }
-  @media (max-width: 400px) { .brand { gap: 12px; } .brand svg { width: 46px; height: 46px; } .brand-en { font-size: 18px; letter-spacing: 0.42em; } .brand-zh { font-size: 11px; letter-spacing: 0.24em; } }
-    .page-header h1 { font-size: 26px; font-weight: 600; letter-spacing: 0.08em; color: #f5ede2; }
-  .page-header p { font-size: 13px; color: #e3d5c2; margin-top: 8px; }
+  .page-header { text-align: center; margin-bottom: 2rem; padding: 2.5rem 1.5rem; background: #978572; border-radius: 14px; color: #fff; }
+    .page-header .company { font-size: 15px; letter-spacing: 0.24em; color: #f6eee3; margin-bottom: 12px; }
+  .page-header h1 { font-size: 26px; font-weight: 600; letter-spacing: 0.08em; color: #f5ede2; }
+  .page-header p { font-size: 13px; color: #f1e7da; margin-top: 8px; }
   .form-section { background: #faf6f0; border: 1px solid #ddd0bc; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
   .section-title { font-size: 14px; font-weight: 600; color: #5c4a35; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px; letter-spacing: 0.05em; }
   .section-title::before { content: ''; display: block; width: 3px; height: 16px; background: #a07850; border-radius: 2px; }
@@ -67,19 +62,7 @@
 <body>
 <div class="page-wrap">
   <div class="page-header">
-    <div class="brand" role="img" aria-label="YUTESIGN 宇德室內裝修股份有限公司">
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <path d="M32 6 8 20v13h3V22L32 9.5 53 22v11h3V20L32 6Z" fill="currentColor"/>
-        <path d="M53 43 32 55.5 11 43V32H8v13l24 13 24-13V32h-3v11Z" fill="currentColor"/>
-        <path d="M24 43V19h18v24l-12 7v-7h-6Z" fill="currentColor"/>
-        <path d="M31 25 40 20.5v21L31 46V25Z" fill="#7d6a55"/>
-        <circle cx="33.5" cy="34" r="1.7" fill="currentColor"/>
-      </svg>
-      <div class="brand-text">
-        <div class="brand-en">YUTESIGN</div>
-        <div class="brand-zh">宇德室內裝修股份有限公司</div>
-      </div>
-    </div>
+    <div class="company">宇德室內裝修股份有限公司</div>
     <h1 id="page-title">住宅裝修需求表</h1>
     <p id="page-sub">請填寫以下資料，我們將盡快與您聯繫</p>
   </div>
