@@ -4264,7 +4264,7 @@ function applyRole(user) {
     'btn-payroll-edit': canManage('payroll'),
     'btn-attendance-payroll-draft': canManage('attendance'),
     'btn-new-employee': canManage('employees'),
-    'btn-new-client': canManage('clients'),
+    'btn-new-client': canApplySelf('clients'),
     'btn-new-vendor': canApplySelf('vendors'),
   };
   Object.entries(visibility).forEach(([id, visible]) => {
@@ -6481,7 +6481,7 @@ function rejectPayreq(id) {
 }
 
 function submitNewClient() {
-  if (!requireManage('dashboard', '您沒有新增客戶或個案的權限')) return;
+  if (!requireApplySelf('clients', '您沒有新增客戶的權限')) return;
   const code  = document.getElementById('nc-code').value.trim().toUpperCase();
   const nameZh = document.getElementById('nc-name-zh').value.trim();
   const nameEn = document.getElementById('nc-name-en').value.trim();
@@ -6489,22 +6489,25 @@ function submitNewClient() {
   if (!code || code.length < 2)  { showToast('請輸入至少2碼的客戶代碼', 'error'); return; }
   if (!nameZh) { showToast('請輸入客戶名稱', 'error'); return; }
 
-  // 檢查代碼是否已存在
-  const sel = document.getElementById('new-client-code');
-  for (const opt of sel.options) {
-    if (opt.value === code) { showToast(`代碼 ${code} 已存在，請換一個`, 'error'); return; }
-  }
+  // 檢查代碼是否已存在：直接查 CLIENTS 主檔，不能只看這個下拉目前有什麼選項
+  // （下拉是從 CLIENTS 建出來的畫面而已，不是正式資料來源）。
+  if (CLIENTS.find(x => x.code === code)) { showToast(`代碼 ${code} 已存在，請換一個`, 'error'); return; }
+
+  // 這裡原本只把選項加進下拉、沒有真的寫進 CLIENTS 主檔——重整頁面或換一台裝置這筆客戶就會
+  // 消失，也不會同步到雲端，等於是假新增。改成跟「客戶主檔」頁面一樣，真的存進 CLIENTS。
+  CLIENTS.push({
+    code, shortName: nameZh, fullName: nameEn || '',
+    taxId:'', type:'', group:'', address:'', contact:'', phone:'', email:'', note:''
+  });
+  saveData();
 
   const label = nameEn ? `${code} ｜ ${nameZh}（${nameEn}）` : `${code} ｜ ${nameZh}`;
-
-  // 新增到案件 modal 的客戶下拉
+  const sel = document.getElementById('new-client-code');
   const opt = document.createElement('option');
   opt.value = code;
   opt.textContent = label;
   sel.appendChild(opt);
 
-  // 同步新增到廠商請款的案件下拉（為之後新增案件時使用）
-  // 清空表單
   document.getElementById('nc-code').value = '';
   document.getElementById('nc-name-zh').value = '';
   document.getElementById('nc-name-en').value = '';
@@ -6513,6 +6516,7 @@ function submitNewClient() {
   // 回到新增案件並自動選取剛新增的客戶
   sel.value = code;
   genCaseCode();
+  renderClients();
   showToast(`客戶「${nameZh}」已新增 ✓`, 'success');
 }
 
@@ -10232,9 +10236,10 @@ function viewClient(code) {
 }
 
 function openClientModal(code) {
-  if (!requireManage('clients')) return;
   clEditCode = code || null;
   const c = code ? CLIENTS.find(x => x.code === code) : null;
+  // 新增客戶只需要「申請自己」等級（跟廠商主檔一致）；編輯既有客戶資料仍需完整管理權限。
+  if (c ? !requireManage('clients', '您沒有編輯客戶的權限') : !requireApplySelf('clients', '您沒有新增客戶的權限')) return;
   document.getElementById('cl-modal-title').textContent = c ? `編輯客戶 · ${c.shortName}` : '新增客戶';
   const fields = ['code','shortName','fullName','taxId','type','group','address','contact','phone','email','note'];
   fields.forEach(f => {
@@ -10250,7 +10255,7 @@ function openClientModal(code) {
 }
 
 function submitClient() {
-  if (!requireManage('clients')) return;
+  if (clEditCode ? !requireManage('clients', '您沒有編輯客戶的權限') : !requireApplySelf('clients', '您沒有新增客戶的權限')) return;
   const code = document.getElementById('cl-f-code').value.trim().toUpperCase();
   const shortName = document.getElementById('cl-f-shortName').value.trim();
   if (!code || !shortName) { showToast('代碼與客戶簡稱為必填', 'error'); return; }

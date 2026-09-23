@@ -771,6 +771,11 @@ function requireManage(page, message='您沒有修改此資料的權限') {
   showToast(message, 'error');
   return false;
 }
+function requireApplySelf(page, message='您沒有此功能的權限') {
+  if (canApplySelf(page)) return true;
+  showToast(message, 'error');
+  return false;
+}
 function requireCreateCase(message='您沒有新增個案的權限') {
   if (canCreateCase()) return true;
   showToast(message, 'error');
