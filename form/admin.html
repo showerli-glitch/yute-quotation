@@ -64,6 +64,7 @@
   .linkrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 13px; background: #f3ece2; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; }
   .linkrow input { flex: 1; min-width: 180px; font-size: 12px; padding: 6px 8px; border: 1px solid #d5c4ae; border-radius: 6px; background: #fff8f2; }
   .btn.sm { font-size: 12px; padding: 6px 10px; }
+  .btn.danger { color: #9a3b1f; border-color: #e3bfae; margin-left: auto; }
   .history { font-size: 13px; }
   .history li { list-style: none; border-left: 2px solid #d5c4ae; padding: 4px 0 8px 10px; }
   .history .h-meta { color: #8a7060; font-size: 12px; }
@@ -297,6 +298,7 @@ function renderDetail() {
         <button class="btn" data-act="save-manage">儲存狀態與備註</button>
         <button class="btn ghost" data-act="edit">修改需求內容</button>
         <button class="btn ghost" onclick="window.print()">列印</button>
+        <button class="btn ghost danger" data-act="delete">刪除</button>
         <span class="count" id="d-msg"></span>
       </div>
     </div>
@@ -373,6 +375,26 @@ async function saveManage() {
   }
 }
 
+async function deleteLead() {
+  const l = leads.find(x => x.id === selectedId);
+  if (!l) return;
+  const name = currentForm(l).name || l.name;
+  const typed = prompt(`確定要永久刪除「${name}」這張需求表嗎？\n刪除後無法復原，修改紀錄與客戶修改連結也會一併刪除。\n\n請輸入客戶姓名「${name}」確認：`);
+  if (typed === null) return;
+  if (typed.trim() !== name) { alert('輸入的姓名不符，未刪除。'); return; }
+  const updates = { [`items/${l.id}`]: null };
+  if (l.editToken) updates[`edits/${l.editToken}`] = null;
+  try {
+    await firebase.database().ref(LEAD_ROOT_PATH).update(updates);
+    selectedId = '';
+    renderList();
+    renderDetail();
+  } catch (e) {
+    console.warn(e);
+    alert('刪除失敗：' + (e.code || e.message));
+  }
+}
+
 async function extendLink() {
   const l = leads.find(x => x.id === selectedId);
   if (!l?.editToken) return;
@@ -415,6 +437,7 @@ document.getElementById('detail').addEventListener('click', e => {
   else if (act === 'view-current') { showOriginal = false; renderDetail(); }
   else if (act === 'view-original') { showOriginal = true; renderDetail(); }
   else if (act === 'extend') extendLink();
+  else if (act === 'delete') deleteLead();
   else if (act === 'copy') {
     const input = e.target.closest('.linkrow').querySelector('input');
     navigator.clipboard.writeText(input.value).then(() => { e.target.textContent = '已複製'; }, () => input.select());
