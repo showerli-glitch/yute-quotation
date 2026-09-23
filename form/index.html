@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>裝修需求表｜宇德室內裝修股份有限公司</title>
+<link rel="icon" href="../favicon.ico">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="schema.js?v=20260923"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif; background: #ede8e0; color: #3a2e24; min-height: 100vh; padding: 2rem 1rem; }
+  .page-wrap { max-width: 720px; margin: 0 auto; }
+  .page-header { text-align: center; margin-bottom: 2rem; padding: 2.5rem 1.5rem; background: #5c4a35; border-radius: 14px; color: #fff; }
+  .page-header .company { font-size: 12px; letter-spacing: 0.2em; color: #c4a882; margin-bottom: 10px; }
+  .page-header h1 { font-size: 26px; font-weight: 600; letter-spacing: 0.08em; color: #f5ede2; }
+  .page-header p { font-size: 13px; color: #a8917a; margin-top: 8px; }
+  .form-section { background: #faf6f0; border: 1px solid #ddd0bc; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
+  .section-title { font-size: 14px; font-weight: 600; color: #5c4a35; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px; letter-spacing: 0.05em; }
+  .section-title::before { content: ''; display: block; width: 3px; height: 16px; background: #a07850; border-radius: 2px; }
+  .field-row { display: grid; grid-template-columns: repeat(var(--cols, 1), 1fr); gap: 12px; margin-bottom: 14px; }
+  @media (max-width: 560px) { .field-row { grid-template-columns: 1fr; } body { padding: 1rem; } .form-section { padding: 1.25rem 1rem; } }
+  .field-group { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .field-label { font-size: 12px; color: #8a7060; font-weight: 500; letter-spacing: 0.03em; }
+  .req { color: #b4532a; margin-left: 2px; }
+  input[type=text], input[type=tel], input[type=email], input[type=number], input[type=date], select, textarea { font-family: inherit; font-size: 16px; padding: 9px 12px; border: 1px solid #d5c4ae; border-radius: 8px; background: #fff8f2; color: #3a2e24; width: 100%; transition: border-color 0.15s; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #a07850; background: #fff; }
+  .invalid input, .invalid select { border-color: #b4532a; background: #fff3ee; }
+  textarea { resize: vertical; min-height: 90px; line-height: 1.6; }
+  .pill-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .pill { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; padding: 6px 12px; border: 1px solid #d5c4ae; border-radius: 20px; background: #fff8f2; color: #5c4a35; user-select: none; transition: all 0.15s; }
+  .pill:hover { border-color: #a07850; background: #f5ede2; }
+  .pill input { width: 14px; height: 14px; margin: 0; flex-shrink: 0; accent-color: #a07850; }
+  .pill:has(input:checked) { background: #5c4a35; border-color: #5c4a35; color: #f5ede2; }
+  .budget-wrap { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+  .budget-wrap input[type=range] { flex: 1; accent-color: #a07850; min-width: 0; }
+  .budget-label { font-size: 13px; color: #a08060; white-space: nowrap; }
+  .budget-val { font-size: 15px; font-weight: 600; min-width: 64px; text-align: right; color: #5c4a35; }
+  .hint { font-size: 12px; color: #b09a80; margin-top: 4px; }
+  .consent { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: #5c4a35; line-height: 1.6; cursor: pointer; }
+  .consent input { margin-top: 4px; accent-color: #a07850; }
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  .submit-btn { width: 100%; padding: 14px; font-size: 15px; font-weight: 600; font-family: inherit; letter-spacing: 0.08em; border-radius: 10px; border: none; background: #5c4a35; color: #f5ede2; cursor: pointer; transition: background 0.15s; margin-top: 0.5rem; }
+  .submit-btn:hover { background: #7a6248; }
+  .submit-btn:disabled { background: #c4b09a; cursor: not-allowed; }
+  .status-msg { display: none; font-size: 14px; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; text-align: center; line-height: 1.6; }
+  .status-msg.success { display: block; background: #eef5e8; color: #3d6b2a; border: 1px solid #c5ddb0; }
+  .status-msg.error { display: block; background: #fbeee8; color: #8c3a1c; border: 1px solid #e8c2b0; }
+  .done { text-align: center; padding: 3rem 1.5rem; }
+  .done h2 { font-size: 20px; color: #5c4a35; margin-bottom: 10px; }
+  .done p { font-size: 14px; color: #8a7060; line-height: 1.8; }
+  .page-footer { text-align: center; font-size: 12px; color: #b09a80; margin-top: 1.5rem; padding-bottom: 1rem; }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+  <div class="page-header">
+    <div class="company">宇德室內裝修股份有限公司</div>
+    <h1>住宅裝修需求表</h1>
+    <p>請填寫以下資料，我們將盡快與您聯繫</p>
+  </div>
+
+  <form id="lead-form" novalidate>
+    <div id="sections"></div>
+    <div class="form-section">
+      <label class="consent" id="consent-row">
+        <input type="checkbox" id="f-consent">
+        <span>我同意宇德室內裝修股份有限公司蒐集並使用以上資料，僅用於本次裝修需求的聯繫、評估與報價，不會提供給無關第三方。<span class="req">*</span></span>
+      </label>
+    </div>
+    <div class="hp" aria-hidden="true"><label>網站<input type="text" id="f-website" tabindex="-1" autocomplete="off"></label></div>
+    <div class="status-msg" id="status-msg" role="status"></div>
+    <button type="submit" class="submit-btn" id="submit-btn">送出需求表</button>
+  </form>
+
+  <div class="form-section done" id="done" hidden>
+    <h2>已收到您的需求表</h2>
+    <p>感謝您的填寫，宇德會盡快與您聯繫。<br>若有平面圖或參考照片，可在聯繫時一併提供。</p>
+  </div>
+
+  <div class="page-footer">© 宇德室內裝修股份有限公司　資料僅供聯繫使用</div>
+</div>
+
+<script>
+const openedAt = Date.now();
+
+function renderField(f) {
+  const req = f.required ? '<span class="req">*</span>' : '';
+  const label = `<span class="field-label">${leadEscape(f.label)}${req}</span>`;
+  const hint = f.hint ? `<div class="hint">${leadEscape(f.hint)}</div>` : '';
+  const id = 'f-' + f.key;
+  let control = '';
+  switch (f.type) {
+    case 'select':
+      control = `<select id="${id}"><option value="">請選擇</option>${f.options.map(o => `<option>${leadEscape(o)}</option>`).join('')}</select>`;
+      break;
+    case 'radio':
+    case 'checks': {
+      const t = f.type === 'radio' ? 'radio' : 'checkbox';
+      control = `<div class="pill-group" id="${id}">${f.options.map(o => `<label class="pill"><input type="${t}" name="${f.key}" value="${leadEscape(o)}">${leadEscape(o)}</label>`).join('')}</div>`;
+      break;
+    }
+    case 'textarea':
+      control = `<textarea id="${id}" maxlength="${f.max || 2000}" placeholder="${leadEscape(f.placeholder || '')}"></textarea>`;
+      break;
+    case 'budget':
+      control = `<div class="budget-wrap"><span class="budget-label">${f.min}萬</span><input type="range" id="${id}" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.initial}"><span class="budget-label">${f.max}萬</span><span class="budget-val" id="${id}-val">${f.initial} 萬</span></div>
+        <label class="pill" style="align-self:flex-start;margin-top:6px"><input type="checkbox" id="${id}-unsure">預算尚未確定</label>`;
+      break;
+    default: {
+      const attrs = [`type="${f.type}"`, `id="${id}"`];
+      if (f.placeholder) attrs.push(`placeholder="${leadEscape(f.placeholder)}"`);
+      if (f.max && f.type !== 'number') attrs.push(`maxlength="${f.max}"`);
+      if (f.type === 'number') { attrs.push(`min="${f.min}"`, `max="${f.max}"`, 'inputmode="numeric"'); }
+      if (f.type === 'tel') attrs.push('autocomplete="tel"');
+      if (f.key === 'name') attrs.push('autocomplete="name"');
+      if (f.type === 'email') attrs.push('autocomplete="email"');
+      control = `<input ${attrs.join(' ')}>`;
+    }
+  }
+  return `<div class="field-group" data-key="${f.key}">${label}${control}${hint}</div>`;
+}
+
+function renderSections() {
+  document.getElementById('sections').innerHTML = LEAD_SECTIONS.map(section => {
+    const rows = [];
+    section.fields.forEach(f => {
+      const last = rows[rows.length - 1];
+      if (f.row && last && last.row === f.row) last.fields.push(f);
+      else rows.push({ row: f.row, fields: [f] });
+    });
+    const body = rows.map(r => `<div class="field-row" style="--cols:${r.fields.length}">${r.fields.map(renderField).join('')}</div>`).join('');
+    return `<div class="form-section"><div class="section-title">${leadEscape(section.title)}</div>${body}</div>`;
+  }).join('');
+
+  const budget = document.getElementById('f-budget');
+  const budgetVal = document.getElementById('f-budget-val');
+  const unsure = document.getElementById('f-budget-unsure');
+  budget.addEventListener('input', () => { budget.dataset.touched = '1'; budgetVal.textContent = budget.value + ' 萬'; unsure.checked = false; budget.disabled = false; });
+  unsure.addEventListener('change', () => { budget.disabled = unsure.checked; budgetVal.textContent = unsure.checked ? '未定' : budget.value + ' 萬'; });
+}
+
+function collectValues() {
+  const out = {};
+  LEAD_SECTIONS.forEach(section => section.fields.forEach(f => {
+    let v = '';
+    if (f.type === 'radio') v = document.querySelector(`input[name="${f.key}"]:checked`)?.value || '';
+    else if (f.type === 'checks') v = [...document.querySelectorAll(`input[name="${f.key}"]:checked`)].map(c => c.value).join('、');
+    else if (f.type === 'budget') {
+      const range = document.getElementById('f-budget');
+      if (document.getElementById('f-budget-unsure').checked) v = '尚未確定';
+      else if (range.dataset.touched) v = range.value + ' 萬';
+    }
+    else v = document.getElementById('f-' + f.key).value;
+    v = String(v).trim().slice(0, f.max || 2000);
+    if (v) out[f.key] = v;
+  }));
+  return out;
+}
+
+function markInvalid(key, bad) {
+  document.querySelector(`[data-key="${key}"]`)?.classList.toggle('invalid', bad);
+}
+
+function showStatus(type, text) {
+  const el = document.getElementById('status-msg');
+  el.className = 'status-msg ' + type;
+  el.textContent = text;
+}
+
+function validate(values) {
+  const problems = [];
+  const nameBad = !values.name;
+  const phoneBad = !values.phone || values.phone.replace(/\D/g, '').length < 8;
+  const emailBad = !!values.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email);
+  markInvalid('name', nameBad); markInvalid('phone', phoneBad); markInvalid('email', emailBad);
+  if (nameBad) problems.push('姓名');
+  if (phoneBad) problems.push('聯絡電話');
+  if (emailBad) problems.push('電子郵件格式');
+  if (!document.getElementById('f-consent').checked) problems.push('同意資料使用');
+  return problems;
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
+}
+
+async function submitLead(event) {
+  event.preventDefault();
+  const btn = document.getElementById('submit-btn');
+  const values = collectValues();
+  const problems = validate(values);
+  if (problems.length) {
+    showStatus('error', '請確認：' + problems.join('、'));
+    document.querySelector('.invalid')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  const done = () => {
+    document.getElementById('lead-form').hidden = true;
+    document.getElementById('done').hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  // 機器人防護：隱藏欄位被填或秒送，不寫入資料庫
+  if (document.getElementById('f-website').value || Date.now() - openedAt < 3000) { done(); return; }
+
+  btn.disabled = true;
+  btn.textContent = '送出中…';
+  showStatus('', '');
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(LEAD_FIREBASE_CONFIG);
+    const ref = firebase.database().ref(LEAD_DB_PATH).push();
+    await withTimeout(ref.set({
+      name: values.name,
+      phone: values.phone,
+      status: 'new',
+      source: 'yude-form-web',
+      formVersion: LEAD_FORM_VERSION,
+      submittedAt: firebase.database.ServerValue.TIMESTAMP,
+      form: values,
+    }), 20000);
+    done();
+  } catch (e) {
+    console.warn('lead submit failed:', e);
+    showStatus('error', '送出失敗，請確認網路後再試一次；若持續失敗，請直接來電或透過 LINE 與我們聯繫。');
+    btn.disabled = false;
+    btn.textContent = '送出需求表';
+  }
+}
+
+renderSections();
+document.getElementById('lead-form').addEventListener('submit', submitLead);
+document.getElementById('lead-form').addEventListener('input', e => {
+  const key = e.target.closest('[data-key]')?.dataset.key;
+  if (key) markInvalid(key, false);
+});
+</script>
+</body>
+</html>

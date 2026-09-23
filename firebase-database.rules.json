@@ -198,6 +198,60 @@
           }
         }
       }
+    },
+    "leads": {
+      ".read": false,
+      ".write": false,
+      "yutesign": {
+        ".read": false,
+        ".write": false,
+        "items": {
+          ".read": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/)",
+          ".indexOn": [
+            "submittedAt"
+          ],
+          "$leadId": {
+            ".write": "(!data.exists() && newData.exists()) || (auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/))",
+            ".validate": "newData.hasChildren(['name', 'phone', 'status', 'source', 'formVersion', 'submittedAt', 'form']) && (data.exists() || (newData.child('status').val() == 'new' && !newData.hasChild('staffNote') && !newData.hasChild('handledBy') && !newData.hasChild('handledAt')))",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length <= 50 && newData.val().length >= 1"
+            },
+            "phone": {
+              ".validate": "newData.isString() && newData.val().length <= 30 && newData.val().length >= 6"
+            },
+            "status": {
+              ".validate": "newData.isString() && newData.val().matches(/^(new|contacted|quoted|won|lost)$/)"
+            },
+            "source": {
+              ".validate": "newData.val() == 'yude-form-web'"
+            },
+            "formVersion": {
+              ".validate": "newData.isString() && newData.val().length <= 20 && newData.val().length >= 1"
+            },
+            "submittedAt": {
+              ".validate": "newData.isNumber() && ((data.exists() && newData.val() == data.val()) || (!data.exists() && newData.val() == now))"
+            },
+            "form": {
+              ".validate": "newData.hasChildren(['name', 'phone'])",
+              "$field": {
+                ".validate": "$field.matches(/^[a-zA-Z]{1,20}$/) && newData.isString() && newData.val().length <= 2000 && (!data.parent().parent().exists() || newData.val() == data.val())"
+              }
+            },
+            "staffNote": {
+              ".validate": "newData.isString() && newData.val().length <= 2000"
+            },
+            "handledBy": {
+              ".validate": "newData.isString() && newData.val() == auth.token.email"
+            },
+            "handledAt": {
+              ".validate": "newData.isNumber() && newData.val() == now"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        }
+      }
     }
   }
 }

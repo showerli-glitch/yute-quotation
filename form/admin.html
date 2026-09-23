@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>需求表管理｜宇德</title>
+<link rel="icon" href="../favicon.ico">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="schema.js?v=20260923"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif; background: #ede8e0; color: #3a2e24; min-height: 100vh; }
+  header { background: #5c4a35; color: #f5ede2; padding: 14px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.06em; flex: 1; white-space: nowrap; }
+  header a, header button { color: #f5ede2; font-size: 13px; background: none; border: 1px solid #8a7060; border-radius: 6px; padding: 5px 10px; cursor: pointer; text-decoration: none; font-family: inherit; }
+  #who { font-size: 12px; color: #c4a882; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  .login { max-width: 380px; margin: 12vh auto; background: #faf6f0; border: 1px solid #ddd0bc; border-radius: 12px; padding: 28px; text-align: center; }
+  .login p { font-size: 13px; color: #8a7060; margin: 10px 0 18px; line-height: 1.7; }
+  .btn { font-family: inherit; font-size: 14px; padding: 9px 18px; border-radius: 8px; border: none; background: #5c4a35; color: #f5ede2; cursor: pointer; }
+  .btn:disabled { background: #c4b09a; cursor: not-allowed; }
+  .btn.ghost { background: #fff8f2; color: #5c4a35; border: 1px solid #d5c4ae; }
+  .err { color: #8c3a1c; font-size: 13px; margin-top: 12px; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .toolbar input, .toolbar select, .detail select, .detail textarea { font-family: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid #d5c4ae; border-radius: 8px; background: #fff8f2; color: #3a2e24; }
+  .toolbar input { flex: 1; min-width: 160px; }
+  .count { font-size: 13px; color: #8a7060; }
+  .layout { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item { background: #faf6f0; border: 1px solid #ddd0bc; border-radius: 10px; padding: 12px 14px; cursor: pointer; text-align: left; font-family: inherit; color: inherit; width: 100%; }
+  .item:hover { border-color: #a07850; }
+  .item.active { border-color: #5c4a35; box-shadow: 0 0 0 1px #5c4a35; }
+  .item-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .item-name { font-weight: 600; font-size: 15px; }
+  .item-sub { font-size: 12px; color: #8a7060; margin-top: 4px; line-height: 1.6; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .s-new { background: #f6e3cf; color: #8c4a12; }
+  .s-contacted { background: #e3ecf6; color: #2a4f7a; }
+  .s-quoted { background: #ece3f6; color: #5a3a7a; }
+  .s-won { background: #e3f1dc; color: #3d6b2a; }
+  .s-lost { background: #e8e4df; color: #6f655b; }
+  .detail { background: #faf6f0; border: 1px solid #ddd0bc; border-radius: 12px; padding: 20px; }
+  .detail h2 { font-size: 20px; margin-bottom: 4px; }
+  .meta { font-size: 12px; color: #8a7060; margin-bottom: 16px; line-height: 1.7; }
+  .manage { display: grid; grid-template-columns: 160px 1fr; gap: 10px; background: #f3ece2; border-radius: 10px; padding: 12px; margin-bottom: 18px; }
+  .manage textarea { width: 100%; min-height: 60px; resize: vertical; }
+  .manage .actions { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  @media (max-width: 560px) { .manage { grid-template-columns: 1fr; } }
+  .sec { margin-bottom: 16px; }
+  .sec h3 { font-size: 13px; color: #5c4a35; border-left: 3px solid #a07850; padding-left: 8px; margin-bottom: 8px; }
+  dl { display: grid; grid-template-columns: 170px 1fr; gap: 6px 12px; font-size: 14px; }
+  dt { color: #8a7060; }
+  dd { white-space: pre-wrap; word-break: break-word; }
+  @media (max-width: 560px) { dl { grid-template-columns: 1fr; } dt { margin-top: 6px; } }
+  .empty { color: #8a7060; font-size: 14px; padding: 30px; text-align: center; }
+  @media print {
+    header, .toolbar, .list, .manage .actions, .no-print { display: none !important; }
+    body { background: #fff; }
+    .layout { display: block; }
+    .detail { border: none; padding: 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>住宅裝修需求表・管理</h1>
+  <span id="who"></span>
+  <a href="./" target="_blank" rel="noopener">開啟客戶填寫頁</a>
+  <button id="logout-btn" hidden>登出</button>
+</header>
+
+<main>
+  <div class="login" id="login-box">
+    <strong>宇德內部使用</strong>
+    <p>請用 @yutesign.com Google 帳號登入<br>查看客戶送出的需求表。</p>
+    <button class="btn" id="login-btn">Google 登入</button>
+    <div class="err" id="login-err"></div>
+  </div>
+
+  <div id="app" hidden>
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="搜尋姓名、電話、地址、備註…">
+      <select id="status-filter"><option value="">全部狀態</option></select>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="layout">
+      <div class="list" id="list"></div>
+      <div class="detail" id="detail"><div class="empty">請從左側選擇一筆需求表</div></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const GOOGLE_CLIENT_ID = '239869421522-cqs68t3pnahjbmv9ld1k08b4p79s34k4.apps.googleusercontent.com';
+let leads = [];
+let selectedId = '';
+let dbRef = null;
+let tokenClient = null;
+
+firebase.initializeApp(LEAD_FIREBASE_CONFIG);
+const statusLabel = v => LEAD_STATUSES.find(s => s.value === v)?.label || v || '新進';
+const fmtTime = ms => ms ? new Date(ms).toLocaleString('zh-TW', { hour12: false }) : '';
+
+document.getElementById('status-filter').insertAdjacentHTML('beforeend',
+  LEAD_STATUSES.map(s => `<option value="${s.value}">${s.label}</option>`).join(''));
+
+function setLoginError(msg) { document.getElementById('login-err').textContent = msg; }
+
+function initGoogle() {
+  if (!window.google?.accounts?.oauth2) { setTimeout(initGoogle, 300); return; }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/userinfo.email',
+    callback: async resp => {
+      if (resp.error) { setLoginError('Google 授權失敗，請再試一次。'); return; }
+      try {
+        const credential = firebase.auth.GoogleAuthProvider.credential(null, resp.access_token);
+        await firebase.auth().signInWithCredential(credential);
+      } catch (e) {
+        console.warn(e);
+        setLoginError('登入驗證失敗，請確認網路與 Google 帳號狀態。');
+      }
+    },
+  });
+}
+
+document.getElementById('login-btn').onclick = () => {
+  setLoginError('');
+  if (!tokenClient) { setLoginError('Google 登入模組載入中，請稍候再按一次。'); return; }
+  tokenClient.requestAccessToken({ prompt: 'select_account' });
+};
+document.getElementById('logout-btn').onclick = () => firebase.auth().signOut();
+
+firebase.auth().onAuthStateChanged(async user => {
+  if (dbRef) { dbRef.off(); dbRef = null; }
+  const email = String(user?.email || '').toLowerCase();
+  const ok = !!user && user.emailVerified && /^[^@]+@yutesign\.com$/.test(email);
+  if (user && !ok) {
+    setLoginError(`此帳號無權限：${email || '未知帳號'}。請改用 @yutesign.com 帳號。`);
+    await firebase.auth().signOut();
+    return;
+  }
+  document.getElementById('login-box').hidden = ok;
+  document.getElementById('app').hidden = !ok;
+  document.getElementById('logout-btn').hidden = !ok;
+  document.getElementById('who').textContent = ok ? email : '';
+  if (!ok) { leads = []; selectedId = ''; return; }
+  dbRef = firebase.database().ref(LEAD_DB_PATH);
+  dbRef.on('value', snap => {
+    const val = snap.val() || {};
+    leads = Object.entries(val).map(([id, v]) => ({ id, ...v })).sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
+    renderList();
+    renderDetail();
+  }, err => {
+    console.warn(err);
+    document.getElementById('list').innerHTML = `<div class="empty">讀取失敗：${leadEscape(err.code || err.message)}<br>請確認 Firebase 規則已發布 leads 區段。</div>`;
+  });
+});
+
+function filteredLeads() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const st = document.getElementById('status-filter').value;
+  return leads.filter(l => {
+    if (st && (l.status || 'new') !== st) return false;
+    if (!q) return true;
+    return [l.name, l.phone, l.staffNote, ...Object.values(l.form || {})].join(' ').toLowerCase().includes(q);
+  });
+}
+
+function renderList() {
+  const rows = filteredLeads();
+  document.getElementById('count').textContent = `共 ${rows.length} 筆` + (rows.length !== leads.length ? `（全部 ${leads.length}）` : '');
+  document.getElementById('list').innerHTML = rows.length ? rows.map(l => {
+    const f = l.form || {};
+    const st = l.status || 'new';
+    const sub = [f.address, [f.houseType, f.area && f.area + '坪', f.renoType].filter(Boolean).join('・'), f.budget && '預算 ' + f.budget].filter(Boolean);
+    return `<button class="item ${l.id === selectedId ? 'active' : ''}" data-id="${leadEscape(l.id)}">
+      <div class="item-top"><span class="item-name">${leadEscape(l.name)}</span><span class="badge s-${leadEscape(st)}">${leadEscape(statusLabel(st))}</span></div>
+      <div class="item-sub">${leadEscape(l.phone)}　${leadEscape(fmtTime(l.submittedAt))}<br>${sub.map(leadEscape).join('<br>')}</div>
+    </button>`;
+  }).join('') : '<div class="empty">目前沒有符合的需求表</div>';
+}
+
+function renderDetail() {
+  const box = document.getElementById('detail');
+  const l = leads.find(x => x.id === selectedId);
+  if (!l) { box.innerHTML = '<div class="empty">請從左側選擇一筆需求表</div>'; return; }
+  const f = l.form || {};
+  const secs = LEAD_SECTIONS.map(s => {
+    const items = s.fields.filter(fd => f[fd.key]).map(fd => `<dt>${leadEscape(fd.label.replace(/（可複選）/, ''))}</dt><dd>${leadEscape(f[fd.key])}</dd>`);
+    return items.length ? `<div class="sec"><h3>${leadEscape(s.title)}</h3><dl>${items.join('')}</dl></div>` : '';
+  }).join('');
+  const handled = l.handledBy ? `・最後處理：${leadEscape(l.handledBy)}（${leadEscape(fmtTime(l.handledAt))}）` : '';
+  box.innerHTML = `
+    <h2>${leadEscape(l.name)}</h2>
+    <div class="meta">送出時間：${leadEscape(fmtTime(l.submittedAt))}${handled}<br>表單版本：${leadEscape(l.formVersion || '')}</div>
+    <div class="manage">
+      <select id="d-status">${LEAD_STATUSES.map(s => `<option value="${s.value}" ${s.value === (l.status || 'new') ? 'selected' : ''}>${s.label}</option>`).join('')}</select>
+      <textarea id="d-note" maxlength="2000" placeholder="內部備註（客戶看不到）">${leadEscape(l.staffNote || '')}</textarea>
+      <div class="actions">
+        <button class="btn" id="d-save">儲存狀態與備註</button>
+        <button class="btn ghost" onclick="window.print()">列印</button>
+        <span class="count" id="d-msg"></span>
+      </div>
+    </div>
+    ${secs || '<div class="empty">此筆沒有其他填寫內容</div>'}`;
+  document.getElementById('d-save').onclick = () => saveManage(l.id);
+}
+
+async function saveManage(id) {
+  const btn = document.getElementById('d-save');
+  const msg = document.getElementById('d-msg');
+  btn.disabled = true; msg.textContent = '儲存中…';
+  try {
+    await firebase.database().ref(`${LEAD_DB_PATH}/${id}`).update({
+      status: document.getElementById('d-status').value,
+      staffNote: document.getElementById('d-note').value.trim(),
+      handledBy: firebase.auth().currentUser.email.toLowerCase(),
+      handledAt: firebase.database.ServerValue.TIMESTAMP,
+    });
+  } catch (e) {
+    console.warn(e);
+    const el = document.getElementById('d-msg');
+    if (el) el.textContent = '儲存失敗：' + (e.code || e.message);
+    const b = document.getElementById('d-save');
+    if (b) b.disabled = false;
+  }
+}
+
+document.getElementById('list').addEventListener('click', e => {
+  const item = e.target.closest('.item');
+  if (!item) return;
+  selectedId = item.dataset.id;
+  renderList();
+  renderDetail();
+  if (window.innerWidth <= 800) document.getElementById('detail').scrollIntoView({ behavior: 'smooth' });
+});
+document.getElementById('q').addEventListener('input', renderList);
+document.getElementById('status-filter').addEventListener('change', renderList);
+initGoogle();
+</script>
+</body>
+</html>
