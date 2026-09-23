@@ -590,13 +590,13 @@ tagCompany(USERS);
 
 // 來源：Yutesign_OPS_權限調整回饋表.xlsx（2026-06-23 更新版）
 const USER_PERMISSIONS = {
-  shower: {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',tax:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage'},
-  nc:     {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',tax:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage'},
-  peng:   {dashboard:'view_profit_cases',payreq:'view_profit_cases_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all_apply_self'},
-  lien:   {dashboard:'view_profit_cases',payreq:'view_profit_cases_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all_apply_self'},
-  sun:    {dashboard:'view_profit_cases',payreq:'view_profit_cases_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
-  lu_yanchen: {dashboard:'none',payreq:'view_profit_cases_apply_self',payable:'none',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_profit_cases',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all'},
-  chen_hongjun: {dashboard:'view_all',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_all',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'manage',vendors:'manage'},
+  shower: {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',tax:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage',canCreateCase:true},
+  nc:     {dashboard:'manage',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'manage',tax:'manage',payroll:'manage',attendance:'manage',profit:'manage',profitshare:'manage',contract:'manage',quotation:'manage',feedback:'manage',systemnotes:'manage',employees:'manage',clients:'manage',vendors:'manage',canCreateCase:true},
+  peng:   {dashboard:'view_profit_cases',payreq:'view_profit_cases_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all_apply_self',canCreateCase:true},
+  lien:   {dashboard:'view_profit_cases',payreq:'view_profit_cases_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'manage',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all_apply_self',canCreateCase:true},
+  sun:    {dashboard:'view_profit_cases',payreq:'view_profit_cases_apply_self',payable:'view_profit_cases',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'none',profit:'view_profit_cases',profitshare:'view_self',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all',canCreateCase:false},
+  lu_yanchen: {dashboard:'none',payreq:'view_profit_cases_apply_self',payable:'none',receivable:'view_profit_cases',expense:'view_self_apply_self',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_profit_cases',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'view_all',vendors:'view_all',canCreateCase:false},
+  chen_hongjun: {dashboard:'view_all',payreq:'manage',payable:'manage',receivable:'manage',expense:'manage',overhead:'none',payroll:'view_self',attendance:'view_self',profit:'view_all',profitshare:'none',contract:'view_all',quotation:'view_all',feedback:'manage',employees:'none',clients:'manage',vendors:'manage',canCreateCase:false},
 };
 const LU_YANCHEN_OPS_PERMISSIONS = { ...USER_PERMISSIONS.lu_yanchen };
 const EMP_ACCESS_PERMISSION_TEMPLATES = {
@@ -627,6 +627,17 @@ function permissionLevel(page) {
 function canManage(page) { return permissionLevel(page) === 'manage'; }
 function canAccess(page) { return permissionLevel(page) !== 'none'; }
 function canApplySelf(page) { return ['manage','view_all_apply_self','view_self_apply_self','view_profit_cases_apply_self'].includes(permissionLevel(page)); }
+// 新增個案權限是獨立於模組權限（dashboard 等）之外的單一布林欄位，只放在 USER_PERMISSIONS[id].canCreateCase。
+// 沒有明確設定這個欄位的員工（例如只靠 accessRole 對應範本、沒有 USER_PERMISSIONS 個別項目的人），
+// 退回沿用原本「dashboard 完整管理才能新增個案」的行為，確保改動前後這些人的實際權限不變。
+function canCreateCaseFor(empId) {
+  const explicit = USER_PERMISSIONS[empId];
+  if (explicit && typeof explicit.canCreateCase === 'boolean') return explicit.canCreateCase;
+  const emp = EMPLOYEES.find(e => e.id === empId);
+  const role = employeeAccessRole(emp);
+  return EMP_ACCESS_PERMISSION_TEMPLATES[role]?.dashboard === 'manage';
+}
+function canCreateCase() { return canCreateCaseFor(currentUser?.id); }
 function canViewPaymentType() { return ['OWNER','FINANCE','ACCOUNTING'].includes(currentUser?.roleCode); }
 function canSeeFinancialTotals() { return ['OWNER','FINANCE','ACCOUNTING'].includes(currentUser?.roleCode); }
 function canSeeRestrictedCase(c) { return !c?.excludeFromProfitReports || canSeeFinancialTotals(); }
@@ -757,6 +768,11 @@ function fillActiveUserNameSelect(id, selectedName = '', options = {}) {
 }
 function requireManage(page, message='您沒有修改此資料的權限') {
   if (canManage(page)) return true;
+  showToast(message, 'error');
+  return false;
+}
+function requireCreateCase(message='您沒有新增個案的權限') {
+  if (canCreateCase()) return true;
   showToast(message, 'error');
   return false;
 }
