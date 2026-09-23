@@ -10,6 +10,17 @@ const baselineHtml = execFileSync(
   ['show', 'pre-refactor-baseline-20260922:ops/index.html'],
   { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
 );
+const casesBaselineCommit = '754460e32950a30e71de48f08c0e247cee99abb3';
+const casesBaselineHtml = execFileSync(
+  'git',
+  ['show', `${casesBaselineCommit}:ops/index.html`],
+  { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
+);
+const casesBaselineData = execFileSync(
+  'git',
+  ['show', `${casesBaselineCommit}:ops/js/core/data.js`],
+  { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
+);
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -65,6 +76,7 @@ function extractFunctions(source) {
 }
 
 const baselineFunctions = new Map(extractFunctions(baselineHtml).map(item => [item.name, item.source]));
+const casesBaselineFunctions = new Map(extractFunctions(casesBaselineHtml).map(item => [item.name, item.source]));
 const scripts = [...currentHtml.matchAll(/<script\s+src="([^"]+\.js)"[^>]*><\/script>/g)]
   .map(match => match[1])
   .filter(src => !/^https?:/.test(src));
@@ -80,8 +92,9 @@ for (const src of scripts) {
   const code = fs.readFileSync(filePath, 'utf8');
   try { new vm.Script(code, { filename:filePath }); }
   catch (error) { fail(`${src} 語法錯誤：${error.message}`); }
+  const referenceFunctions = src === 'js/modules/cases.js' ? casesBaselineFunctions : baselineFunctions;
   for (const item of extractFunctions(code)) {
-    const original = baselineFunctions.get(item.name);
+    const original = referenceFunctions.get(item.name);
     if (!original) continue;
     compared += 1;
     if (item.source !== original) fail(`${src} 的 ${item.name} 並非逐字搬移`);
@@ -139,12 +152,8 @@ verifyExactFile(
 );
 verifyExactFile(
   'ops/js/core/data.js',
-  [
-    '// OPS shared state, persistence, migrations, authentication, and Firebase access.',
-    '// Business-calculation helpers are loaded separately from accounting.js.',
-    expectedDataBlock.trim(),
-  ].join('\n\n'),
-  'data.js'
+  casesBaselineData,
+  'data.js（案件批次基準）'
 );
 verifyExactFile(
   'ops/js/core/accounting.js',
@@ -187,6 +196,44 @@ verifyExactFile(
   'expenses.js'
 );
 
+const expectedCases = [
+  '// CASES MODULE. Extracted verbatim from ops/index.html at main@754460e.',
+  sourceRange(
+    casesBaselineHtml,
+    '// ══════════════════════════════════\n// CASES TABLE',
+    '\nfunction openPayreqForVendor(vendorCode) {',
+    '案件列表與篩選'
+  ).trimEnd(),
+  sourceRange(
+    casesBaselineHtml,
+    'function openCaseDetail(caseCode) {',
+    '\nfunction tfStatusColor(status) {',
+    '案件詳情、生命週期與座標'
+  ).trimEnd(),
+  sourceRange(
+    casesBaselineHtml,
+    'function openNewCaseModal() {',
+    '\n</script>',
+    '案件建立、編輯與案號'
+  ).trimEnd(),
+  sourceRange(
+    casesBaselineHtml,
+    'function renderDashboard() {',
+    '\n// ══════════════════════════════════\n// PAY REQUEST PAGE RENDER',
+    '案件儀表板'
+  ).trimEnd(),
+].join('\n\n');
+verifyExactFile('ops/js/modules/cases.js', expectedCases, 'cases.js');
+const expectedCaseFunctionCount = extractFunctions(expectedCases).length;
+if (expectedCaseFunctionCount !== 34) fail(`cases.js 預期 34 個函式，實際基準 ${expectedCaseFunctionCount}`);
+
+const protectedCurrentFunctions = new Map(extractFunctions(currentHtml).map(item => [item.name, item.source]));
+for (const name of ['renderCurrentPage', 'refreshAccountingLinkedViews', 'applyRole', 'submitNewClient']) {
+  const current = protectedCurrentFunctions.get(name);
+  const original = casesBaselineFunctions.get(name);
+  if (!current || current !== original) fail(`案件批次不應改動 ${name}`);
+}
+
 const inlineScripts = [...currentHtml.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
   .filter(match => !/\ssrc=/.test(match[0]));
 for (const [index, match] of inlineScripts.entries()) {
@@ -196,5 +243,5 @@ for (const [index, match] of inlineScripts.entries()) {
 }
 
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；7 個搬出區塊與 ${compared} 個函式均和基準 tag 逐字一致。`);
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；8 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式。`);
 }
