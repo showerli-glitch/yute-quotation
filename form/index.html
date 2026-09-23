@@ -11,15 +11,23 @@
 <script src="form-ui.js?v=20260923b"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif; background: #f4f0ea; color: #3a2e24; min-height: 100vh; padding: 2rem 1rem; }
+  body { font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif; background: #f8f4ef; color: #3a2e24; min-height: 100vh; padding: 2rem 1rem; }
   .page-wrap { max-width: 720px; margin: 0 auto; }
-  .page-header { text-align: center; margin-bottom: 2rem; padding: 2.5rem 1.5rem; background: #978572; border-radius: 14px; color: #fff; }
-    .page-header .company { font-size: 15px; letter-spacing: 0.24em; color: #f6eee3; margin-bottom: 12px; }
-  .page-header h1 { font-size: 26px; font-weight: 600; letter-spacing: 0.08em; color: #f5ede2; }
-  .page-header p { font-size: 13px; color: #f1e7da; margin-top: 8px; }
+  .page-header { position: relative; overflow: hidden; text-align: center; margin-bottom: 2rem; padding: 3.25rem 1.5rem 3rem; background: #f3ebe1; border: 1px solid #e6d9c8; border-radius: 16px; color: #4f4136; }
+  .page-header .art { position: absolute; width: 190px; height: 225px; pointer-events: none; }
+  .page-header .art-left { left: 0; bottom: 0; }
+  .page-header .art-right { right: 0; top: 0; }
+  @media (max-width: 760px) { .page-header .art g { display: none; } }
+  @media (max-width: 560px) { .page-header .art { width: 110px; height: 130px; opacity: 0.85; } }
+  .page-header .inner { position: relative; }
+  .page-header .company { font-size: 15px; letter-spacing: 0.32em; margin-right: -0.32em; color: #8a7462; margin-bottom: 14px; }
+  .page-header h1 { font-size: 30px; font-weight: 300; letter-spacing: 0.28em; margin-right: -0.28em; color: #4f4136; }
+  .page-header .accent { width: 56px; height: 2px; background: #c47f5f; border-radius: 1px; margin: 16px auto 14px; }
+  .page-header p { font-size: 13px; letter-spacing: 0.18em; color: #8a7462; }
+  @media (max-width: 560px) { .page-header { padding: 2.5rem 1rem 2.25rem; } .page-header h1 { font-size: 24px; letter-spacing: 0.18em; margin-right: -0.18em; } .page-header .company { font-size: 13px; letter-spacing: 0.2em; margin-right: -0.2em; } .page-header p { letter-spacing: 0.08em; } }
   .form-section { background: #faf6f0; border: 1px solid #ddd0bc; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
   .section-title { font-size: 14px; font-weight: 600; color: #5c4a35; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px; letter-spacing: 0.05em; }
-  .section-title::before { content: ''; display: block; width: 3px; height: 16px; background: #a07850; border-radius: 2px; }
+  .section-title::before { content: ''; display: block; width: 3px; height: 16px; background: #c47f5f; border-radius: 2px; }
   .field-row { display: grid; grid-template-columns: repeat(var(--cols, 1), 1fr); gap: 12px; margin-bottom: 14px; }
   @media (max-width: 560px) { .field-row { grid-template-columns: 1fr; } body { padding: 1rem; } .form-section { padding: 1.25rem 1rem; } }
   .field-group { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
@@ -33,7 +41,7 @@
   .pill { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; padding: 6px 12px; border: 1px solid #d5c4ae; border-radius: 20px; background: #fff8f2; color: #5c4a35; user-select: none; transition: all 0.15s; }
   .pill:hover { border-color: #a07850; background: #f5ede2; }
   .pill input { width: 14px; height: 14px; margin: 0; flex-shrink: 0; accent-color: #a07850; }
-  .pill:has(input:checked) { background: #5c4a35; border-color: #5c4a35; color: #f5ede2; }
+  .pill:has(input:checked) { background: #8c6f5a; border-color: #8c6f5a; color: #fbf6ef; }
   .budget-wrap { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
   .budget-wrap input[type=range] { flex: 1; accent-color: #a07850; min-width: 0; }
   .budget-label { font-size: 13px; color: #a08060; white-space: nowrap; }
@@ -42,8 +50,8 @@
   .consent { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: #5c4a35; line-height: 1.6; cursor: pointer; }
   .consent input { margin-top: 4px; accent-color: #a07850; }
   .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
-  .submit-btn { width: 100%; padding: 14px; font-size: 15px; font-weight: 600; font-family: inherit; letter-spacing: 0.08em; border-radius: 10px; border: none; background: #5c4a35; color: #f5ede2; cursor: pointer; transition: background 0.15s; margin-top: 0.5rem; }
-  .submit-btn:hover { background: #7a6248; }
+  .submit-btn { width: 100%; padding: 14px; font-size: 15px; font-weight: 600; font-family: inherit; letter-spacing: 0.08em; border-radius: 10px; border: none; background: #8c6f5a; color: #fbf6ef; cursor: pointer; transition: background 0.15s; margin-top: 0.5rem; }
+  .submit-btn:hover { background: #7a5f4c; }
   .submit-btn:disabled { background: #c4b09a; cursor: not-allowed; }
   .status-msg { display: none; font-size: 14px; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; text-align: center; line-height: 1.6; }
   .status-msg.success { display: block; background: #eef5e8; color: #3d6b2a; border: 1px solid #c5ddb0; }
@@ -62,9 +70,36 @@
 <body>
 <div class="page-wrap">
   <div class="page-header">
-    <div class="company">宇德室內裝修股份有限公司</div>
-    <h1 id="page-title">住宅裝修需求表</h1>
-    <p id="page-sub">請填寫以下資料，我們將盡快與您聯繫</p>
+    <svg class="art art-left" viewBox="0 0 220 260" aria-hidden="true">
+      <path d="M0 95 C 60 90, 120 140, 130 200 C 138 245, 120 260, 110 260 L 0 260 Z" fill="#e6d0b8"/>
+      <path d="M0 160 C 45 150, 90 185, 92 230 C 93 250, 88 260, 85 260 L 0 260 Z" fill="#c98a6b"/>
+      <path d="M0 215 C 25 210, 48 228, 50 260 L 0 260 Z" fill="#d9b79c"/>
+      <g fill="none" stroke="#b09a84" stroke-width="1.1" stroke-linecap="round" opacity="0.8">
+        <path d="M150 250 C 150 190, 140 130, 110 70"/>
+        <path d="M146 200 C 128 196, 116 182, 114 166 C 132 170, 144 184, 146 200 Z"/>
+        <path d="M143 172 C 160 164, 168 150, 168 134 C 152 140, 144 154, 143 172 Z"/>
+        <path d="M134 140 C 116 134, 106 120, 106 104 C 122 110, 132 124, 134 140 Z"/>
+        <path d="M126 112 C 140 102, 144 88, 142 74 C 130 82, 124 96, 126 112 Z"/>
+      </g>
+      <circle cx="40" cy="40" r="8" fill="#e2c1a6"/><circle cx="64" cy="44" r="8" fill="#e2c1a6"/>
+    </svg>
+    <svg class="art art-right" viewBox="0 0 220 260" aria-hidden="true">
+      <path d="M220 0 L 220 150 C 170 150, 110 110, 95 50 C 90 25, 95 0, 100 0 Z" fill="#ecdcc9"/>
+      <path d="M220 0 L 220 85 C 185 85, 150 60, 145 20 C 143 8, 145 0, 147 0 Z" fill="#c98a6b"/>
+      <path d="M220 260 C 190 230, 180 200, 200 170 C 208 160, 215 158, 220 158 Z" fill="#e6d0b8" opacity="0.8"/>
+      <g fill="none" stroke="#b09a84" stroke-width="1.1" stroke-linecap="round" opacity="0.8">
+        <path d="M60 10 C 70 60, 90 100, 130 140"/>
+        <path d="M78 66 C 94 64, 106 72, 110 86 C 94 88, 82 80, 78 66 Z"/>
+        <path d="M92 94 C 88 78, 94 64, 106 56 C 110 72, 104 86, 92 94 Z"/>
+        <path d="M104 112 C 120 110, 132 118, 136 132 C 120 134, 108 126, 104 112 Z"/>
+      </g>
+    </svg>
+    <div class="inner">
+      <div class="company">宇德室內裝修股份有限公司</div>
+      <h1 id="page-title">住宅裝修需求表</h1>
+      <div class="accent"></div>
+      <p id="page-sub">請填寫以下資料，我們將盡快與您聯繫</p>
+    </div>
   </div>
 
   <div class="form-section done" id="loading" hidden><p>讀取中…</p></div>
