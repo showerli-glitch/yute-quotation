@@ -1,6 +1,6 @@
 // 住宅裝修需求表欄位定義：客戶填寫頁（index.html）與內部檢視頁（admin.html）共用。
 // 欄位 key 會直接成為 Firebase leads/yutesign/items/{id}/form/{key}，改名前要考慮舊資料相容。
-const LEAD_FORM_VERSION = '2026-09-23';
+const LEAD_FORM_VERSION = '2026-09-23.2';
 const LEAD_FIREBASE_CONFIG = {
   apiKey: 'AIzaSyAz-MeKorzgp-_EjiMWvugiz_JFDjk4NIs',
   authDomain: 'yutesign-sync.firebaseapp.com',
@@ -10,7 +10,10 @@ const LEAD_FIREBASE_CONFIG = {
   messagingSenderId: '709833651829',
   appId: '1:709833651829:web:6d52a99ceefc1915caaa3c'
 };
-const LEAD_DB_PATH = 'leads/yutesign/items';
+const LEAD_ROOT_PATH = 'leads/yutesign';
+const LEAD_DB_PATH = LEAD_ROOT_PATH + '/items';
+const LEAD_EDIT_PATH = LEAD_ROOT_PATH + '/edits';
+const LEAD_EDIT_DAYS = 7;
 
 const LEAD_STATUSES = [
   { value: 'new', label: '新進' },
@@ -22,6 +25,7 @@ const LEAD_STATUSES = [
 
 // type: text | tel | email | number | date | select | radio | checks | textarea | budget
 // row: 同一 row 值的相鄰欄位排成同一列
+// other: 勾選指定選項時顯示補充文字欄，存成獨立欄位 key
 const LEAD_SECTIONS = [
   { title: '基本資料', fields: [
     { key: 'name', label: '姓名', type: 'text', required: true, max: 50, placeholder: '王小明', row: 'a' },
@@ -34,7 +38,7 @@ const LEAD_SECTIONS = [
   { title: '家庭成員', fields: [
     { key: 'people', label: '居住人數', type: 'select', options: ['1人', '2人', '3人', '4人', '5人', '6人以上'], row: 'a' },
     { key: 'family', label: '家庭組成', type: 'select', options: ['單身獨居', '兩人同住（夫妻／情侶）', '小家庭（夫妻＋子女）', '三代同堂', '與父母同住', '室友合租'], row: 'a' },
-    { key: 'members', label: '家中成員（可複選）', type: 'checks', options: ['嬰幼兒', '學齡兒童', '青少年', '長者（60歲以上）', '行動不便者', '貓', '狗', '其他寵物'] },
+    { key: 'members', label: '家中成員（可複選）', type: 'checks', options: ['嬰幼兒', '學齡兒童', '青少年', '長者（60歲以上）', '行動不便者', '貓', '狗', '其他寵物'], other: { option: '其他寵物', key: 'petOther', label: '請說明寵物種類', max: 100 } },
     { key: 'liveFocus', label: '居家使用重點（可複選）', type: 'checks', options: ['大量收納', '在家工作／書房', '親子互動空間', '長輩無障礙需求', '寵物友善設計', '娛樂影音空間', '健身空間'] },
   ]},
   { title: '空間資訊', fields: [
@@ -59,7 +63,7 @@ const LEAD_SECTIONS = [
     { key: 'designer', label: '設計規劃方式', type: 'radio', options: ['已自行找到可配合的設計師', '與宇德配合設計及裝修', '自行規劃'] },
     { key: 'reference', label: '是否有參考案例或靈感圖片', type: 'radio', options: ['有，會另外提供', '沒有', '需要設計師建議'] },
     { key: 'services', label: '希望服務項目（可複選）', type: 'checks', options: ['平立面空間規劃配置圖面', '3D 建模（僅素模）', '3D 渲染圖（建模＋材質搭配效果及出圖）', '裝修風格簡報', '施工全程監工', '新舊家具搬遷處理', '完工清潔', '完工拍攝（照片／影音）', '保固維修服務'] },
-    { key: 'source', label: '您從哪裡得知宇德？', type: 'radio', options: ['親友介紹', 'Google 搜尋', 'Facebook／Instagram', '實品屋／樣品屋', '看過施工案例', '其他'] },
+    { key: 'source', label: '您從哪裡得知宇德？', type: 'radio', options: ['親友介紹', 'Google 搜尋', 'Facebook／Instagram', '實品屋／樣品屋', '看過施工案例', '其他'], other: { option: '其他', key: 'sourceOther', label: '請說明從哪裡得知', max: 100 } },
     { key: 'notes', label: '其他需求與備註', type: 'textarea', max: 2000, placeholder: '請說明特殊需求、注意事項、入住期限或其他想法…' },
   ]},
   { title: '收納需求', fields: [
@@ -79,3 +83,10 @@ const LEAD_SECTIONS = [
 function leadEscape(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
+
+// 所有欄位 key → 顯示名稱（含「其他」補充欄），供後台顯示與修改紀錄使用
+const LEAD_FIELD_LABELS = {};
+LEAD_SECTIONS.forEach(s => s.fields.forEach(f => {
+  LEAD_FIELD_LABELS[f.key] = f.label.replace(/（可複選）/, '');
+  if (f.other) LEAD_FIELD_LABELS[f.other.key] = f.other.label.replace(/^請說明/, '');
+}));

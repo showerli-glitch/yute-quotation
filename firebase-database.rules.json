@@ -212,7 +212,7 @@
           ],
           "$leadId": {
             ".write": "(!data.exists() && newData.exists()) || (auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/))",
-            ".validate": "newData.hasChildren(['name', 'phone', 'status', 'source', 'formVersion', 'submittedAt', 'form']) && (data.exists() || (newData.child('status').val() == 'new' && !newData.hasChild('staffNote') && !newData.hasChild('handledBy') && !newData.hasChild('handledAt')))",
+            ".validate": "newData.hasChildren(['name', 'phone', 'status', 'source', 'formVersion', 'submittedAt', 'form']) && (data.exists() || (newData.child('status').val() == 'new' && !newData.hasChild('staffNote') && !newData.hasChild('handledBy') && !newData.hasChild('handledAt') && !newData.hasChild('current') && !newData.hasChild('history')))",
             "name": {
               ".validate": "newData.isString() && newData.val().length <= 50 && newData.val().length >= 1"
             },
@@ -244,6 +244,78 @@
               ".validate": "newData.isString() && newData.val() == auth.token.email"
             },
             "handledAt": {
+              ".validate": "newData.isNumber() && newData.val() == now"
+            },
+            "editToken": {
+              ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9]{32}$/) && (!data.exists() || newData.val() == data.val())"
+            },
+            "current": {
+              ".write": "(auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/)) || (newData.exists() && newData.child('token').isString() && newData.child('token').val() == root.child('leads/yutesign/items').child($leadId).child('editToken').val() && root.child('leads/yutesign/edits').child(newData.child('token').val()).child('expiresAt').val() > now)",
+              ".validate": "newData.hasChildren(['form', 'updatedAt', 'updatedBy'])",
+              "form": {
+                ".validate": "newData.hasChildren(['name', 'phone'])",
+                "$field": {
+                  ".validate": "$field.matches(/^[a-zA-Z]{1,20}$/) && newData.isString() && newData.val().length <= 2000"
+                }
+              },
+              "updatedAt": {
+                ".validate": "newData.isNumber() && newData.val() == now"
+              },
+              "updatedBy": {
+                ".validate": "newData.isString() && ((newData.val() == 'customer' && newData.parent().child('token').exists()) || (auth != null && newData.val() == auth.token.email))"
+              },
+              "token": {
+                ".validate": "newData.isString()"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "history": {
+              "$historyId": {
+                ".write": "!data.exists() && newData.exists() && ((auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/)) || (newData.child('token').isString() && newData.child('token').val() == root.child('leads/yutesign/items').child($leadId).child('editToken').val() && root.child('leads/yutesign/edits').child(newData.child('token').val()).child('expiresAt').val() > now))",
+                ".validate": "newData.hasChildren(['at', 'by', 'changes'])",
+                "at": {
+                  ".validate": "newData.isNumber() && newData.val() == now"
+                },
+                "by": {
+                  ".validate": "newData.isString() && ((newData.val() == 'customer' && newData.parent().child('token').exists()) || (auth != null && newData.val() == auth.token.email))"
+                },
+                "changes": {
+                  ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 4000"
+                },
+                "token": {
+                  ".validate": "newData.isString()"
+                },
+                "$other": {
+                  ".validate": false
+                }
+              }
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "edits": {
+          ".read": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/)",
+          "$token": {
+            ".read": "data.child('expiresAt').val() > now",
+            ".write": "(!data.exists() && newData.exists()) || (data.exists() && newData.exists() && data.child('expiresAt').val() > now) || (auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/))",
+            ".validate": "$token.matches(/^[A-Za-z0-9]{32}$/) && newData.hasChildren(['leadId', 'expiresAt', 'form', 'updatedAt']) && newData.parent().parent().child('items').child(newData.child('leadId').val()).child('editToken').val() == $token && (data.exists() || !root.child('leads/yutesign/items').child(newData.child('leadId').val()).exists())",
+            "leadId": {
+              ".validate": "newData.isString() && (!data.exists() || newData.val() == data.val())"
+            },
+            "expiresAt": {
+              ".validate": "newData.isNumber() && ((!data.exists() && newData.val() > now && newData.val() <= now + 691200000) || newData.val() == data.val() || ((auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/)) && newData.val() <= now + 2678400000))"
+            },
+            "form": {
+              ".validate": "newData.hasChildren(['name', 'phone'])",
+              "$field": {
+                ".validate": "$field.matches(/^[a-zA-Z]{1,20}$/) && newData.isString() && newData.val().length <= 2000"
+              }
+            },
+            "updatedAt": {
               ".validate": "newData.isNumber() && newData.val() == now"
             },
             "$other": {

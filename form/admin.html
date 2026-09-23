@@ -10,7 +10,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script src="schema.js?v=20260923"></script>
+<script src="schema.js?v=20260923b"></script>
+<script src="form-ui.js?v=20260923b"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif; background: #ede8e0; color: #3a2e24; min-height: 100vh; }
@@ -58,8 +59,40 @@
   dd { white-space: pre-wrap; word-break: break-word; }
   @media (max-width: 560px) { dl { grid-template-columns: 1fr; } dt { margin-top: 6px; } }
   .empty { color: #8a7060; font-size: 14px; padding: 30px; text-align: center; }
+  .chip { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: #efe6d8; color: #7a6248; margin-left: 6px; white-space: nowrap; font-weight: 400; }
+  .notice { font-size: 13px; background: #fff4e0; border: 1px solid #ecd3a8; color: #7a4f12; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; line-height: 1.6; }
+  .linkrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 13px; background: #f3ece2; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; }
+  .linkrow input { flex: 1; min-width: 180px; font-size: 12px; padding: 6px 8px; border: 1px solid #d5c4ae; border-radius: 6px; background: #fff8f2; }
+  .btn.sm { font-size: 12px; padding: 6px 10px; }
+  .history { font-size: 13px; }
+  .history li { list-style: none; border-left: 2px solid #d5c4ae; padding: 4px 0 8px 10px; }
+  .history .h-meta { color: #8a7060; font-size: 12px; }
+  .history pre { white-space: pre-wrap; font-family: inherit; margin-top: 2px; }
+  .related a { color: #5c4a35; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .tabs button { font-family: inherit; font-size: 12px; padding: 5px 10px; border-radius: 14px; border: 1px solid #d5c4ae; background: #fff8f2; color: #5c4a35; cursor: pointer; }
+  .tabs button.on { background: #5c4a35; color: #f5ede2; border-color: #5c4a35; }
+  #edit-form .form-section { background: #fff; border: 1px solid #ddd0bc; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  #edit-form .section-title { font-size: 13px; font-weight: 600; color: #5c4a35; margin-bottom: 10px; border-left: 3px solid #a07850; padding-left: 8px; }
+  #edit-form .field-row { display: grid; grid-template-columns: repeat(var(--cols, 1), 1fr); gap: 10px; margin-bottom: 10px; }
+  @media (max-width: 560px) { #edit-form .field-row { grid-template-columns: 1fr; } }
+  #edit-form .field-group { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  #edit-form .field-label { font-size: 12px; color: #8a7060; }
+  #edit-form .req { color: #b4532a; }
+  #edit-form input[type=text], #edit-form input[type=tel], #edit-form input[type=email], #edit-form input[type=number], #edit-form input[type=date], #edit-form select, #edit-form textarea { font-family: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid #d5c4ae; border-radius: 8px; background: #fff8f2; color: #3a2e24; width: 100%; }
+  #edit-form textarea { min-height: 80px; resize: vertical; }
+  #edit-form .pill-group { display: flex; flex-wrap: wrap; gap: 6px; }
+  #edit-form .pill { display: flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; padding: 4px 10px; border: 1px solid #d5c4ae; border-radius: 16px; background: #fff8f2; color: #5c4a35; }
+  #edit-form .pill:has(input:checked) { background: #5c4a35; border-color: #5c4a35; color: #f5ede2; }
+  #edit-form .pill input { accent-color: #a07850; }
+  #edit-form .other-input { margin-top: 6px; }
+  #edit-form .budget-wrap { display: flex; align-items: center; gap: 10px; }
+  #edit-form .budget-wrap input[type=range] { flex: 1; min-width: 0; accent-color: #a07850; }
+  #edit-form .budget-label, #edit-form .hint { font-size: 12px; color: #a08060; }
+  #edit-form .budget-val { font-weight: 600; min-width: 56px; text-align: right; }
+  .edit-actions { position: sticky; bottom: 0; background: #faf6f0; padding: 10px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   @media print {
-    header, .toolbar, .list, .manage .actions, .no-print { display: none !important; }
+    header, .toolbar, .list, .manage .actions, .no-print, .linkrow, .tabs { display: none !important; }
     body { background: #fff; }
     .layout { display: block; }
     .detail { border: none; padding: 0; }
@@ -97,14 +130,24 @@
 
 <script>
 const GOOGLE_CLIENT_ID = '239869421522-cqs68t3pnahjbmv9ld1k08b4p79s34k4.apps.googleusercontent.com';
+const DAY_MS = 86400000;
 let leads = [];
 let selectedId = '';
 let dbRef = null;
 let tokenClient = null;
+let editing = false;
+let showOriginal = false;
+let editInfo = { token: '', expiresAt: 0, loaded: false };
 
 firebase.initializeApp(LEAD_FIREBASE_CONFIG);
 const statusLabel = v => LEAD_STATUSES.find(s => s.value === v)?.label || v || '新進';
 const fmtTime = ms => ms ? new Date(ms).toLocaleString('zh-TW', { hour12: false }) : '';
+const currentForm = l => l.current?.form || l.form || {};
+const phoneKey = p => {
+  let d = String(p || '').replace(/\D/g, '');
+  if (d.startsWith('886')) d = '0' + d.slice(3);
+  return d.length >= 8 ? d : '';
+};
 
 document.getElementById('status-filter').insertAdjacentHTML('beforeend',
   LEAD_STATUSES.map(s => `<option value="${s.value}">${s.label}</option>`).join(''));
@@ -155,12 +198,17 @@ firebase.auth().onAuthStateChanged(async user => {
     const val = snap.val() || {};
     leads = Object.entries(val).map(([id, v]) => ({ id, ...v })).sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
     renderList();
-    renderDetail();
+    if (!editing) renderDetail();
   }, err => {
     console.warn(err);
     document.getElementById('list').innerHTML = `<div class="empty">讀取失敗：${leadEscape(err.code || err.message)}<br>請確認 Firebase 規則已發布 leads 區段。</div>`;
   });
 });
+
+function samePhoneLeads(l) {
+  const key = phoneKey(currentForm(l).phone || l.phone);
+  return key ? leads.filter(x => x.id !== l.id && phoneKey(currentForm(x).phone || x.phone) === key) : [];
+}
 
 function filteredLeads() {
   const q = document.getElementById('q').value.trim().toLowerCase();
@@ -168,7 +216,7 @@ function filteredLeads() {
   return leads.filter(l => {
     if (st && (l.status || 'new') !== st) return false;
     if (!q) return true;
-    return [l.name, l.phone, l.staffNote, ...Object.values(l.form || {})].join(' ').toLowerCase().includes(q);
+    return [l.name, l.phone, l.staffNote, ...Object.values(l.form || {}), ...Object.values(currentForm(l))].join(' ').toLowerCase().includes(q);
   });
 }
 
@@ -176,48 +224,143 @@ function renderList() {
   const rows = filteredLeads();
   document.getElementById('count').textContent = `共 ${rows.length} 筆` + (rows.length !== leads.length ? `（全部 ${leads.length}）` : '');
   document.getElementById('list').innerHTML = rows.length ? rows.map(l => {
-    const f = l.form || {};
+    const f = currentForm(l);
     const st = l.status || 'new';
+    const dup = samePhoneLeads(l).length;
+    const chips = (dup ? `<span class="chip">同電話共 ${dup + 1} 張</span>` : '') + (l.current ? `<span class="chip">已修改</span>` : '');
     const sub = [f.address, [f.houseType, f.area && f.area + '坪', f.renoType].filter(Boolean).join('・'), f.budget && '預算 ' + f.budget].filter(Boolean);
     return `<button class="item ${l.id === selectedId ? 'active' : ''}" data-id="${leadEscape(l.id)}">
-      <div class="item-top"><span class="item-name">${leadEscape(l.name)}</span><span class="badge s-${leadEscape(st)}">${leadEscape(statusLabel(st))}</span></div>
-      <div class="item-sub">${leadEscape(l.phone)}　${leadEscape(fmtTime(l.submittedAt))}<br>${sub.map(leadEscape).join('<br>')}</div>
+      <div class="item-top"><span class="item-name">${leadEscape(f.name || l.name)}${chips}</span><span class="badge s-${leadEscape(st)}">${leadEscape(statusLabel(st))}</span></div>
+      <div class="item-sub">${leadEscape(f.phone || l.phone)}　${leadEscape(fmtTime(l.submittedAt))}<br>${sub.map(leadEscape).join('<br>')}</div>
     </button>`;
   }).join('') : '<div class="empty">目前沒有符合的需求表</div>';
+}
+
+function formSectionsHtml(f) {
+  const html = LEAD_SECTIONS.map(s => {
+    const items = [];
+    s.fields.forEach(fd => {
+      if (f[fd.key]) items.push(`<dt>${leadEscape(LEAD_FIELD_LABELS[fd.key])}</dt><dd>${leadEscape(f[fd.key])}</dd>`);
+      if (fd.other && f[fd.other.key]) items.push(`<dt>${leadEscape(LEAD_FIELD_LABELS[fd.other.key])}</dt><dd>${leadEscape(f[fd.other.key])}</dd>`);
+    });
+    return items.length ? `<div class="sec"><h3>${leadEscape(s.title)}</h3><dl>${items.join('')}</dl></div>` : '';
+  }).join('');
+  return html || '<div class="empty">此筆沒有其他填寫內容</div>';
+}
+
+function byLabel(by) { return by === 'customer' ? '客戶本人' : by; }
+
+async function loadEditInfo(l) {
+  editInfo = { token: l.editToken || '', expiresAt: 0, loaded: !l.editToken };
+  if (!l.editToken) return;
+  try {
+    const snap = await firebase.database().ref(`${LEAD_EDIT_PATH}/${l.editToken}/expiresAt`).get();
+    if (selectedId !== l.id) return;
+    editInfo = { token: l.editToken, expiresAt: snap.val() || 0, loaded: true };
+  } catch (e) {
+    console.warn(e);
+    editInfo.loaded = true;
+  }
+  if (!editing) renderDetail();
 }
 
 function renderDetail() {
   const box = document.getElementById('detail');
   const l = leads.find(x => x.id === selectedId);
   if (!l) { box.innerHTML = '<div class="empty">請從左側選擇一筆需求表</div>'; return; }
-  const f = l.form || {};
-  const secs = LEAD_SECTIONS.map(s => {
-    const items = s.fields.filter(fd => f[fd.key]).map(fd => `<dt>${leadEscape(fd.label.replace(/（可複選）/, ''))}</dt><dd>${leadEscape(f[fd.key])}</dd>`);
-    return items.length ? `<div class="sec"><h3>${leadEscape(s.title)}</h3><dl>${items.join('')}</dl></div>` : '';
-  }).join('');
+  const f = currentForm(l);
   const handled = l.handledBy ? `・最後處理：${leadEscape(l.handledBy)}（${leadEscape(fmtTime(l.handledAt))}）` : '';
+  const changed = l.current ? `<div class="notice">${leadEscape(byLabel(l.current.updatedBy))} 於 ${leadEscape(fmtTime(l.current.updatedAt))} 修改過內容，下方顯示最新版本；原始填寫內容仍保留。</div>` : '';
+  const related = samePhoneLeads(l);
+  const relatedHtml = related.length ? `<div class="notice related">同一支電話另有 ${related.length} 張需求表：${related.map(r => `<a href="#" data-goto="${leadEscape(r.id)}">${leadEscape(fmtTime(r.submittedAt))}（${leadEscape(statusLabel(r.status))}）</a>`).join('、')}</div>` : '';
+  let linkHtml = '';
+  if (l.editToken) {
+    const url = leadEditUrl(l.editToken);
+    const expired = editInfo.loaded && editInfo.expiresAt <= Date.now();
+    const state = !editInfo.loaded ? '讀取中…' : expired ? `已於 ${fmtTime(editInfo.expiresAt)} 失效` : `有效至 ${fmtTime(editInfo.expiresAt)}`;
+    linkHtml = `<div class="linkrow"><span>客戶修改連結（${leadEscape(state)}）</span>
+      <input readonly value="${leadEscape(url)}">
+      <button class="btn ghost sm" data-act="copy">複製</button>
+      <button class="btn ghost sm" data-act="extend">重新開放 ${LEAD_EDIT_DAYS} 天</button></div>`;
+  }
+  const history = Object.values(l.history || {}).sort((a, b) => (b.at || 0) - (a.at || 0));
+  const historyHtml = history.length ? `<div class="sec"><h3>修改紀錄</h3><ul class="history">${history.map(h => `<li><div class="h-meta">${leadEscape(fmtTime(h.at))}・${leadEscape(byLabel(h.by))}</div><pre>${leadEscape(h.changes)}</pre></li>`).join('')}</ul></div>` : '';
+  const tabs = l.current ? `<div class="tabs"><button data-act="view-current" class="${showOriginal ? '' : 'on'}">最新內容</button><button data-act="view-original" class="${showOriginal ? 'on' : ''}">原始填寫</button></div>` : '';
   box.innerHTML = `
-    <h2>${leadEscape(l.name)}</h2>
+    <h2>${leadEscape(f.name || l.name)}</h2>
     <div class="meta">送出時間：${leadEscape(fmtTime(l.submittedAt))}${handled}<br>表單版本：${leadEscape(l.formVersion || '')}</div>
+    ${relatedHtml}${changed}
     <div class="manage">
       <select id="d-status">${LEAD_STATUSES.map(s => `<option value="${s.value}" ${s.value === (l.status || 'new') ? 'selected' : ''}>${s.label}</option>`).join('')}</select>
       <textarea id="d-note" maxlength="2000" placeholder="內部備註（客戶看不到）">${leadEscape(l.staffNote || '')}</textarea>
       <div class="actions">
-        <button class="btn" id="d-save">儲存狀態與備註</button>
+        <button class="btn" data-act="save-manage">儲存狀態與備註</button>
+        <button class="btn ghost" data-act="edit">修改需求內容</button>
         <button class="btn ghost" onclick="window.print()">列印</button>
         <span class="count" id="d-msg"></span>
       </div>
     </div>
-    ${secs || '<div class="empty">此筆沒有其他填寫內容</div>'}`;
-  document.getElementById('d-save').onclick = () => saveManage(l.id);
+    ${linkHtml}
+    ${tabs}
+    ${formSectionsHtml(showOriginal ? (l.form || {}) : f)}
+    ${historyHtml}`;
 }
 
-async function saveManage(id) {
-  const btn = document.getElementById('d-save');
-  const msg = document.getElementById('d-msg');
-  btn.disabled = true; msg.textContent = '儲存中…';
+function renderEditor() {
+  const l = leads.find(x => x.id === selectedId);
+  if (!l) return;
+  editing = true;
+  const box = document.getElementById('detail');
+  box.innerHTML = `<h2>修改：${leadEscape(currentForm(l).name || l.name)}</h2>
+    <div class="notice">代客戶修改內容。儲存後會記錄修改人與變更內容，原始填寫內容不會被覆蓋。</div>
+    <div id="edit-form"></div>
+    <div class="edit-actions">
+      <button class="btn" data-act="save-edit">儲存修改</button>
+      <button class="btn ghost" data-act="cancel-edit">取消</button>
+      <span class="count" id="e-msg"></span>
+    </div>`;
+  const root = document.getElementById('edit-form');
+  renderLeadForm(root);
+  setLeadValues(root, currentForm(l));
+}
+
+async function saveEdit() {
+  const l = leads.find(x => x.id === selectedId);
+  const msg = document.getElementById('e-msg');
+  const values = collectLeadValues(document.getElementById('edit-form'));
+  if (!values.name || !values.phone) { msg.textContent = '姓名與電話不可空白'; return; }
+  const changes = diffLeadForms(currentForm(l), values);
+  if (!changes) { msg.textContent = '內容沒有變更'; return; }
+  const email = firebase.auth().currentUser.email.toLowerCase();
+  const TS = firebase.database.ServerValue.TIMESTAMP;
+  const root = firebase.database().ref(LEAD_ROOT_PATH);
+  const historyId = root.child(`items/${l.id}/history`).push().key;
+  const updates = {
+    [`items/${l.id}/current`]: { form: values, updatedAt: TS, updatedBy: email },
+    [`items/${l.id}/history/${historyId}`]: { at: TS, by: email, changes },
+  };
+  if (l.editToken) {
+    updates[`edits/${l.editToken}/form`] = values;
+    updates[`edits/${l.editToken}/updatedAt`] = TS;
+  }
+  msg.textContent = '儲存中…';
   try {
-    await firebase.database().ref(`${LEAD_DB_PATH}/${id}`).update({
+    await root.update(updates);
+    editing = false;
+    showOriginal = false;
+    renderDetail();
+  } catch (e) {
+    console.warn(e);
+    msg.textContent = '儲存失敗：' + (e.code || e.message);
+  }
+}
+
+async function saveManage() {
+  const l = leads.find(x => x.id === selectedId);
+  const msg = document.getElementById('d-msg');
+  msg.textContent = '儲存中…';
+  try {
+    await firebase.database().ref(`${LEAD_DB_PATH}/${l.id}`).update({
       status: document.getElementById('d-status').value,
       staffNote: document.getElementById('d-note').value.trim(),
       handledBy: firebase.auth().currentUser.email.toLowerCase(),
@@ -227,18 +370,55 @@ async function saveManage(id) {
     console.warn(e);
     const el = document.getElementById('d-msg');
     if (el) el.textContent = '儲存失敗：' + (e.code || e.message);
-    const b = document.getElementById('d-save');
-    if (b) b.disabled = false;
   }
+}
+
+async function extendLink() {
+  const l = leads.find(x => x.id === selectedId);
+  if (!l?.editToken) return;
+  const expiresAt = Date.now() + LEAD_EDIT_DAYS * DAY_MS;
+  try {
+    await firebase.database().ref(`${LEAD_EDIT_PATH}/${l.editToken}/expiresAt`).set(expiresAt);
+    editInfo = { token: l.editToken, expiresAt, loaded: true };
+    renderDetail();
+  } catch (e) {
+    console.warn(e);
+    alert('重新開放失敗：' + (e.code || e.message));
+  }
+}
+
+function selectLead(id) {
+  if (editing && !confirm('尚未儲存的修改會遺失，確定要離開嗎？')) return;
+  editing = false;
+  showOriginal = false;
+  selectedId = id;
+  renderList();
+  renderDetail();
+  const l = leads.find(x => x.id === id);
+  if (l) loadEditInfo(l);
+  if (window.innerWidth <= 800) document.getElementById('detail').scrollIntoView({ behavior: 'smooth' });
 }
 
 document.getElementById('list').addEventListener('click', e => {
   const item = e.target.closest('.item');
-  if (!item) return;
-  selectedId = item.dataset.id;
-  renderList();
-  renderDetail();
-  if (window.innerWidth <= 800) document.getElementById('detail').scrollIntoView({ behavior: 'smooth' });
+  if (item) selectLead(item.dataset.id);
+});
+document.getElementById('detail').addEventListener('click', e => {
+  const go = e.target.closest('[data-goto]');
+  if (go) { e.preventDefault(); selectLead(go.dataset.goto); return; }
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (!act) return;
+  if (act === 'save-manage') saveManage();
+  else if (act === 'edit') renderEditor();
+  else if (act === 'save-edit') saveEdit();
+  else if (act === 'cancel-edit') { editing = false; renderDetail(); }
+  else if (act === 'view-current') { showOriginal = false; renderDetail(); }
+  else if (act === 'view-original') { showOriginal = true; renderDetail(); }
+  else if (act === 'extend') extendLink();
+  else if (act === 'copy') {
+    const input = e.target.closest('.linkrow').querySelector('input');
+    navigator.clipboard.writeText(input.value).then(() => { e.target.textContent = '已複製'; }, () => input.select());
+  }
 });
 document.getElementById('q').addEventListener('input', renderList);
 document.getElementById('status-filter').addEventListener('change', renderList);

@@ -7,7 +7,8 @@
 <link rel="icon" href="../favicon.ico">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script src="schema.js?v=20260923"></script>
+<script src="schema.js?v=20260923b"></script>
+<script src="form-ui.js?v=20260923b"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif; background: #ede8e0; color: #3a2e24; min-height: 100vh; padding: 2rem 1rem; }
@@ -51,17 +52,29 @@
   .done h2 { font-size: 20px; color: #5c4a35; margin-bottom: 10px; }
   .done p { font-size: 14px; color: #8a7060; line-height: 1.8; }
   .page-footer { text-align: center; font-size: 12px; color: #b09a80; margin-top: 1.5rem; padding-bottom: 1rem; }
+  .other-input { margin-top: 8px; }
+  .link-box { display: flex; gap: 8px; margin: 16px auto 0; max-width: 520px; }
+  .link-box input { font-size: 13px; flex: 1; min-width: 0; }
+  .link-box button { font-family: inherit; font-size: 13px; padding: 0 14px; border-radius: 8px; border: 1px solid #a07850; background: #fff8f2; color: #5c4a35; cursor: pointer; white-space: nowrap; }
+  .edit-banner { background: #f5ede2; border: 1px solid #ddd0bc; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #5c4a35; line-height: 1.7; margin-bottom: 1rem; }
 </style>
 </head>
 <body>
 <div class="page-wrap">
   <div class="page-header">
     <div class="company">宇德室內裝修股份有限公司</div>
-    <h1>住宅裝修需求表</h1>
-    <p>請填寫以下資料，我們將盡快與您聯繫</p>
+    <h1 id="page-title">住宅裝修需求表</h1>
+    <p id="page-sub">請填寫以下資料，我們將盡快與您聯繫</p>
+  </div>
+
+  <div class="form-section done" id="loading" hidden><p>讀取中…</p></div>
+  <div class="form-section done" id="invalid" hidden>
+    <h2>此修改連結已失效</h2>
+    <p>修改連結在送出後 7 天內有效。<br>如需修改或補充需求，請直接來電或透過 LINE 與宇德聯繫，<br>或<a href="./">重新填寫一份需求表</a>。</p>
   </div>
 
   <form id="lead-form" novalidate>
+    <div class="edit-banner" id="edit-banner" hidden></div>
     <div id="sections"></div>
     <div class="form-section">
       <label class="consent" id="consent-row">
@@ -75,8 +88,12 @@
   </form>
 
   <div class="form-section done" id="done" hidden>
-    <h2>已收到您的需求表</h2>
-    <p>感謝您的填寫，宇德會盡快與您聯繫。<br>若有平面圖或參考照片，可在聯繫時一併提供。</p>
+    <h2 id="done-title">已收到您的需求表</h2>
+    <p id="done-text">感謝您的填寫，宇德會盡快與您聯繫。<br>若有平面圖或參考照片，可在聯繫時一併提供。</p>
+    <div id="done-link" hidden>
+      <p style="margin-top:18px">若填錯或想補充需求，<strong>7 天內</strong>可用下面這個專屬連結修改：<br>（請自行保存，此連結不會再顯示；請勿轉傳給他人）</p>
+      <div class="link-box"><input type="text" id="edit-link" readonly><button type="button" id="copy-link">複製連結</button></div>
+    </div>
   </div>
 
   <div class="page-footer">© 宇德室內裝修股份有限公司　資料僅供聯繫使用</div>
@@ -84,83 +101,18 @@
 
 <script>
 const openedAt = Date.now();
+const editToken = new URLSearchParams(location.search).get('edit') || '';
+const formEl = document.getElementById('lead-form');
+const sectionsEl = document.getElementById('sections');
+let editRecord = null;
 
-function renderField(f) {
-  const req = f.required ? '<span class="req">*</span>' : '';
-  const label = `<span class="field-label">${leadEscape(f.label)}${req}</span>`;
-  const hint = f.hint ? `<div class="hint">${leadEscape(f.hint)}</div>` : '';
-  const id = 'f-' + f.key;
-  let control = '';
-  switch (f.type) {
-    case 'select':
-      control = `<select id="${id}"><option value="">請選擇</option>${f.options.map(o => `<option>${leadEscape(o)}</option>`).join('')}</select>`;
-      break;
-    case 'radio':
-    case 'checks': {
-      const t = f.type === 'radio' ? 'radio' : 'checkbox';
-      control = `<div class="pill-group" id="${id}">${f.options.map(o => `<label class="pill"><input type="${t}" name="${f.key}" value="${leadEscape(o)}">${leadEscape(o)}</label>`).join('')}</div>`;
-      break;
-    }
-    case 'textarea':
-      control = `<textarea id="${id}" maxlength="${f.max || 2000}" placeholder="${leadEscape(f.placeholder || '')}"></textarea>`;
-      break;
-    case 'budget':
-      control = `<div class="budget-wrap"><span class="budget-label">${f.min}萬</span><input type="range" id="${id}" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.initial}"><span class="budget-label">${f.max}萬</span><span class="budget-val" id="${id}-val">${f.initial} 萬</span></div>
-        <label class="pill" style="align-self:flex-start;margin-top:6px"><input type="checkbox" id="${id}-unsure">預算尚未確定</label>`;
-      break;
-    default: {
-      const attrs = [`type="${f.type}"`, `id="${id}"`];
-      if (f.placeholder) attrs.push(`placeholder="${leadEscape(f.placeholder)}"`);
-      if (f.max && f.type !== 'number') attrs.push(`maxlength="${f.max}"`);
-      if (f.type === 'number') { attrs.push(`min="${f.min}"`, `max="${f.max}"`, 'inputmode="numeric"'); }
-      if (f.type === 'tel') attrs.push('autocomplete="tel"');
-      if (f.key === 'name') attrs.push('autocomplete="name"');
-      if (f.type === 'email') attrs.push('autocomplete="email"');
-      control = `<input ${attrs.join(' ')}>`;
-    }
-  }
-  return `<div class="field-group" data-key="${f.key}">${label}${control}${hint}</div>`;
-}
-
-function renderSections() {
-  document.getElementById('sections').innerHTML = LEAD_SECTIONS.map(section => {
-    const rows = [];
-    section.fields.forEach(f => {
-      const last = rows[rows.length - 1];
-      if (f.row && last && last.row === f.row) last.fields.push(f);
-      else rows.push({ row: f.row, fields: [f] });
-    });
-    const body = rows.map(r => `<div class="field-row" style="--cols:${r.fields.length}">${r.fields.map(renderField).join('')}</div>`).join('');
-    return `<div class="form-section"><div class="section-title">${leadEscape(section.title)}</div>${body}</div>`;
-  }).join('');
-
-  const budget = document.getElementById('f-budget');
-  const budgetVal = document.getElementById('f-budget-val');
-  const unsure = document.getElementById('f-budget-unsure');
-  budget.addEventListener('input', () => { budget.dataset.touched = '1'; budgetVal.textContent = budget.value + ' 萬'; unsure.checked = false; budget.disabled = false; });
-  unsure.addEventListener('change', () => { budget.disabled = unsure.checked; budgetVal.textContent = unsure.checked ? '未定' : budget.value + ' 萬'; });
-}
-
-function collectValues() {
-  const out = {};
-  LEAD_SECTIONS.forEach(section => section.fields.forEach(f => {
-    let v = '';
-    if (f.type === 'radio') v = document.querySelector(`input[name="${f.key}"]:checked`)?.value || '';
-    else if (f.type === 'checks') v = [...document.querySelectorAll(`input[name="${f.key}"]:checked`)].map(c => c.value).join('、');
-    else if (f.type === 'budget') {
-      const range = document.getElementById('f-budget');
-      if (document.getElementById('f-budget-unsure').checked) v = '尚未確定';
-      else if (range.dataset.touched) v = range.value + ' 萬';
-    }
-    else v = document.getElementById('f-' + f.key).value;
-    v = String(v).trim().slice(0, f.max || 2000);
-    if (v) out[f.key] = v;
-  }));
-  return out;
+function db() {
+  if (!firebase.apps.length) firebase.initializeApp(LEAD_FIREBASE_CONFIG);
+  return firebase.database();
 }
 
 function markInvalid(key, bad) {
-  document.querySelector(`[data-key="${key}"]`)?.classList.toggle('invalid', bad);
+  sectionsEl.querySelector(`[data-key="${key}"]`)?.classList.toggle('invalid', bad);
 }
 
 function showStatus(type, text) {
@@ -186,54 +138,128 @@ function withTimeout(promise, ms) {
   return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
 }
 
-async function submitLead(event) {
-  event.preventDefault();
-  const btn = document.getElementById('submit-btn');
-  const values = collectValues();
-  const problems = validate(values);
-  if (problems.length) {
-    showStatus('error', '請確認：' + problems.join('、'));
-    document.querySelector('.invalid')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return;
+function showDone({ title, text, link }) {
+  formEl.hidden = true;
+  document.getElementById('done').hidden = false;
+  if (title) document.getElementById('done-title').textContent = title;
+  if (text) document.getElementById('done-text').textContent = text;
+  if (link) {
+    document.getElementById('done-link').hidden = false;
+    document.getElementById('edit-link').value = link;
   }
-  const done = () => {
-    document.getElementById('lead-form').hidden = true;
-    document.getElementById('done').hidden = false;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-  // 機器人防護：隱藏欄位被填或秒送，不寫入資料庫
-  if (document.getElementById('f-website').value || Date.now() - openedAt < 3000) { done(); return; }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
-  btn.disabled = true;
-  btn.textContent = '送出中…';
-  showStatus('', '');
-  try {
-    if (!firebase.apps.length) firebase.initializeApp(LEAD_FIREBASE_CONFIG);
-    const ref = firebase.database().ref(LEAD_DB_PATH).push();
-    await withTimeout(ref.set({
+async function createLead(values) {
+  const root = db().ref(LEAD_ROOT_PATH);
+  const leadId = root.child('items').push().key;
+  const token = leadRandomToken();
+  const TS = firebase.database.ServerValue.TIMESTAMP;
+  await withTimeout(root.update({
+    [`items/${leadId}`]: {
       name: values.name,
       phone: values.phone,
       status: 'new',
       source: 'yude-form-web',
       formVersion: LEAD_FORM_VERSION,
-      submittedAt: firebase.database.ServerValue.TIMESTAMP,
+      submittedAt: TS,
+      editToken: token,
       form: values,
-    }), 20000);
-    done();
-  } catch (e) {
-    console.warn('lead submit failed:', e);
-    showStatus('error', '送出失敗，請確認網路後再試一次；若持續失敗，請直接來電或透過 LINE 與我們聯繫。');
-    btn.disabled = false;
-    btn.textContent = '送出需求表';
-  }
+    },
+    [`edits/${token}`]: {
+      leadId,
+      expiresAt: Date.now() + LEAD_EDIT_DAYS * 86400000,
+      form: values,
+      updatedAt: TS,
+    },
+  }), 20000);
+  showDone({ link: leadEditUrl(token) });
 }
 
-renderSections();
-document.getElementById('lead-form').addEventListener('submit', submitLead);
-document.getElementById('lead-form').addEventListener('input', e => {
+async function saveEdit(values) {
+  const changes = diffLeadForms(editRecord.form, values);
+  if (!changes) { showStatus('error', '內容沒有變更。'); return false; }
+  const root = db().ref(LEAD_ROOT_PATH);
+  const TS = firebase.database.ServerValue.TIMESTAMP;
+  const leadId = editRecord.leadId;
+  const historyId = root.child(`items/${leadId}/history`).push().key;
+  await withTimeout(root.update({
+    [`edits/${editToken}/form`]: values,
+    [`edits/${editToken}/updatedAt`]: TS,
+    [`items/${leadId}/current`]: { form: values, updatedAt: TS, updatedBy: 'customer', token: editToken },
+    [`items/${leadId}/history/${historyId}`]: { at: TS, by: 'customer', changes, token: editToken },
+  }), 20000);
+  editRecord.form = values;
+  showDone({ title: '已更新您的需求表', text: '修改內容已送出，宇德會依最新內容與您聯繫。', link: location.href });
+  return true;
+}
+
+async function submitLead(event) {
+  event.preventDefault();
+  const btn = document.getElementById('submit-btn');
+  const values = collectLeadValues(sectionsEl);
+  const problems = validate(values);
+  if (problems.length) {
+    showStatus('error', '請確認：' + problems.join('、'));
+    sectionsEl.querySelector('.invalid')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  // 機器人防護：隱藏欄位被填或秒送，不寫入資料庫
+  if (!editToken && (document.getElementById('f-website').value || Date.now() - openedAt < 3000)) { showDone({}); return; }
+
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '送出中…';
+  showStatus('', '');
+  try {
+    if (editToken) await saveEdit(values);
+    else await createLead(values);
+  } catch (e) {
+    console.warn('lead submit failed:', e);
+    const expired = editToken && editRecord && editRecord.expiresAt <= Date.now();
+    showStatus('error', expired
+      ? '修改期限已過，請直接來電或透過 LINE 與宇德聯繫。'
+      : '送出失敗，請確認網路後再試一次；若持續失敗，請直接來電或透過 LINE 與我們聯繫。');
+  }
+  btn.disabled = false;
+  btn.textContent = label;
+}
+
+async function startEditMode() {
+  formEl.hidden = true;
+  document.getElementById('loading').hidden = false;
+  document.getElementById('page-title').textContent = '修改裝修需求表';
+  document.getElementById('page-sub').textContent = '更新內容後按下「送出修改」即可';
+  let snap = null;
+  try {
+    if (/^[A-Za-z0-9]{32}$/.test(editToken)) snap = await withTimeout(db().ref(`${LEAD_EDIT_PATH}/${editToken}`).get(), 20000);
+  } catch (e) { console.warn('edit link read failed:', e); }
+  document.getElementById('loading').hidden = true;
+  if (!snap || !snap.exists()) { document.getElementById('invalid').hidden = false; return; }
+  editRecord = snap.val();
+  setLeadValues(sectionsEl, editRecord.form);
+  document.getElementById('f-consent').checked = true;
+  const until = new Date(editRecord.expiresAt).toLocaleString('zh-TW', { hour12: false, dateStyle: 'medium', timeStyle: 'short' });
+  const banner = document.getElementById('edit-banner');
+  banner.hidden = false;
+  banner.textContent = `您正在修改先前送出的需求表，此連結可使用到 ${until}。原本填寫的內容宇德仍會保留，並記錄您修改了哪些地方。`;
+  document.getElementById('submit-btn').textContent = '送出修改';
+  formEl.hidden = false;
+}
+
+renderLeadForm(sectionsEl);
+formEl.addEventListener('submit', submitLead);
+formEl.addEventListener('input', e => {
   const key = e.target.closest('[data-key]')?.dataset.key;
   if (key) markInvalid(key, false);
 });
+document.getElementById('copy-link').addEventListener('click', async () => {
+  const input = document.getElementById('edit-link');
+  try { await navigator.clipboard.writeText(input.value); }
+  catch { input.select(); document.execCommand('copy'); }
+  document.getElementById('copy-link').textContent = '已複製';
+});
+if (editToken) startEditMode();
 </script>
 </body>
 </html>
