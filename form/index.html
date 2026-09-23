@@ -13,17 +13,12 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Noto Sans TC', 'PingFang TC', '微軟正黑體', sans-serif; background: #f8f4ef; color: #3a2e24; min-height: 100vh; padding: 2rem 1rem; }
   .page-wrap { max-width: 720px; margin: 0 auto; }
-  .page-header { position: relative; overflow: hidden; text-align: center; margin-bottom: 2rem; padding: 3.25rem 1.5rem 3rem; background: #f3ebe1; border: 1px solid #e6d9c8; border-radius: 16px; color: #4f4136; }
-  .page-header .art { position: absolute; width: 190px; height: 225px; pointer-events: none; }
-  .page-header .art-left { left: 0; bottom: 0; }
-  .page-header .art-right { right: 0; top: 0; }
-  @media (max-width: 560px) { .page-header .art { width: 110px; height: 130px; opacity: 0.85; } }
-  .page-header .inner { position: relative; }
+  .page-header { text-align: center; margin-bottom: 1.5rem; padding: 2.5rem 1.5rem 2.25rem; background: #f3ebe1; border: 1px solid #e6d9c8; border-radius: 16px; color: #4f4136; }
   .page-header .company { font-size: 15px; letter-spacing: 0.32em; margin-right: -0.32em; color: #8a7462; margin-bottom: 14px; }
   .page-header h1 { font-size: 30px; font-weight: 300; letter-spacing: 0.28em; margin-right: -0.28em; color: #4f4136; }
   .page-header .accent { width: 56px; height: 2px; background: #c47f5f; border-radius: 1px; margin: 16px auto 14px; }
   .page-header p { font-size: 13px; letter-spacing: 0.18em; color: #8a7462; }
-  @media (max-width: 560px) { .page-header { padding: 2.5rem 1rem 2.25rem; } .page-header h1 { font-size: 24px; letter-spacing: 0.18em; margin-right: -0.18em; } .page-header .company { font-size: 13px; letter-spacing: 0.2em; margin-right: -0.2em; } .page-header p { letter-spacing: 0.08em; } }
+  @media (max-width: 560px) { .page-header { padding: 1.4rem 1rem 1.3rem; margin-bottom: 1rem; } .page-header .accent { margin: 10px auto 9px; } .page-header h1 { font-size: 22px; letter-spacing: 0.18em; margin-right: -0.18em; } .page-header .company { font-size: 13px; letter-spacing: 0.2em; margin-right: -0.2em; margin-bottom: 8px; } .page-header p { letter-spacing: 0.08em; } }
   .form-section { background: #faf6f0; border: 1px solid #ddd0bc; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
   .section-title { font-size: 14px; font-weight: 600; color: #5c4a35; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px; letter-spacing: 0.05em; }
   .section-title::before { content: ''; display: block; width: 3px; height: 16px; background: #c47f5f; border-radius: 2px; }
@@ -69,14 +64,7 @@
 <body>
 <div class="page-wrap">
   <div class="page-header">
-    <svg class="art art-left" viewBox="0 0 220 260" aria-hidden="true">
-      <path d="M0 95 C 60 90, 120 140, 130 200 C 138 245, 120 260, 110 260 L 0 260 Z" fill="#e6d0b8"/>
-      <circle cx="40" cy="40" r="8" fill="#e2c1a6"/><circle cx="64" cy="44" r="8" fill="#e2c1a6"/>
-    </svg>
-    <svg class="art art-right" viewBox="0 0 220 260" aria-hidden="true">
-      <path d="M220 0 L 220 150 C 170 150, 110 110, 95 50 C 90 25, 95 0, 100 0 Z" fill="#ecdcc9"/>
-    </svg>
-    <div class="inner">
+    <div>
       <div class="company">宇德室內裝修股份有限公司</div>
       <h1 id="page-title">住宅裝修需求表</h1>
       <div class="accent"></div>
