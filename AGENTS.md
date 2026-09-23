@@ -33,6 +33,7 @@
   - The Google access token is exchanged for a Firebase Google credential.
   - HTTP(S) enforces login. `file://` intentionally runs as local development mode without Firebase login.
 - Authorization remains in the client permission matrix (`USER_PERMISSIONS`) plus Firebase rules. Do not weaken or reinterpret either layer while splitting files.
+- `新增個案` (create-case) authorization is independent of the `dashboard` module's manage level: it is gated by `USER_PERMISSIONS[id].canCreateCase` (boolean, per user), with `canCreateCase()` / `canCreateCaseFor(empId)` / `requireCreateCase()` helpers in `ops/js/core/data.js`. A user without an explicit `canCreateCase` field falls back to the prior `dashboard === 'manage'` outcome. Added on `feature/new-case-permission` (merged into `main` on 2026-09-23), separate from and after the modularization batch above.
 - Navigation is an in-page SPA controlled by `navTo`, `PAGE_TITLES`, `PAGE_NAV_IDS`, and global render functions. URL query/hash aliases are supported.
 
 ## Current data model and persistence contract
