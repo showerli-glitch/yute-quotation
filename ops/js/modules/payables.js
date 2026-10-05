@@ -517,7 +517,7 @@ function openAddPayableModal() {
   refreshAllCaseDropdowns();
   // 填充廠商 datalist
   const dl = document.getElementById('dl-ap-vendors');
-  if (dl) dl.innerHTML = VENDORS.map(v => `<option value="${v.code} - ${v.name}">`).join('');
+  if (dl) dl.innerHTML = VENDORS.slice().sort((a,b) => String(a.code || '').localeCompare(String(b.code || ''), 'zh-TW', {numeric:true})).map(v => `<option value="${v.code} - ${v.name}">`).join('');
   // 重設為新增模式
   document.getElementById('ap-edit-id').value = '';
   document.getElementById('ap-modal-title').textContent = '手動新增應付帳款';
@@ -557,7 +557,7 @@ function openEditPayableModal(id) {
   const caseEl = document.getElementById('ap-add-case');
   if (caseEl) caseEl.innerHTML = buildCaseOptions('── 選擇個案名稱 ──', false, true, p.case || '');
   const dl = document.getElementById('dl-ap-vendors');
-  if (dl) dl.innerHTML = VENDORS.map(v => `<option value="${v.code} - ${v.name}">`).join('');
+  if (dl) dl.innerHTML = VENDORS.slice().sort((a,b) => String(a.code || '').localeCompare(String(b.code || ''), 'zh-TW', {numeric:true})).map(v => `<option value="${v.code} - ${v.name}">`).join('');
   // 設定編輯模式
   document.getElementById('ap-edit-id').value = id;
   document.getElementById('ap-modal-title').textContent = '編輯應付帳款';

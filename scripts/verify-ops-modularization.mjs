@@ -53,6 +53,29 @@ const clientsVendorsBaselineFunctions = new Map([
   ...extractFunctions(cvVendorsBlock),
 ].map(item => [item.name, item.source]));
 
+// Intentional feature changes made AFTER a verbatim split batch was approved. Only the
+// functions listed in `changed`, plus anything after the `appendedAfter` marker, may differ
+// from the split baseline; every other byte of the file must still match.
+const POST_SPLIT_CHANGES = {
+  'ops/js/modules/vendors.js': {
+    reason: 'vendor delete button (claude/vendor-delete-and-sort)',
+    changed: ['openVendorModal'],
+    appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
+  },
+  'ops/js/modules/payables.js': {
+    reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort)',
+    changed: ['openAddPayableModal', 'openEditPayableModal'],
+  },
+};
+
+function maskChangedFunctions(source, names) {
+  let out = source;
+  for (const item of extractFunctions(source)) {
+    if (names.includes(item.name)) out = out.replace(item.source, `/* post-split change: ${item.name} */`);
+  }
+  return out;
+}
+
 function fail(message) {
   console.error(`FAIL: ${message}`);
   process.exitCode = 1;
@@ -78,8 +101,19 @@ function withoutExact(source, snippet, label) {
 }
 
 function verifyExactFile(relativePath, expected, label) {
-  const actual = fs.readFileSync(path.join(root, relativePath), 'utf8').trimEnd();
-  if (actual !== expected.trimEnd()) fail(`${label} 不是由基準 tag 逐字搬移`);
+  let actual = fs.readFileSync(path.join(root, relativePath), 'utf8').trimEnd();
+  let reference = expected.trimEnd();
+  const change = POST_SPLIT_CHANGES[relativePath];
+  if (change) {
+    if (change.appendedAfter) {
+      const marker = actual.indexOf(change.appendedAfter);
+      if (marker < 0) fail(`${label} 找不到拆檔後新增區塊標記`);
+      else actual = actual.slice(0, marker).trimEnd();
+    }
+    actual = maskChangedFunctions(actual, change.changed);
+    reference = maskChangedFunctions(reference, change.changed);
+  }
+  if (actual !== reference) fail(`${label} 不是由基準 tag 逐字搬移`);
 }
 
 function extractFunctions(source) {
@@ -114,6 +148,7 @@ const scripts = [...currentHtml.matchAll(/<script\s+src="([^"]+\.js)"[^>]*><\/sc
 if (!scripts.length) fail('ops/index.html 沒有本機 JavaScript 載入項目');
 
 let compared = 0;
+let postSplitChanged = 0;
 for (const src of scripts) {
   const filePath = path.join(root, 'ops', src);
   if (!fs.existsSync(filePath)) {
@@ -128,9 +163,13 @@ for (const src of scripts) {
     : (src === 'js/modules/clients.js' || src === 'js/modules/vendors.js')
       ? clientsVendorsBaselineFunctions
       : baselineFunctions;
+  const intentional = POST_SPLIT_CHANGES[`ops/${src}`]?.changed || [];
+  const present = new Set(extractFunctions(code).map(item => item.name));
+  for (const name of intentional) if (!present.has(name)) fail(`${src} 缺少拆檔後修改的函式 ${name}`);
   for (const item of extractFunctions(code)) {
     const original = referenceFunctions.get(item.name);
     if (!original) continue;
+    if (intentional.includes(item.name)) { postSplitChanged += 1; continue; }
     compared += 1;
     if (item.source !== original) fail(`${src} 的 ${item.name} 並非逐字搬移`);
   }
@@ -295,5 +334,5 @@ for (const [index, match] of inlineScripts.entries()) {
 }
 
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；10 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；三個橋接／picker函式確認仍在 index.html。`);
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；10 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
 }

@@ -6,6 +6,7 @@
 // Run (baseline):  git worktree add --detach /tmp/ops-base 514e655
 //                  PLAYWRIGHT_CORE=... node scripts/smoke-clients-vendors.mjs baseline /tmp/ops-base 8702 /tmp/ops-smoke/baseline.json
 // Uses the system Google Chrome at /Applications/Google Chrome.app.
+// Set SKIP_POST_SPLIT=1 to skip scenarios D/E (vendor delete + sorted pickers) when running a pre-feature baseline.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -589,6 +590,120 @@ await waitSynced(page);
 await page.reload({ waitUntil: 'load' }); await waitReady(page);
 check('申請自己：重新載入後新增資料仍在', await page.evaluate(code => !!CLIENTS.find(c => c.code === 'ZQA3') && VENDORS.find(v => v.code === code)?.note === 'peng edit', pengCode));
 await ctx.close();
+
+// ═══════════ Scenario D: vendor delete + code-sorted vendor pickers (post-split feature) ═══════════
+if (process.env.SKIP_POST_SPLIT !== '1') {
+  currentScenario = 'D-delete+sort(shower)';
+  ctx = await newContext('shower.li@yutesign.com');
+  page = await openApp(ctx);
+  const dialogs = [];
+  let confirmAnswer = true;
+  page.on('dialog', async d => { dialogs.push({ type: d.type(), message: d.message() }); if (d.type() === 'confirm' && !confirmAnswer) await d.dismiss(); else await d.accept(); });
+  const sortedByCode = codes => codes.every((c, i) => i === 0 || codes[i - 1].localeCompare(c, 'zh-TW', { numeric: true }) <= 0);
+  const dlCodes = id => page.$$eval(`#${id} option`, os => os.map(o => o.value.split(' - ')[0]));
+
+  // pickers sorted by vendor code
+  await nav(page, 'payable');
+  await page.evaluate(() => openAddPayableModal());
+  let apCodes = await dlCodes('dl-ap-vendors');
+  const vendorTotal = await page.evaluate(() => VENDORS.length);
+  check('新增應付：受款廠商選單依廠商代碼排序', apCodes.length === vendorTotal && sortedByCode(apCodes), { count: apCodes.length, first: apCodes.slice(0, 3), last: apCodes.slice(-3) });
+  await page.evaluate(() => closeModal('modal-add-payable'));
+  const editId = await page.evaluate(() => PAYABLES.find(p => p.status === 'paid')?.id);
+  await page.evaluate(id => openEditPayableModal(id), editId);
+  apCodes = await dlCodes('dl-ap-vendors');
+  check('編輯應付：受款廠商選單依廠商代碼排序', apCodes.length === vendorTotal && sortedByCode(apCodes), { id: editId, count: apCodes.length });
+  await page.evaluate(() => closeModal('modal-add-payable'));
+  await page.evaluate(() => openPayreqModal());
+  const prCodes = await dlCodes('dl-vendors');
+  check('廠商請款：廠商選單依廠商代碼排序（原本已排序）', sortedByCode(prCodes) && prCodes.length === vendorTotal);
+  await page.evaluate(() => closeModal('modal-payreq'));
+
+  // a new vendor appears in its code position, not at the bottom
+  await nav(page, 'vendors');
+  await page.click('#btn-new-vendor');
+  check('新增模式不顯示「刪除廠商」', !(await visible(page, '#vd-delete-btn')));
+  await page.selectOption('#vd-f-trade', '假設及拆運');
+  const delCode = await page.inputValue('#vd-f-code');
+  await page.fill('#vd-f-name', 'QA待刪除廠商');
+  await page.click('#modal-vendor button.btn-primary');
+  await page.evaluate(() => openAddPayableModal());
+  apCodes = await dlCodes('dl-ap-vendors');
+  const pos = apCodes.indexOf(delCode);
+  check('新建廠商在受款廠商選單中依代碼排在同前綴位置（不在最後）', pos >= 0 && pos < apCodes.length - 1 && sortedByCode(apCodes), { code: delCode, pos, of: apCodes.length });
+  await page.evaluate(() => closeModal('modal-add-payable'));
+  await nav(page, 'vendors');
+
+  // referenced vendor cannot be deleted
+  const refVendor = await page.evaluate(() => { const v = VENDORS.find(v => !VENDOR_AUTO_RESTORED_CODES.includes(v.code) && !VENDOR_AUTO_RESTORED_NAMES.includes(v.name) && vendorPayableReferences(v).length > 0); return v && { code: v.code, name: v.name, refs: vendorPayableReferences(v).length }; });
+  await page.locator('#vd-tbody tr', { hasText: refVendor.code }).first().locator('button', { hasText: '編輯' }).click();
+  check('編輯既有廠商顯示「刪除廠商」（manage）', await visible(page, '#vd-delete-btn'));
+  dialogs.length = 0;
+  await page.click('#vd-delete-btn');
+  const refStill = await page.evaluate(code => !!VENDORS.find(v => v.code === code), refVendor.code);
+  check('有應付／請款紀錄的廠商不能刪除', refStill && dialogs[0]?.type === 'alert' && dialogs[0].message.includes(`已有 ${refVendor.refs} 筆應付／請款紀錄使用`), { vendor: refVendor, dialog: dialogs[0]?.message?.split('\n')[0] });
+  await page.evaluate(() => closeModal('modal-vendor'));
+
+  // auto-restored vendor cannot be deleted
+  const autoCode = await page.evaluate(() => VENDORS.find(v => VENDOR_AUTO_RESTORED_CODES.includes(v.code) || VENDOR_AUTO_RESTORED_NAMES.includes(v.name))?.code);
+  dialogs.length = 0;
+  await page.evaluate(code => deleteVendor(code), autoCode);
+  check('系統會自動補回的內建廠商不能刪除', await page.evaluate(code => !!VENDORS.find(v => v.code === code), autoCode) && dialogs[0]?.message.includes('系統內建廠商'), { code: autoCode });
+
+  // cancel then confirm delete
+  await page.locator('#vd-tbody tr', { hasText: delCode }).locator('button', { hasText: '編輯' }).click();
+  dialogs.length = 0; confirmAnswer = false;
+  await page.click('#vd-delete-btn');
+  check('刪除確認按取消：廠商保留', dialogs[0]?.type === 'confirm' && await page.evaluate(code => !!VENDORS.find(v => v.code === code), delCode) && await isOpen(page, 'modal-vendor'));
+  confirmAnswer = true; dialogs.length = 0;
+  const auditBefore = await page.evaluate(() => AUDIT_LOGS.length);
+  await page.click('#vd-delete-btn');
+  const afterDel = await page.evaluate(code => ({ exists: !!VENDORS.find(v => v.code === code), audit: AUDIT_LOGS[0], auditLen: AUDIT_LOGS.length, edit: vdEditCode }), delCode);
+  check('刪除確認：廠商移除、視窗關閉、列表不再出現', !afterDel.exists && !(await isOpen(page, 'modal-vendor')) && !(await page.locator('#vd-tbody').innerText()).includes(delCode) && (await lastToast(page)) === '已刪除廠商「QA待刪除廠商」');
+  check('刪除寫入審計紀錄（含刪除前完整資料）', afterDel.auditLen === auditBefore + 1 && afterDel.audit.action === 'delete' && afterDel.audit.targetType === 'vendor' && afterDel.audit.targetId === delCode && afterDel.audit.before?.name === 'QA待刪除廠商' && afterDel.audit.riskLevel === 'high', { action: afterDel.audit.action, targetId: afterDel.audit.targetId, actor: afterDel.audit.actorEmail });
+  check('刪除後 vdEditCode 清空', afterDel.edit === null);
+  const countsAfterDel = await counts(page);
+  await waitSynced(page);
+  check('mock 雲端快照已移除該廠商、保留審計', !(cloud.data.VENDORS || []).some(v => v.code === delCode) && (cloud.data.AUDIT_LOGS || []).some(a => a.action === 'delete' && a.targetId === delCode));
+  await page.reload({ waitUntil: 'load' }); await waitReady(page);
+  check('重新載入後被刪廠商不會回來', !(await page.evaluate(code => !!VENDORS.find(v => v.code === code), delCode)));
+  await ctx.close();
+  ctx = await newContext('shower.li@yutesign.com');
+  page = await openApp(ctx);
+  const freshD = await page.evaluate(code => !!VENDORS.find(v => v.code === code), delCode);
+  const countsFresh = await counts(page);
+  check('全新瀏覽器（只讀雲端）被刪廠商也不會回來', !freshD && countsFresh.VENDORS === countsAfterDel.VENDORS, { vendors: countsFresh.VENDORS });
+  check('刪除廠商不影響案件／應付／應收／費用筆數', ['CASES', 'PAYABLES', 'RECEIVABLES', 'EXPENSES'].every(k => countsFresh[k] === countsAfterDel[k]));
+  await ctx.close();
+
+  // apply-self: can delete own vendor only; read-only: cannot delete
+  currentScenario = 'E-delete-permissions';
+  ctx = await newContext('peng@yutesign.com');
+  page = await openApp(ctx);
+  page.on('dialog', d => d.accept());
+  await nav(page, 'vendors');
+  await page.click('#btn-new-vendor');
+  await page.selectOption('#vd-f-trade', '假設及拆運');
+  const pengDel = await page.inputValue('#vd-f-code');
+  await page.fill('#vd-f-name', 'QA申請自己待刪');
+  await page.click('#modal-vendor button.btn-primary');
+  await clearToasts(page);
+  const otherCode = await page.evaluate(() => VENDORS.find(v => !v.createdBy && vendorPayableReferences(v).length === 0 && !VENDOR_AUTO_RESTORED_CODES.includes(v.code) && !VENDOR_AUTO_RESTORED_NAMES.includes(v.name))?.code);
+  await page.evaluate(code => deleteVendor(code), otherCode);
+  check('申請自己：不能刪除他人建立的廠商', await page.evaluate(code => !!VENDORS.find(v => v.code === code), otherCode) && (await lastToast(page)) === '您沒有刪除此廠商的權限', { code: otherCode });
+  await page.locator('#vd-tbody tr', { hasText: pengDel }).locator('button', { hasText: '編輯' }).click();
+  check('申請自己：自己建立的廠商顯示「刪除廠商」', await visible(page, '#vd-delete-btn'));
+  await page.click('#vd-delete-btn');
+  check('申請自己：可刪除自己建立且未使用的廠商', !(await page.evaluate(code => !!VENDORS.find(v => v.code === code), pengDel)));
+  await waitSynced(page);
+  await ctx.close();
+  ctx = await newContext('lu@yutesign.com');
+  page = await openApp(ctx);
+  await clearToasts(page);
+  await page.evaluate(code => deleteVendor(code), otherCode);
+  check('唯讀：直接呼叫 deleteVendor 被拒', await page.evaluate(code => !!VENDORS.find(v => v.code === code), otherCode) && (await lastToast(page)) === '您沒有刪除此廠商的權限');
+  await ctx.close();
+}
 
 await browser.close();
 server.close();

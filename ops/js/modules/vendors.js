@@ -174,6 +174,7 @@ function openVendorModal(code) {
   else document.getElementById('vd-f-code').readOnly = false;
   document.getElementById('vd-f-disabledDate').value = v?.disabledDate || '';
   vdRefreshStatusForm();
+  document.getElementById('vd-delete-btn').style.display = v && canEditVendor(v) ? '' : 'none';
   openModal('modal-vendor');
 }
 
@@ -215,4 +216,51 @@ function submitVendor() {
   }
   closeModal('modal-vendor');
   renderVendors();
+}
+
+// ── Post-split additions (not part of the verbatim move) ──
+
+// 這些廠商會被系統自動補回（data.js 的 ensureCoreVendorRecords 與 applyDataSnapshot 遷移），
+// 刪掉後下次載入又會出現，所以不開放刪除，不再使用請改為停用。
+const VENDOR_AUTO_RESTORED_CODES = ['OT-010'];
+const VENDOR_AUTO_RESTORED_NAMES = ['林振明（柏實）','台北設計工會','澤鑠科技','侑昇工程行','林繆云'];
+function vendorPayableReferences(v) {
+  const name = String(v?.name || '').trim();
+  const code = String(v?.code || '').trim();
+  return PAYABLES.filter(p => {
+    const vendor = String(p.vendor || '').trim();
+    return !!vendor && (vendor === name || vendor.startsWith(`${code} -`));
+  });
+}
+// 刪除只開放給可編輯該廠商的人（完整管理，或申請自己且為建立者），而且必須沒有任何應付／請款紀錄使用。
+function deleteVendor(code) {
+  const index = VENDORS.findIndex(v => v.code === code);
+  if (index < 0) return;
+  const target = VENDORS[index];
+  if (!canEditVendor(target)) { showToast('您沒有刪除此廠商的權限', 'error'); return; }
+  if (VENDOR_AUTO_RESTORED_CODES.includes(target.code) || VENDOR_AUTO_RESTORED_NAMES.includes(target.name)) {
+    alert(`「${target.name}」是系統內建廠商，刪除後重新整理會自動補回，因此不開放刪除。\n\n不再使用請改為「停用」。`);
+    return;
+  }
+  const refs = vendorPayableReferences(target);
+  if (refs.length) {
+    const detail = refs.slice(0, 5).map(p => `- #${p.id || '-'} ${p.summary || '未填摘要'}／$${Number(p.amount || 0).toLocaleString('zh-TW')}`).join('\n');
+    const more = refs.length > 5 ? `\n...另有 ${refs.length - 5} 筆` : '';
+    alert(`「${target.name}」已有 ${refs.length} 筆應付／請款紀錄使用，不能刪除：\n${detail}${more}\n\n不再使用請改為「停用」。`);
+    return;
+  }
+  if (!confirm(`確定刪除廠商「${target.name}」（${target.code}）？\n\n此動作會寫入審計紀錄。`)) return;
+  const before = auditClone(target);
+  VENDORS.splice(index, 1);
+  recordAuditLog('delete', 'vendor', target.code, before, null, {
+    riskLevel:'high',
+    targetLabel:`${target.name}／${target.code}`,
+    reason:'刪除沒有應付／請款紀錄的誤建廠商'
+  });
+  vdEditCode = null;
+  saveData();
+  closeModal('modal-vendor');
+  closeModal('modal-vendor-detail');
+  renderVendors();
+  showToast(`已刪除廠商「${target.name}」`, 'success');
 }
