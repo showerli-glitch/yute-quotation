@@ -6973,20 +6973,21 @@ function psRatioLabel(ratios) {
   return entries.map(([id,ratio]) => `${psPersonName(id)} ${Math.round(ratio*1000)/10}%`).join('／');
 }
 
-// 個案的結算基準日：優先用 psSettledThrough（每次結算後更新）。增量結算功能上線前的結算沒有寫入
-// 這個欄位，改用 PROFIT_SETTLEMENTS 裡包含本案的最近一次結算日期；不能直接退回 closedDate，
-// 否則「結案後才結算」的個案，結案到結算之間已經分過的款項會被當成新交易重算。
-// 兩者都沒有才退回 closedDate。
+// 個案的結算基準日：取 psSettledThrough 與 PROFIT_SETTLEMENTS 裡包含本案的最近一次結算日期，
+// 兩者較晚者。增量結算功能上線前的結算沒有寫入 psSettledThrough，不能直接退回 closedDate，
+// 否則「結案後才結算」的個案，結案到結算之間已經分過的款項會被當成新交易重算；欄位停在較早
+// 日期時也不能遮蔽較新的結算紀錄。psSettledThrough 可能晚於結算紀錄日期（例：上洋嘉義結算日
+// 2025-09-30、尾款與分潤 2025-10-15 才收付清），所以取較晚者。兩者都沒有才退回 closedDate。
 function psCaseSettlementCutoff(c) {
   if (!c) return '';
-  if (c.psSettledThrough) return c.psSettledThrough;
   const latestSettlementDate = (Array.isArray(PROFIT_SETTLEMENTS) ? PROFIT_SETTLEMENTS : [])
     .filter(s => (s.cases || []).some(x => x.code === c.code))
     .map(s => String(s.date || ''))
     .filter(Boolean)
     .sort()
     .pop();
-  return latestSettlementDate || c.closedDate || '';
+  const candidates = [c.psSettledThrough, latestSettlementDate].filter(Boolean).sort();
+  return candidates.pop() || c.closedDate || '';
 }
 
 function psIsProfitSettlementCase(c) {
@@ -7075,7 +7076,7 @@ function psRunSettlement() {
   if (!result.caseRows.length) { showToast('沒有可結算的個案','error'); return; }
   const beforeSummary = auditSummary();
   const settlementId = PROFIT_SETTLEMENTS.reduce((m,s)=>Math.max(m,s.id||0),0) + 1;
-  const settlementDate = new Date().toISOString().slice(0,10);
+  const settlementDate = localDateKey();
   const caseCodes = result.caseRows.map(c => c.code);
   const postCloseAdjustmentApplications = [];
   result.rows.forEach(r => {
@@ -7119,7 +7120,7 @@ function psRunSettlement() {
     if (cs) {
       cs.psSettled = true;
       cs.status = '結案';
-      cs.closedDate = cs.closedDate || new Date().toISOString().slice(0,10);
+      cs.closedDate = cs.closedDate || settlementDate;
       // 每次結算（含增量結算）都要往前推進結算基準日，下次再有新款項進帳時，
       // 才知道要從這裡開始算新的，不會又把這次剛分完的重算一次。
       cs.psSettledThrough = settlementDate;
