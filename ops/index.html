@@ -6982,7 +6982,7 @@ function psIsProfitSettlementCase(c) {
   const cutoff = c.psSettledThrough || c.closedDate || '';
   if (!cutoff) return false;
   return RECEIVABLES.some(r => r.case === c.code && receivableIsCollected(r) && String(r.collectDate||'') > cutoff)
-    || PAYABLES.some(p => p.case === c.code && p.status === 'paid' && isCostControlPayment(p) && String(p.doneDate||'') > cutoff)
+    || PAYABLES.some(p => p.case === c.code && p.status === 'paid' && isProjectCostPayment(p) && String(p.doneDate||'') > cutoff)
     || EXPENSES.some(e => e.caseKey === c.code && e.status === 'approved' && e.postCloseTreatment !== 'company_absorb' && String(e.date || (e.month ? e.month+'-01' : '') || '') > cutoff);
 }
 
@@ -7322,8 +7322,8 @@ function psOutstandingPostCloseAdjustments() {
 function psComputeData() {
   const rvPaid = RECEIVABLES.filter(receivableIsCollected);
   // 分潤結清款、預領、股東分配等不是個案成本（分潤款另由 psUnsettledProfitPayables 抵扣），
-  // 與利潤頁同樣只取 isCostControlPayment 的付款，避免結算後才付的分潤款被當成增量成本重扣。
-  const pyPaid = PAYABLES.filter(p => p.status === 'paid' && isCostControlPayment(p));
+  // 只取 isProjectCostPayment 的工程成本付款，避免結算後才付的分潤款被當成增量成本重扣。
+  const pyPaid = PAYABLES.filter(p => p.status === 'paid' && isProjectCostPayment(p));
   const expApproved = EXPENSES.filter(e => e.status === 'approved' && e.caseKey !== '固定開銷' && e.postCloseTreatment !== 'company_absorb');
   const salaryIdx = OH_FIXED_CONFIG.indexOf('員工薪資');
 
