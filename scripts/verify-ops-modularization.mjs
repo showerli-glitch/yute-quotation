@@ -47,6 +47,21 @@ const expectedVendors = [
   '// VENDORS MODULE. Extracted verbatim from ops/index.html at main@514e655.',
   cvVendorsBlock.trimEnd(),
 ].join('\n\n');
+const attendanceBaselineCommit = 'c9c78dd819c5cdb4e0bcabc9136d5986573a6cfa';
+const attendanceBaselineHtml = execFileSync(
+  'git',
+  ['show', `${attendanceBaselineCommit}:ops/index.html`],
+  { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
+);
+// The attendance block is one contiguous run of 53 function declarations at known lines
+// in main@c9c78dd (see docs/gate-attendance-mapping.md).
+const attendanceBlock = sliceLines(attendanceBaselineHtml, 4921, 5849);
+const expectedAttendance = [
+  '// ATTENDANCE MODULE. Extracted verbatim from ops/index.html at main@c9c78dd.',
+  attendanceBlock.trimEnd(),
+].join('\n\n');
+const attendanceBaselineFunctions = new Map(extractFunctions(attendanceBlock).map(item => [item.name, item.source]));
+
 const clientsVendorsBaselineFunctions = new Map([
   ...extractFunctions(cvSubmitNewClient),
   ...extractFunctions(cvClientsRest),
@@ -162,7 +177,9 @@ for (const src of scripts) {
     ? casesBaselineFunctions
     : (src === 'js/modules/clients.js' || src === 'js/modules/vendors.js')
       ? clientsVendorsBaselineFunctions
-      : baselineFunctions;
+      : src === 'js/modules/attendance.js'
+        ? attendanceBaselineFunctions
+        : baselineFunctions;
   const intentional = POST_SPLIT_CHANGES[`ops/${src}`]?.changed || [];
   const present = new Set(extractFunctions(code).map(item => item.name));
   for (const name of intentional) if (!present.has(name)) fail(`${src} 缺少拆檔後修改的函式 ${name}`);
@@ -307,6 +324,18 @@ const expectedClientsFunctionCount = extractFunctions(expectedClients).length;
 const expectedVendorsFunctionCount = extractFunctions(expectedVendors).length;
 if (expectedClientsFunctionCount !== 5) fail(`clients.js 預期 5 個函式，實際基準 ${expectedClientsFunctionCount}`);
 if (expectedVendorsFunctionCount !== 11) fail(`vendors.js 預期 11 個函式，實際基準 ${expectedVendorsFunctionCount}`);
+verifyExactFile('ops/js/modules/attendance.js', expectedAttendance, 'attendance.js');
+const expectedAttendanceFunctionCount = extractFunctions(expectedAttendance).length;
+if (expectedAttendanceFunctionCount !== 53) fail(`attendance.js 預期 53 個函式，實際基準 ${expectedAttendanceFunctionCount}`);
+if (!attendanceBlock.startsWith('function attPeople() {') || !/\nfunction renderAttendance\(\) \{/.test(attendanceBlock)) fail('出勤基準區塊起訖行不正確');
+const attendanceBaselineCurrentFunctions = new Map(extractFunctions(attendanceBaselineHtml).map(item => [item.name, item.source]));
+for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews']) {
+  const current = protectedCurrentFunctions.get(name);
+  if (!current || current !== attendanceBaselineCurrentFunctions.get(name)) fail(`出勤批次不應改動 ${name}`);
+}
+for (const name of attendanceBaselineFunctions.keys()) {
+  if (protectedCurrentFunctions.has(name)) fail(`出勤函式不應仍留在 index.html：${name}`);
+}
 const vdSortKeyPresent = /^let vdSortKey = 'code', vdSortAsc = true;$/m.test(
   fs.readFileSync(path.join(root, 'ops/js/modules/vendors.js'), 'utf8')
 );
@@ -334,5 +363,5 @@ for (const [index, match] of inlineScripts.entries()) {
 }
 
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；10 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；11 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
 }
