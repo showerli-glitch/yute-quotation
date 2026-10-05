@@ -6973,13 +6973,29 @@ function psRatioLabel(ratios) {
   return entries.map(([id,ratio]) => `${psPersonName(id)} ${Math.round(ratio*1000)/10}%`).join('／');
 }
 
+// 個案的結算基準日：優先用 psSettledThrough（每次結算後更新）。增量結算功能上線前的結算沒有寫入
+// 這個欄位，改用 PROFIT_SETTLEMENTS 裡包含本案的最近一次結算日期；不能直接退回 closedDate，
+// 否則「結案後才結算」的個案，結案到結算之間已經分過的款項會被當成新交易重算。
+// 兩者都沒有才退回 closedDate。
+function psCaseSettlementCutoff(c) {
+  if (!c) return '';
+  if (c.psSettledThrough) return c.psSettledThrough;
+  const latestSettlementDate = (Array.isArray(PROFIT_SETTLEMENTS) ? PROFIT_SETTLEMENTS : [])
+    .filter(s => (s.cases || []).some(x => x.code === c.code))
+    .map(s => String(s.date || ''))
+    .filter(Boolean)
+    .sort()
+    .pop();
+  return latestSettlementDate || c.closedDate || '';
+}
+
 function psIsProfitSettlementCase(c) {
   if (!(c && c.profitSplit && !c.excludeFromProfitReports && (c.splitRatio || PROFIT_SPLIT_RATIOS[c.profitSplit]))) return false;
   if (!c.psSettled) return true;
   // 已經結算過的個案，只有在結算基準日之後又有新的已收款／已付款／費用（例如保固款、保留款這種
   // 結案後才進帳的款項），才代表有新增毛利可以再跑一次增量結算；沒有結算基準日的舊資料維持原本
   // 「結算過就不再出現」的行為，避免把舊資料意外判定成可再結算。
-  const cutoff = c.psSettledThrough || c.closedDate || '';
+  const cutoff = psCaseSettlementCutoff(c);
   if (!cutoff) return false;
   return RECEIVABLES.some(r => r.case === c.code && receivableIsCollected(r) && String(r.collectDate||'') > cutoff)
     || PAYABLES.some(p => p.case === c.code && p.status === 'paid' && isProjectCostPayment(p) && String(p.doneDate||'') > cutoff)
@@ -7336,9 +7352,9 @@ function psComputeData() {
     // 個案結算過一次之後（psSettled），若後續又有新的已收款／已付款／費用（例如保固款、保留款
     // 這種結案後才進帳的款項），這個案會再次被 psIsProfitSettlementCase 選入可結算名單，這裡就要
     // 只算「結算基準日之後」新增的部分，不能連同上次已經分過的舊金額一起重算一次。
-    // 結算基準日優先用 psSettledThrough（每次結算後更新）；沒有的話（例如舊資料只有結案時間）
-    // 退回用 closedDate；兩者都沒有就代表這是第一次結算，cutoff 空字串＝全部都算，行為跟以前一樣。
-    const cutoff = c.psSettled ? (c.psSettledThrough || c.closedDate || '') : '';
+    // 結算基準日由 psCaseSettlementCutoff 決定（psSettledThrough → 最近一次結算日期 → closedDate）；
+    // 未結算過的個案 cutoff 為空字串＝全部都算，行為跟以前一樣。
+    const cutoff = c.psSettled ? psCaseSettlementCutoff(c) : '';
     const isIncrementalRound = !!cutoff;
     const rvRows = rvPaid.filter(r => r.case === c.code && (!cutoff || String(r.collectDate||'') > cutoff));
     const pyRows = pyPaid.filter(p => p.case === c.code && (!cutoff || String(p.doneDate||'') > cutoff));
@@ -7584,7 +7600,7 @@ function taxOpenIncomeEstimate() {
   return cases.reduce((sum, c) => {
     // 已結算過、這次是增量結算（保固款等結案後才進帳的款項）的個案，只算結算基準日之後新增的
     // 發票金額；taxReserveOverride 是第一次結算用的歷史對帳數字，增量這輪不適用。
-    const cutoff = c.psSettled ? (c.psSettledThrough || c.closedDate || '') : '';
+    const cutoff = c.psSettled ? psCaseSettlementCutoff(c) : '';
     if (!cutoff && Number.isFinite(c.taxReserveOverride)) return sum + Math.abs(Number(c.taxReserveOverride));
     const invoiceTotal = RECEIVABLES
       .filter(r => r.case === c.code && receivableIsCollected(r) && (!cutoff || String(r.collectDate||'') > cutoff))
