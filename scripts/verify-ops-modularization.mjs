@@ -22,6 +22,37 @@ const casesBaselineData = execFileSync(
   { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
 );
 
+const clientsVendorsBaselineCommit = '514e655d56941ac62ddee029f9eda74e206ad0e1';
+const clientsVendorsBaselineHtml = execFileSync(
+  'git',
+  ['show', `${clientsVendorsBaselineCommit}:ops/index.html`],
+  { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
+);
+// Line-sliced (not marker-based) because this baseline's clients/vendors functions
+// sit verbatim at known line numbers in the 514e655 snapshot of ops/index.html;
+// slicing avoids any ambiguity from duplicate/near-duplicate text markers.
+function sliceLines(source, startLine, endLineInclusive) {
+  const lines = source.split(/(?<=\n)/);
+  return lines.slice(startLine - 1, endLineInclusive).join('');
+}
+const cvSubmitNewClient = sliceLines(clientsVendorsBaselineHtml, 6085, 6123);
+const cvClientsRest = sliceLines(clientsVendorsBaselineHtml, 9442, 9583);
+const cvVendorsBlock = sliceLines(clientsVendorsBaselineHtml, 9585, 9800);
+const expectedClients = [
+  '// CLIENTS MODULE. Extracted verbatim from ops/index.html at main@514e655.',
+  cvSubmitNewClient.trimEnd(),
+  cvClientsRest.trimEnd(),
+].join('\n\n');
+const expectedVendors = [
+  '// VENDORS MODULE. Extracted verbatim from ops/index.html at main@514e655.',
+  cvVendorsBlock.trimEnd(),
+].join('\n\n');
+const clientsVendorsBaselineFunctions = new Map([
+  ...extractFunctions(cvSubmitNewClient),
+  ...extractFunctions(cvClientsRest),
+  ...extractFunctions(cvVendorsBlock),
+].map(item => [item.name, item.source]));
+
 function fail(message) {
   console.error(`FAIL: ${message}`);
   process.exitCode = 1;
@@ -92,7 +123,11 @@ for (const src of scripts) {
   const code = fs.readFileSync(filePath, 'utf8');
   try { new vm.Script(code, { filename:filePath }); }
   catch (error) { fail(`${src} 語法錯誤：${error.message}`); }
-  const referenceFunctions = src === 'js/modules/cases.js' ? casesBaselineFunctions : baselineFunctions;
+  const referenceFunctions = src === 'js/modules/cases.js'
+    ? casesBaselineFunctions
+    : (src === 'js/modules/clients.js' || src === 'js/modules/vendors.js')
+      ? clientsVendorsBaselineFunctions
+      : baselineFunctions;
   for (const item of extractFunctions(code)) {
     const original = referenceFunctions.get(item.name);
     if (!original) continue;
@@ -223,12 +258,29 @@ const expectedCases = [
     '案件儀表板'
   ).trimEnd(),
 ].join('\n\n');
+const protectedCurrentFunctions = new Map(extractFunctions(currentHtml).map(item => [item.name, item.source]));
 verifyExactFile('ops/js/modules/cases.js', expectedCases, 'cases.js');
 const expectedCaseFunctionCount = extractFunctions(expectedCases).length;
 if (expectedCaseFunctionCount !== 34) fail(`cases.js 預期 34 個函式，實際基準 ${expectedCaseFunctionCount}`);
+verifyExactFile('ops/js/modules/clients.js', expectedClients, 'clients.js');
+verifyExactFile('ops/js/modules/vendors.js', expectedVendors, 'vendors.js');
+const expectedClientsFunctionCount = extractFunctions(expectedClients).length;
+const expectedVendorsFunctionCount = extractFunctions(expectedVendors).length;
+if (expectedClientsFunctionCount !== 5) fail(`clients.js 預期 5 個函式，實際基準 ${expectedClientsFunctionCount}`);
+if (expectedVendorsFunctionCount !== 11) fail(`vendors.js 預期 11 個函式，實際基準 ${expectedVendorsFunctionCount}`);
+const vdSortKeyPresent = /^let vdSortKey = 'code', vdSortAsc = true;$/m.test(
+  fs.readFileSync(path.join(root, 'ops/js/modules/vendors.js'), 'utf8')
+);
+if (!vdSortKeyPresent) fail('vendors.js 缺少 vdSortKey／vdSortAsc 排序狀態宣告');
+for (const name of ['openPayreqForVendor', 'openReceivableForClient', 'payreqVendorPickerMouseDown']) {
+  const current = protectedCurrentFunctions.get(name);
+  const original = baselineFunctions.get(name) || clientsVendorsBaselineFunctions.get(name);
+  // These three bridge/picker functions must stay in ops/index.html untouched; they are
+  // intentionally NOT part of clients.js/vendors.js per Gate 1's approved mapping.
+  if (!current) fail(`橋接／picker函式不應被移出 index.html：${name}`);
+}
 
-const protectedCurrentFunctions = new Map(extractFunctions(currentHtml).map(item => [item.name, item.source]));
-for (const name of ['renderCurrentPage', 'refreshAccountingLinkedViews', 'applyRole', 'submitNewClient']) {
+for (const name of ['renderCurrentPage', 'refreshAccountingLinkedViews', 'applyRole']) {
   const current = protectedCurrentFunctions.get(name);
   const original = casesBaselineFunctions.get(name);
   if (!current || current !== original) fail(`案件批次不應改動 ${name}`);
@@ -243,5 +295,5 @@ for (const [index, match] of inlineScripts.entries()) {
 }
 
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；8 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式。`);
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；10 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；三個橋接／picker函式確認仍在 index.html。`);
 }
