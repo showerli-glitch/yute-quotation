@@ -74,7 +74,7 @@ Claude 在 2026-10-05～10-06 對 OPS 做的模組化拆檔與修正，最後給
 2. docs/gate-*-mapping.md（每批的 Gate 1 對應表）、docs/known-issues.md、docs/codex-full-review.md
 
 【狀態確認】
-- main 應為 954bdaf（已部署到 GitHub Pages）；claude/fix-known-issues 應為 cb34f04（未合併、未部署）。
+- main 應為 954bdaf（已部署到 GitHub Pages）；claude/fix-known-issues 應包含 cb34f04（程式修正）與其後加入本文件的 commit，未合併、未部署。
 - 用 curl 比對 https://showerli-glitch.github.io/yute-quotation/ 上的 ops/ 檔案與 main 是否逐字一致。
 
 【靜態驗證】（在 main 與 claude/fix-known-issues 各跑一次）
