@@ -62,6 +62,24 @@ const expectedAttendance = [
 ].join('\n\n');
 const attendanceBaselineFunctions = new Map(extractFunctions(attendanceBlock).map(item => [item.name, item.source]));
 
+const payreqBaselineCommit = execFileSync('git', ['rev-parse', '81b208c^{commit}'], { cwd: root, encoding: 'utf8' }).trim();
+const payreqBaselineHtml = execFileSync(
+  'git',
+  ['show', `${payreqBaselineCommit}:ops/index.html`],
+  { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
+);
+// Three line ranges in main@81b208c (see docs/gate-payreq-mapping.md), joined in source order.
+const payreqSlices = [
+  sliceLines(payreqBaselineHtml, 4934, 4969),
+  sliceLines(payreqBaselineHtml, 4976, 5154),
+  sliceLines(payreqBaselineHtml, 8141, 8254),
+];
+const expectedPayreq = [
+  '// PAY REQUEST MODULE. Extracted verbatim from ops/index.html at main@81b208c.',
+  ...payreqSlices.map(slice => slice.trimEnd()),
+].join('\n\n');
+const payreqBaselineFunctions = new Map(payreqSlices.flatMap(slice => extractFunctions(slice)).map(item => [item.name, item.source]));
+
 const clientsVendorsBaselineFunctions = new Map([
   ...extractFunctions(cvSubmitNewClient),
   ...extractFunctions(cvClientsRest),
@@ -179,7 +197,9 @@ for (const src of scripts) {
       ? clientsVendorsBaselineFunctions
       : src === 'js/modules/attendance.js'
         ? attendanceBaselineFunctions
-        : baselineFunctions;
+        : src === 'js/modules/payreq.js'
+          ? payreqBaselineFunctions
+          : baselineFunctions;
   const intentional = POST_SPLIT_CHANGES[`ops/${src}`]?.changed || [];
   const present = new Set(extractFunctions(code).map(item => item.name));
   for (const name of intentional) if (!present.has(name)) fail(`${src} 缺少拆檔後修改的函式 ${name}`);
@@ -336,6 +356,18 @@ for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountin
 for (const name of attendanceBaselineFunctions.keys()) {
   if (protectedCurrentFunctions.has(name)) fail(`出勤函式不應仍留在 index.html：${name}`);
 }
+verifyExactFile('ops/js/modules/payreq.js', expectedPayreq, 'payreq.js');
+const expectedPayreqFunctionCount = extractFunctions(expectedPayreq).length;
+if (expectedPayreqFunctionCount !== 11) fail(`payreq.js 預期 11 個函式，實際基準 ${expectedPayreqFunctionCount}`);
+if (!payreqSlices[0].includes('function openPayreqModal() {') || !payreqSlices[1].startsWith('function setPayreqRadio(') || !payreqSlices[2].includes('function renderPayreq() {')) fail('請款基準區塊起訖行不正確');
+const payreqBaselineAllFunctions = new Map(extractFunctions(payreqBaselineHtml).map(item => [item.name, item.source]));
+for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'openPayreqForVendor', 'payreqVendorPickerMouseDown', 'selectRadio']) {
+  const current = protectedCurrentFunctions.get(name);
+  if (!current || current !== payreqBaselineAllFunctions.get(name)) fail(`請款批次不應改動或搬走 ${name}`);
+}
+for (const name of payreqBaselineFunctions.keys()) {
+  if (protectedCurrentFunctions.has(name)) fail(`請款函式不應仍留在 index.html：${name}`);
+}
 const vdSortKeyPresent = /^let vdSortKey = 'code', vdSortAsc = true;$/m.test(
   fs.readFileSync(path.join(root, 'ops/js/modules/vendors.js'), 'utf8')
 );
@@ -363,5 +395,5 @@ for (const [index, match] of inlineScripts.entries()) {
 }
 
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；11 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；12 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
 }
