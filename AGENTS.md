@@ -358,4 +358,13 @@ Update this section after every completed slice with the commit, entry files, va
 - Profit share next step: Gate 2 review by the user. Merge/deploy only with explicit approval and a fresh backup.
 - Profit share merge and deploy (2026-10-06, approved by the user in chat): `main` fast-forwarded `3bf6549` → `954bdaf` (modularization complete) and pushed. GitHub Pages served all 22 `ops/` HTML/JS files byte-identical to `954bdaf` about 50 seconds later. Pre-merge checks on the merged `main`: verifier PASS (537 functions; 24 shell functions inline), rules JSON valid, `git diff --check` clean, all nine smoke suites 24/24, 22/22, 20/20, 28/28, 35/35, 44/44 (one expected warning), 52/52, 58/58, 134/135 (known item).
   - Pre-merge backup: `Yutesign_OPS_backup_20261006_2204.json` (phone export to `我的雲端硬碟/透過 Chrome 儲存`, 1,841,093 bytes, SHA-256 prefix `04a6e8ca9c68905e`). It matched the live baseline exactly (PROFIT_SETTLEMENTS 2 / grandNet $9,681,205; profit-settlement payables 9 / $3,299,609).
-  - Post-deploy production data check: **pending**. The OPS session had expired, and Google asked for a password when re-signing in, so automation stopped there (no password entered). File-level deployment is verified. Next step: once the user signs in on the computer, run the read-only check and compare it with the recorded pre-deploy figures, including the profit-share preview (14 cases; grand net $3,750,674; shower/peng/lien unpaid 2,009,729/525,022/425,923), the profit dashboard KPIs and the tax VAT rows.
+  - Post-deploy production data check (read-only, completed after the user signed in on the computer):
+    - Loading: 21 local scripts loaded, ending with `modules/profitshare.js`; cloud ready, nothing pending; zero console errors.
+    - Snapshot `meta.savedAt` is still 2026-10-06 17:13, and every figure equals the pre-deploy baseline:
+      - CASES 28 / $54,875,291.
+      - PAYABLES 579: paid 576 / $44,476,407.25; approved 2 / $17,296; pending 1 / $23,800.
+      - RECEIVABLES 77 / $54,742,674; EXPENSES 871 / $1,839,286; CLIENTS 20; VENDORS 148; ATTENDANCE 36/10.
+      - PAYROLL 53 / $2,099,338; OVERHEAD 46 months / $2,473,478; TAX_LIABILITIES 5 / $905,420.
+      - PROFIT_SETTLEMENTS 2 / grandNet $9,681,205; `PS_TAX_RATE` 0.03; profit-settlement payables 9 / $3,299,609.
+    - Rendered views are byte-identical to the pre-deploy readings: the live profit-share preview (14 cases; 39 overhead months; overhead $1,570,482; grand net $3,750,674; per-person net/unpaid shower 2,009,729/2,009,729, nc 0/0, peng 770,022/525,022, lien 970,923/425,923), the profit-dashboard KPIs, and the six 2026 VAT period rows.
+    - No production write was performed.
