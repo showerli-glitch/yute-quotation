@@ -99,6 +99,20 @@ const expectedFne = Object.fromEntries(Object.entries(fneSlices).map(([file, sli
 ].join('\n\n')]));
 const fneBaselineFunctions = new Map(Object.values(fneSlices).flat().flatMap(slice => extractFunctions(slice)).map(item => [item.name, item.source]));
 
+const payrollBaselineCommit = execFileSync('git', ['rev-parse', '0ef422c^{commit}'], { cwd: root, encoding: 'utf8' }).trim();
+const payrollBaselineHtml = execFileSync(
+  'git',
+  ['show', `${payrollBaselineCommit}:ops/index.html`],
+  { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
+);
+// One contiguous payroll data + behavior block in main@0ef422c (see docs/gate-payroll-mapping.md).
+const payrollBlock = sliceLines(payrollBaselineHtml, 6441, 7388);
+const expectedPayroll = [
+  '// PAYROLL MODULE. Extracted verbatim from ops/index.html at main@0ef422c.',
+  payrollBlock.trimEnd(),
+].join('\n\n');
+const payrollBaselineFunctions = new Map(extractFunctions(payrollBlock).map(item => [item.name, item.source]));
+
 const clientsVendorsBaselineFunctions = new Map([
   ...extractFunctions(cvSubmitNewClient),
   ...extractFunctions(cvClientsRest),
@@ -228,7 +242,9 @@ for (const src of scripts) {
           ? payreqBaselineFunctions
           : ['js/modules/feedback.js', 'js/modules/systemnotes.js', 'js/modules/employees.js'].includes(src)
             ? fneBaselineFunctions
-            : baselineFunctions;
+            : src === 'js/modules/payroll.js'
+              ? payrollBaselineFunctions
+              : baselineFunctions;
   const intentional = POST_SPLIT_CHANGES[`ops/${src}`]?.changed || [];
   const present = new Set(extractFunctions(code).map(item => item.name));
   for (const name of intentional) if (!present.has(name)) fail(`${src} 缺少拆檔後修改的函式 ${name}`);
@@ -405,7 +421,8 @@ for (const file of Object.keys(expectedFne)) {
 if (fneFunctionCounts.feedback !== 14 || fneFunctionCounts.systemnotes !== 3 || fneFunctionCounts.employees !== 3) fail(`回報／筆記／員工函式數不符：${JSON.stringify(fneFunctionCounts)}`);
 if (!fneSlices.feedback[0].startsWith('function tfStatusColor(') || !fneSlices.systemnotes[0].startsWith('const SYSTEM_NOTES = [') || !fneSlices.feedback[1].startsWith('const TF_SCREENSHOT_MAX_EDGE') || !fneSlices.employees[0].includes('function renderEmployees() {')) fail('回報／筆記／員工基準區塊起訖行不正確');
 const fneBaselineAllFunctions = new Map(extractFunctions(fneBaselineHtml).map(item => [item.name, item.source]));
-for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'prRenderEmployeeTabs', 'psOpenProfitParticipantModal']) {
+// prRenderEmployeeTabs moved into payroll.js in the payroll batch; its byte-for-byte check lives there now.
+for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'psOpenProfitParticipantModal']) {
   const current = protectedCurrentFunctions.get(name);
   if (!current || current !== fneBaselineAllFunctions.get(name)) fail(`回報／筆記／員工批次不應改動 ${name}`);
 }
@@ -414,6 +431,21 @@ for (const name of fneBaselineFunctions.keys()) {
 }
 for (const constName of ['SYSTEM_NOTES', 'TF_SCREENSHOT_MAX_EDGE', 'TF_SCREENSHOT_MAX_BYTES', 'EMP_PERM_MODULES', 'EMP_PERM_LEVELS']) {
   if (new RegExp(`^const ${constName}\\b`, 'm').test(currentHtml)) fail(`常數不應仍留在 index.html：${constName}`);
+}
+verifyExactFile('ops/js/modules/payroll.js', expectedPayroll, 'payroll.js');
+const expectedPayrollFunctionCount = extractFunctions(expectedPayroll).length;
+if (expectedPayrollFunctionCount !== 35) fail(`payroll.js 預期 35 個函式，實際基準 ${expectedPayrollFunctionCount}`);
+if (!payrollBlock.includes('// PAYROLL DATA') || !payrollBlock.includes('const PR_CONFIG = {') || !/\nfunction printPayslip\(\) \{/.test(payrollBlock)) fail('薪資基準區塊起訖行不正確');
+const payrollBaselineAllFunctions = new Map(extractFunctions(payrollBaselineHtml).map(item => [item.name, item.source]));
+for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'applyDefaultPeriodForPage', 'psPayrollBreakdown', 'psPayrollSum']) {
+  const current = protectedCurrentFunctions.get(name);
+  if (!current || current !== payrollBaselineAllFunctions.get(name)) fail(`薪資批次不應改動 ${name}`);
+}
+for (const name of payrollBaselineFunctions.keys()) {
+  if (protectedCurrentFunctions.has(name)) fail(`薪資函式不應仍留在 index.html：${name}`);
+}
+for (const declName of ['PR_CONFIG', 'PAYROLL_EMPLOYEE_ACCOUNTS', 'CODEX_SEED_PAYROLL', 'PAYROLL', 'DEFAULT_PAYROLL_MONTHS', 'PAYROLL_MONTHS', 'PAYROLL_DELETED_MONTHS', 'DELETED_SOURCE_KEYS', 'prNextId', 'prCurrentEmp', 'prRangeExpanded']) {
+  if (new RegExp(`^(const|let) ${declName}\\b`, 'm').test(currentHtml)) fail(`薪資資料宣告不應仍留在 index.html：${declName}`);
 }
 const vdSortKeyPresent = /^let vdSortKey = 'code', vdSortAsc = true;$/m.test(
   fs.readFileSync(path.join(root, 'ops/js/modules/vendors.js'), 'utf8')
@@ -442,5 +474,5 @@ for (const [index, match] of inlineScripts.entries()) {
 }
 
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；15 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；16 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
 }
