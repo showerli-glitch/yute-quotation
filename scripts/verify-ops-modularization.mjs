@@ -80,6 +80,25 @@ const expectedPayreq = [
 ].join('\n\n');
 const payreqBaselineFunctions = new Map(payreqSlices.flatMap(slice => extractFunctions(slice)).map(item => [item.name, item.source]));
 
+const fneBaselineCommit = execFileSync('git', ['rev-parse', '4e42a53^{commit}'], { cwd: root, encoding: 'utf8' }).trim();
+const fneBaselineHtml = execFileSync(
+  'git',
+  ['show', `${fneBaselineCommit}:ops/index.html`],
+  { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
+);
+// Feedback / system notes / employees ranges in main@4e42a53 (see docs/gate-feedback-notes-employees-mapping.md).
+const fneSlices = {
+  feedback: [sliceLines(fneBaselineHtml, 4384, 4390), sliceLines(fneBaselineHtml, 4659, 4919)],
+  systemnotes: [sliceLines(fneBaselineHtml, 4392, 4657)],
+  employees: [sliceLines(fneBaselineHtml, 7925, 8144)],
+};
+const fneHeaders = { feedback: 'FEEDBACK', systemnotes: 'SYSTEM NOTES', employees: 'EMPLOYEES' };
+const expectedFne = Object.fromEntries(Object.entries(fneSlices).map(([file, slices]) => [file, [
+  `// ${fneHeaders[file]} MODULE. Extracted verbatim from ops/index.html at main@4e42a53.`,
+  ...slices.map(slice => slice.trimEnd()),
+].join('\n\n')]));
+const fneBaselineFunctions = new Map(Object.values(fneSlices).flat().flatMap(slice => extractFunctions(slice)).map(item => [item.name, item.source]));
+
 const clientsVendorsBaselineFunctions = new Map([
   ...extractFunctions(cvSubmitNewClient),
   ...extractFunctions(cvClientsRest),
@@ -207,7 +226,9 @@ for (const src of scripts) {
         ? attendanceBaselineFunctions
         : src === 'js/modules/payreq.js'
           ? payreqBaselineFunctions
-          : baselineFunctions;
+          : ['js/modules/feedback.js', 'js/modules/systemnotes.js', 'js/modules/employees.js'].includes(src)
+            ? fneBaselineFunctions
+            : baselineFunctions;
   const intentional = POST_SPLIT_CHANGES[`ops/${src}`]?.changed || [];
   const present = new Set(extractFunctions(code).map(item => item.name));
   for (const name of intentional) if (!present.has(name)) fail(`${src} 缺少拆檔後修改的函式 ${name}`);
@@ -376,6 +397,24 @@ for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountin
 for (const name of payreqBaselineFunctions.keys()) {
   if (protectedCurrentFunctions.has(name)) fail(`請款函式不應仍留在 index.html：${name}`);
 }
+const fneFunctionCounts = {};
+for (const file of Object.keys(expectedFne)) {
+  verifyExactFile(`ops/js/modules/${file}.js`, expectedFne[file], `${file}.js`);
+  fneFunctionCounts[file] = extractFunctions(expectedFne[file]).length;
+}
+if (fneFunctionCounts.feedback !== 14 || fneFunctionCounts.systemnotes !== 3 || fneFunctionCounts.employees !== 3) fail(`回報／筆記／員工函式數不符：${JSON.stringify(fneFunctionCounts)}`);
+if (!fneSlices.feedback[0].startsWith('function tfStatusColor(') || !fneSlices.systemnotes[0].startsWith('const SYSTEM_NOTES = [') || !fneSlices.feedback[1].startsWith('const TF_SCREENSHOT_MAX_EDGE') || !fneSlices.employees[0].includes('function renderEmployees() {')) fail('回報／筆記／員工基準區塊起訖行不正確');
+const fneBaselineAllFunctions = new Map(extractFunctions(fneBaselineHtml).map(item => [item.name, item.source]));
+for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'prRenderEmployeeTabs', 'psOpenProfitParticipantModal']) {
+  const current = protectedCurrentFunctions.get(name);
+  if (!current || current !== fneBaselineAllFunctions.get(name)) fail(`回報／筆記／員工批次不應改動 ${name}`);
+}
+for (const name of fneBaselineFunctions.keys()) {
+  if (protectedCurrentFunctions.has(name)) fail(`回報／筆記／員工函式不應仍留在 index.html：${name}`);
+}
+for (const constName of ['SYSTEM_NOTES', 'TF_SCREENSHOT_MAX_EDGE', 'TF_SCREENSHOT_MAX_BYTES', 'EMP_PERM_MODULES', 'EMP_PERM_LEVELS']) {
+  if (new RegExp(`^const ${constName}\\b`, 'm').test(currentHtml)) fail(`常數不應仍留在 index.html：${constName}`);
+}
 const vdSortKeyPresent = /^let vdSortKey = 'code', vdSortAsc = true;$/m.test(
   fs.readFileSync(path.join(root, 'ops/js/modules/vendors.js'), 'utf8')
 );
@@ -403,5 +442,5 @@ for (const [index, match] of inlineScripts.entries()) {
 }
 
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；12 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；15 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
 }
