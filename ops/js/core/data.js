@@ -688,7 +688,8 @@ function userCanViewCaseScopedRow(caseCode, page, rowPerson = '') {
   const level = permissionLevel(page);
   if (['manage','view_all','view_all_apply_self'].includes(level)) return true;
   if (caseCode) return userCanViewCaseFinancials(caseCode, page);
-  return !!rowPerson && rowPerson === currentUser?.id;
+  // 請款的 person 存的是申請人名字（submitPayReq 寫入 currentUser.name），舊資料可能是帳號 ID，兩種都視為本人。
+  return !!rowPerson && (rowPerson === currentUser?.id || rowPerson === currentUser?.name);
 }
 const EMP_ACCESS_ROLES = {
   none: '不開通系統',

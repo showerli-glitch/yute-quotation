@@ -52,7 +52,7 @@ function openEditPayreqModal(id) {
   if (!p) { showToast('找不到這筆待審核或已退回的請款', 'error'); return; }
   if (!userCanViewCaseScopedRow(p.case, 'payreq', p.person)) { showToast('您沒有查看這個案的權限', 'error'); return; }
   if (p.status === 'pending' && !requireManage('payreq', '您沒有編輯請款申請的權限')) return;
-  if (p.status === 'rejected' && !(canManage('payreq') || p.person === currentUser.id)) { showToast('您沒有修改這筆請款的權限', 'error'); return; }
+  if (p.status === 'rejected' && !(canManage('payreq') || p.person === currentUser.id || p.person === currentUser.name)) { showToast('您沒有修改這筆請款的權限', 'error'); return; }
   payreqEditId = p.id;
   const prCase = document.getElementById('pr-case');
   if (prCase) {
@@ -78,7 +78,8 @@ function openEditPayreqModal(id) {
   const titleEl = document.querySelector('#modal-payreq .modal-title');
   if (titleEl) titleEl.textContent = '編輯廠商請款申請';
   const btn = document.getElementById('pr-submit-btn');
-  if (btn) btn.textContent = '儲存修改';
+  // 剛送出一筆後按鈕會停在停用狀態；新增視窗會恢復，編輯視窗也要恢復，否則「儲存修改」按不下去。
+  if (btn) { btn.textContent = '儲存修改'; btn.disabled = false; }
   openModal('modal-payreq');
 }
 
@@ -304,7 +305,7 @@ function renderPayreq() {
           <td><span class="tag tag-inactive">已退回</span></td>
           <td style="white-space:nowrap">
             <div style="display:flex;align-items:center;gap:4px">
-              ${(manage || p.person === currentUser.id) ? `<select class="filter-select compact-action-select" aria-label="請款單操作" onchange="payreqDocumentAction(this,${p.id})"><option value="">選項⋯</option><option value="clone">複製單據</option><option value="edit">修改並重送</option>${manage?'<option value="delete">刪除單據</option>':''}</select>` : ''}
+              ${(manage || p.person === currentUser.id || p.person === currentUser.name) ? `<select class="filter-select compact-action-select" aria-label="請款單操作" onchange="payreqDocumentAction(this,${p.id})"><option value="">選項⋯</option><option value="clone">複製單據</option><option value="edit">修改並重送</option>${manage?'<option value="delete">刪除單據</option>':''}</select>` : ''}
             </div>
           </td>
         </tr>`).join('');

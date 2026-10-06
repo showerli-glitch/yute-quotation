@@ -6,8 +6,9 @@
 // The browser clock is frozen at 2026-10-06 14:00 Asia/Taipei so two runs (e.g. main vs. a split
 // branch) produce byte-comparable final cloud snapshots.
 //
-// Checks labelled 「既有問題現況」 record the known pre-existing person-name/ID mismatch described in
-// docs/gate-payreq-mapping.md. They assert the current behavior so a split can be compared 1:1.
+// The person-name/ID mismatch and the disabled save button described in docs/gate-payreq-mapping.md
+// were fixed on claude/payreq-applicant-fix; checks labelled 「修正後」 assert the fixed behavior
+// (they fail on main@81b208c..9ab4749, which still has the old behavior).
 import { createHarness } from './smoke-lib.mjs';
 
 const [label, rootDir, portArg, outJson] = process.argv.slice(2);
@@ -82,11 +83,9 @@ const dbl = await page.evaluate(() => { const t = () => document.getElementById(
 check('連點送出只寫入一筆並提示勿重複點選', dbl.n === 1 && dbl.toasts[0] === '請款申請已送出，等待財務審核 ✓' && dbl.toasts[1] === '請款正在送出，請勿重複點選', dbl);
 await page.waitForTimeout(1700);
 
-// edit pending — known pre-existing issue: after a submit the button stays disabled in the edit modal
+// edit pending right after a submit
 await docAction(page, nextId, 'edit');
-check('既有問題現況：送出後直接開「編輯」，儲存鈕仍停用', await page.locator('#pr-submit-btn').isDisabled());
-await page.evaluate(() => { closeModal('modal-payreq'); openPayreqModal(); closeModal('modal-payreq'); });
-await docAction(page, nextId, 'edit');
+check('修正後：送出後直接開「編輯」，儲存鈕可按', !(await page.locator('#pr-submit-btn').isDisabled()));
 const edit0 = await page.evaluate(() => ({ title: document.querySelector('#modal-payreq .modal-title').textContent, amount: document.getElementById('pr-amount').value, vendor: document.getElementById('pr-vendor').value, btn: document.getElementById('pr-submit-btn').textContent, editId: payreqEditId }));
 check('編輯待審核：載入資料', edit0.title === '編輯廠商請款申請' && edit0.amount === '12,345' && edit0.vendor === vendor.name && edit0.btn === '儲存修改' && edit0.editId === nextId, edit0);
 await page.fill('#pr-amount', '13000');
@@ -110,9 +109,9 @@ check('退回按取消：維持待審核', (await row(page, cloneId)).status ===
 confirmAnswer = true;
 await page.locator('#payreq-pending-tbody tr', { hasText: 'QA複製' }).locator('button', { hasText: '退回' }).click();
 check('退回：移到已退回、提示', (await row(page, cloneId)).status === 'rejected' && (await rejectedText(page)).includes('QA複製') && (await lastToast(page)) === '已退回，申請人可修改後重新送出');
-await page.evaluate(() => { openPayreqModal(); closeModal('modal-payreq'); }); // re-enable the save button (see 既有問題現況 above)
 await docAction(page, cloneId, 'edit');
 await page.fill('#pr-summary', 'QA複製-重送');
+await page.waitForTimeout(1700); // the 1.5 s double-submit lock from the previous submit must expire
 await page.click('#pr-submit-btn');
 check('管理者修改已退回請款後重新送出 → 待審核', (await row(page, cloneId)).status === 'pending' && (await row(page, cloneId)).summary === 'QA複製-重送');
 const payablesApprovedBefore = await page.evaluate(() => PAYABLES.filter(p => p.status === 'approved').length);
@@ -171,7 +170,12 @@ await fillForm(page, { caseCode: '', vendor: vendor.name, amount: '800', summary
 const pengNoCase = await page.evaluate(() => pyNextId);
 await page.click('#pr-submit-btn');
 check('申請自己：可送出（不指定個案）', (await row(page, pengNoCase))?.case === '' && (await lastToast(page)) === '請款申請已送出，等待財務審核 ✓');
-check('既有問題現況：本人看不到自己不指定個案的請款', !(await pendingText(page)).includes('QA彭無個案'));
+check('修正後：本人看得到自己不指定個案的請款', (await pendingText(page)).includes('QA彭無個案'));
+const badgeB = await page.evaluate(id => ({ count: payreqPendingCount(), nav: document.getElementById('badge-payreq').textContent, includesOwn: PAYABLES.some(p => p.id === id && p.status === 'pending' && userCanViewCaseScopedRow(p.case, 'payreq', p.person)) }), pengNoCase);
+check('修正後：側欄徽章算進自己不指定個案的請款', badgeB.includesOwn && badgeB.nav === String(badgeB.count), badgeB);
+await nav(page, 'dashboard');
+check('修正後：儀表板待審核請款列出自己的兩筆', (await page.locator('#pending-payreq-list').innerText()).includes('QA彭無個案') && (await page.locator('#pending-payreq-list').innerText()).includes('QA彭有個案'));
+await nav(page, 'payreq');
 await page.evaluate(() => { const sel = document.getElementById('pr-case'); });
 await clearToasts(page);
 await page.evaluate(id => approveReq(id), pengId);
@@ -193,7 +197,8 @@ page.on('dialog', d => d.accept());
 await nav(page, 'payreq');
 check('管理者看得到彭的兩筆請款（含不指定個案）', (await pendingText(page)).includes('QA彭有個案') && (await pendingText(page)).includes('QA彭無個案'));
 await page.evaluate(id => rejectPayreq(id), pengId);
-check('管理者退回彭的請款', (await row(page, pengId)).status === 'rejected');
+await page.evaluate(id => rejectPayreq(id), pengNoCase);
+check('管理者退回彭的兩筆請款', (await row(page, pengId)).status === 'rejected' && (await row(page, pengNoCase)).status === 'rejected');
 await page.waitForTimeout(1200);
 await waitSynced(page);
 await ctx.close();
@@ -204,10 +209,24 @@ page = await openApp(ctx);
 await nav(page, 'payreq');
 const rejRow = await page.locator('#payreq-rejected-tbody tr', { hasText: 'QA彭有個案' }).innerText().catch(() => '');
 check('申請自己：已退回列表看得到自己的請款', rejRow.includes('QA彭有個案'));
-check('既有問題現況：已退回列沒有「選項⋯」可修改', !(await page.locator('#payreq-rejected-tbody tr', { hasText: 'QA彭有個案' }).locator('select').count()));
+check('修正後：已退回列看得到自己不指定個案的請款', (await rejectedText(page)).includes('QA彭無個案'));
+check('修正後：自己已退回的請款有「選項⋯」', (await page.locator('#payreq-rejected-tbody tr', { hasText: 'QA彭有個案' }).locator('select').count()) === 1 && (await page.locator('#payreq-rejected-tbody tr', { hasText: 'QA彭無個案' }).locator('select').count()) === 1);
+await docAction(page, pengId, 'edit');
+const editD = await page.evaluate(() => ({ open: document.getElementById('modal-payreq').classList.contains('open'), title: document.querySelector('#modal-payreq .modal-title').textContent, applicant: document.getElementById('pr-applicant').value, disabled: document.getElementById('pr-applicant').disabled, btnDisabled: document.getElementById('pr-submit-btn').disabled }));
+check('修正後：本人可打開自己已退回的請款（申請人仍鎖定本人）', editD.open && editD.title === '編輯廠商請款申請' && editD.applicant === '彭俞豪' && editD.disabled && !editD.btnDisabled, editD);
+await page.fill('#pr-amount', '5200');
+await page.click('#pr-submit-btn');
+check('修正後：本人修改後重新送出 → 待審核、同一筆', (await row(page, pengId)).status === 'pending' && (await row(page, pengId)).amount === 5200 && (await lastToast(page)) === '請款申請已更新 ✓');
+await docAction(page, pengNoCase, 'edit');
+await page.fill('#pr-summary', 'QA彭無個案-重送');
+await page.waitForTimeout(1700); // double-submit lock from the previous resubmit
+await page.click('#pr-submit-btn');
+check('修正後：不指定個案的退回請款也能重送', (await row(page, pengNoCase)).status === 'pending' && (await row(page, pengNoCase)).summary === 'QA彭無個案-重送');
 await clearToasts(page);
-await page.evaluate(id => openEditPayreqModal(id), pengId);
-check('既有問題現況：本人打開自己已退回的請款被拒', (await lastToast(page)) === '您沒有修改這筆請款的權限' && !(await isOpen(page, 'modal-payreq')));
+await page.evaluate(id => approveReq(id), pengId);
+check('修正後：本人仍不能核准自己的請款', (await lastToast(page)) === '您沒有核准請款的權限' && (await row(page, pengId)).status === 'pending');
+await page.waitForTimeout(1700);
+await waitSynced(page);
 await ctx.close();
 
 // ═══════════ E: read-only (lu_yanchen with payreq overridden to view_all in the MOCK cloud only) ═══════════
@@ -228,6 +247,19 @@ const e2 = await lastToast(page);
 check('唯讀：開視窗與送出都被拒、未寫入', e1 === '您沒有新增請款的權限' && e2 === '您沒有新增請款的權限' && !(await isOpen(page, 'modal-payreq')) && (await page.evaluate(() => PAYABLES.length)) === nE, [e1, e2]);
 await ctx.close();
 H.state.cloud.data.USER_PERMISSIONS.lu_yanchen.payreq = 'view_profit_cases_apply_self';
+
+// ═══════════ G: other apply-self user (lu_yanchen, real permissions) ═══════════
+H.setScenario('G-other-applyself(lu)');
+ctx = await newContext('lu@yutesign.com', { fixedTime: NOW });
+page = await openApp(ctx);
+await page.reload({ waitUntil: 'load' }); await waitReady(page);
+await nav(page, 'payreq');
+check('其他申請人：權限為 view_profit_cases_apply_self', (await page.evaluate(() => permissionLevel('payreq'))) === 'view_profit_cases_apply_self');
+check('其他申請人：看不到彭不指定個案的請款', !(await pendingText(page)).includes('QA彭無個案') && (await page.evaluate(() => payreqPendingCount())) === (await page.evaluate(() => PAYABLES.filter(p => p.status === 'pending' && userCanViewCaseScopedRow(p.case, 'payreq', p.person)).length)));
+await clearToasts(page);
+await page.evaluate(id => openEditPayreqModal(id), pengNoCase);
+check('其他申請人：不能打開彭的請款', !(await isOpen(page, 'modal-payreq')) && /您沒有/.test(await lastToast(page)), await lastToast(page));
+await ctx.close();
 
 // ═══════════ F: persistence ═══════════
 H.setScenario('F-persistence(shower)');

@@ -99,6 +99,14 @@ const POST_SPLIT_CHANGES = {
     reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort)',
     changed: ['openAddPayableModal', 'openEditPayableModal'],
   },
+  'ops/js/core/data.js': {
+    reason: 'pay-request applicant stored as name also counts as own row (claude/payreq-applicant-fix)',
+    changed: ['userCanViewCaseScopedRow'],
+  },
+  'ops/js/modules/payreq.js': {
+    reason: 'own rejected pay request editable by name; edit modal re-enables save (claude/payreq-applicant-fix)',
+    changed: ['openEditPayreqModal', 'renderPayreq'],
+  },
 };
 
 function maskChangedFunctions(source, names) {
