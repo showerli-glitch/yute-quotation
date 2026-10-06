@@ -113,6 +113,21 @@ const expectedPayroll = [
 ].join('\n\n');
 const payrollBaselineFunctions = new Map(extractFunctions(payrollBlock).map(item => [item.name, item.source]));
 
+const overheadBaselineCommit = execFileSync('git', ['rev-parse', '38986cf^{commit}'], { cwd: root, encoding: 'utf8' }).trim();
+const overheadBaselineHtml = execFileSync(
+  'git',
+  ['show', `${overheadBaselineCommit}:ops/index.html`],
+  { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
+);
+// One contiguous overhead data + behavior block in main@38986cf (see docs/gate-overhead-mapping.md).
+// It declares ohDeleteFixedItem twice, so its functions are compared in order, not by name.
+const overheadBlock = sliceLines(overheadBaselineHtml, 4769, 5227);
+const expectedOverhead = [
+  '// OVERHEAD MODULE. Extracted verbatim from ops/index.html at main@38986cf.',
+  overheadBlock.trimEnd(),
+].join('\n\n');
+const overheadBaselineList = extractFunctions(overheadBlock);
+
 const clientsVendorsBaselineFunctions = new Map([
   ...extractFunctions(cvSubmitNewClient),
   ...extractFunctions(cvClientsRest),
@@ -245,6 +260,16 @@ for (const src of scripts) {
             : src === 'js/modules/payroll.js'
               ? payrollBaselineFunctions
               : baselineFunctions;
+  if (src === 'js/modules/overhead.js') {
+    const currentList = extractFunctions(code);
+    if (currentList.length !== overheadBaselineList.length) fail(`overhead.js 函式宣告數 ${currentList.length}，基準 ${overheadBaselineList.length}`);
+    currentList.forEach((item, index) => {
+      const original = overheadBaselineList[index];
+      compared += 1;
+      if (!original || item.name !== original.name || item.source !== original.source) fail(`${src} 第 ${index + 1} 個函式 ${item.name} 並非依序逐字搬移`);
+    });
+    continue;
+  }
   const intentional = POST_SPLIT_CHANGES[`ops/${src}`]?.changed || [];
   const present = new Set(extractFunctions(code).map(item => item.name));
   for (const name of intentional) if (!present.has(name)) fail(`${src} 缺少拆檔後修改的函式 ${name}`);
@@ -447,6 +472,20 @@ for (const name of payrollBaselineFunctions.keys()) {
 for (const declName of ['PR_CONFIG', 'PAYROLL_EMPLOYEE_ACCOUNTS', 'CODEX_SEED_PAYROLL', 'PAYROLL', 'DEFAULT_PAYROLL_MONTHS', 'PAYROLL_MONTHS', 'PAYROLL_DELETED_MONTHS', 'DELETED_SOURCE_KEYS', 'prNextId', 'prCurrentEmp', 'prRangeExpanded']) {
   if (new RegExp(`^(const|let) ${declName}\\b`, 'm').test(currentHtml)) fail(`薪資資料宣告不應仍留在 index.html：${declName}`);
 }
+verifyExactFile('ops/js/modules/overhead.js', expectedOverhead, 'overhead.js');
+if (overheadBaselineList.length !== 24 || overheadBaselineList.filter(item => item.name === 'ohDeleteFixedItem').length !== 2) fail(`overhead.js 基準應有 24 個函式宣告（ohDeleteFixedItem 兩次），實際 ${overheadBaselineList.length}`);
+if (!overheadBlock.includes('// OVERHEAD DATA') || !overheadBlock.includes('const OH_FIXED_ITEMS = [') || !/\nfunction openAddOverheadModal\(\) \{/.test(overheadBlock)) fail('公司開銷基準區塊起訖行不正確');
+const overheadBaselineAllFunctions = new Map(extractFunctions(overheadBaselineHtml).map(item => [item.name, item.source]));
+for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'applyDefaultPeriodForPage', 'psComputeData', 'psPayrollSum']) {
+  const current = protectedCurrentFunctions.get(name);
+  if (!current || current !== overheadBaselineAllFunctions.get(name)) fail(`公司開銷批次不應改動 ${name}`);
+}
+for (const item of overheadBaselineList) {
+  if (protectedCurrentFunctions.has(item.name)) fail(`公司開銷函式不應仍留在 index.html：${item.name}`);
+}
+for (const declName of ['OH_WATER_ELECTRIC_SPLIT_MONTH', 'OH_LEGACY_FIXED_ITEMS', 'OH_FIXED_ITEMS', 'OH_FIXED_CONFIG', 'OVERHEAD', 'ohVarNextId', 'OH_FIXED_EXPENSE_REVIEW_FROM', 'ohFixedExpenseReviewList']) {
+  if (new RegExp(`^(const|let) ${declName}\\b`, 'm').test(currentHtml)) fail(`公司開銷資料宣告不應仍留在 index.html：${declName}`);
+}
 const vdSortKeyPresent = /^let vdSortKey = 'code', vdSortAsc = true;$/m.test(
   fs.readFileSync(path.join(root, 'ops/js/modules/vendors.js'), 'utf8')
 );
@@ -474,5 +513,5 @@ for (const [index, match] of inlineScripts.entries()) {
 }
 
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；16 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；17 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；overhead.js 含 ${overheadBaselineList.length} 個開銷函式宣告（依序比對）；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
 }
