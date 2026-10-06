@@ -143,6 +143,20 @@ const expectedProfit = [
 ].join('\n\n');
 const profitBaselineFunctions = new Map(extractFunctions(profitBlock).map(item => [item.name, item.source]));
 
+const taxBaselineCommit = execFileSync('git', ['rev-parse', '4318c73^{commit}'], { cwd: root, encoding: 'utf8' }).trim();
+const taxBaselineHtml = execFileSync(
+  'git',
+  ['show', `${taxBaselineCommit}:ops/index.html`],
+  { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
+);
+// Tax management block in main@4318c73 (see docs/gate-tax-mapping.md).
+const taxBlock = sliceLines(taxBaselineHtml, 4977, 5180);
+const expectedTax = [
+  '// TAX MANAGEMENT MODULE. Extracted verbatim from ops/index.html at main@4318c73.',
+  taxBlock.trimEnd(),
+].join('\n\n');
+const taxBaselineFunctions = new Map(extractFunctions(taxBlock).map(item => [item.name, item.source]));
+
 const clientsVendorsBaselineFunctions = new Map([
   ...extractFunctions(cvSubmitNewClient),
   ...extractFunctions(cvClientsRest),
@@ -276,7 +290,9 @@ for (const src of scripts) {
               ? payrollBaselineFunctions
               : src === 'js/modules/profit.js'
                 ? profitBaselineFunctions
-                : baselineFunctions;
+                : src === 'js/modules/tax.js'
+                  ? taxBaselineFunctions
+                  : baselineFunctions;
   if (src === 'js/modules/overhead.js') {
     const currentList = extractFunctions(code);
     if (currentList.length !== overheadBaselineList.length) fail(`overhead.js 函式宣告數 ${currentList.length}，基準 ${overheadBaselineList.length}`);
@@ -522,6 +538,21 @@ for (const name of profitBaselineFunctions.keys()) {
 for (const declName of ['pfSelYears', 'pfSelCases', 'pfClosedCollapsed']) {
   if (new RegExp(`^(const|let) ${declName}\\b`, 'm').test(currentHtml)) fail(`淨利潤狀態變數不應仍留在 index.html：${declName}`);
 }
+verifyExactFile('ops/js/modules/tax.js', expectedTax, 'tax.js');
+const expectedTaxFunctionCount = extractFunctions(expectedTax).length;
+if (expectedTaxFunctionCount !== 12) fail(`tax.js 預期 12 個函式，實際基準 ${expectedTaxFunctionCount}`);
+if (!taxBlock.includes('// TAX MANAGEMENT') || !/\nfunction renderTaxManagement\(\) \{/.test(taxBlock)) fail('稅務基準區塊起訖行不正確');
+const taxBaselineAllFunctions = new Map(extractFunctions(taxBaselineHtml).map(item => [item.name, item.source]));
+for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'psComputeData']) {
+  const current = protectedCurrentFunctions.get(name);
+  if (!current || current !== taxBaselineAllFunctions.get(name)) fail(`稅務批次不應改動 ${name}`);
+}
+for (const name of taxBaselineFunctions.keys()) {
+  if (protectedCurrentFunctions.has(name)) fail(`稅務函式不應仍留在 index.html：${name}`);
+}
+for (const declName of ['TAX_SELECTED_YEAR', 'TAX_EDIT_ID']) {
+  if (new RegExp(`^(const|let) ${declName}\\b`, 'm').test(currentHtml)) fail(`稅務狀態變數不應仍留在 index.html：${declName}`);
+}
 const vdSortKeyPresent = /^let vdSortKey = 'code', vdSortAsc = true;$/m.test(
   fs.readFileSync(path.join(root, 'ops/js/modules/vendors.js'), 'utf8')
 );
@@ -549,5 +580,5 @@ for (const [index, match] of inlineScripts.entries()) {
 }
 
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；18 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；overhead.js 含 ${overheadBaselineList.length} 個開銷函式宣告（依序比對）；profit.js 含 ${expectedProfitFunctionCount} 個儀表板函式、載入位置不變；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；19 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；overhead.js 含 ${overheadBaselineList.length} 個開銷函式宣告（依序比對）；profit.js 含 ${expectedProfitFunctionCount} 個儀表板函式、載入位置不變；tax.js 含 ${expectedTaxFunctionCount} 個稅務函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
 }

@@ -315,3 +315,23 @@ Update this section after every completed slice with the commit, entry files, va
 - Profit dashboard merge and deploy (2026-10-06, approved by the user in chat): `main` fast-forwarded `e602f72` → `4318c73` and pushed. GitHub Pages served all 20 `ops/` HTML/JS files byte-identical to `4318c73` about 30 seconds later. Pre-merge checks on the merged `main`: verifier PASS, rules JSON valid, `git diff --check` clean, smoke suites 20/20, 28/28, 35/35, 44/44 (one expected warning), 52/52, 58/58, 134/135 (known item).
   - Pre-merge backup: `Yutesign_OPS_backup_20261006_1901.json` (phone export to `我的雲端硬碟/透過 Chrome 儲存`, 1,841,093 bytes, SHA-256 prefix `23c29dd34dadf91a`). It matched the live baseline exactly.
   - Post-deploy production check (read-only): 19 local scripts loaded, with `receivables.js → profit.js → expenses.js` in the original order; cloud ready, nothing pending; zero console errors. The live dashboard KPIs are identical to the pre-deploy reading (revenue $53,646,864; vendor cost $32,895,588.25; expenses $1,612,802; gross $18,116,183; 27 rows). Snapshot `meta.savedAt` is still 2026-10-06 17:13 and every collection figure equals the baseline. No production write was performed.
+- Tax management batch Gate 1: approved by the user on 2026-10-06. Mapping in `docs/gate-tax-mapping.md`.
+- Tax management: complete on branch `claude/ops-tax-modularize` (based on `main@4318c73` plus one AGENTS deploy-log commit) in the single slice commit `refactor(ops): extract tax management module`. `4318c73` `ops/index.html` lines 4977–5180 (`TAX_SELECTED_YEAR`, `TAX_EDIT_ID`, 12 functions) moved verbatim to `ops/js/modules/tax.js`, loaded after `overhead.js`. The two state variables are literal-initialized and block-local. The only external callers are `navTo`, `renderCurrentPage` and `refreshAccountingLinkedViews`, all at runtime. `TAX_LIABILITIES` and its sync/merge stay in `data.js`. `ops/index.html` is now 5,439 lines.
+- Tax validation evidence (2026-10-06, Asia/Taipei):
+  - Verifier: 20 local scripts valid; 19 extracted modules/blocks and 509 functions byte-identical (tax baseline `4318c73`, 12 functions); router/role functions and `psComputeData` unchanged; nothing left behind. Negative test (line added in `taxVatReserve`) fails as expected.
+  - `scripts/smoke-tax.mjs` (new, frozen clock, mock cloud), 22 checks:
+    - Pure helpers versus independent formulas: VAT reserve invoice / 1.05 × 0.05 × 0.5, bimonthly period keys including invalid dates, money formatting, escaping.
+    - Fixture invoices of 105,000 and 42,000 (mock data only) give period 2026-11~12 2 invoices / $147,000 / reserve $3,500, re-derived independently; an undated invoice is listed as unassigned.
+    - Liability: required fields; paid needs a pay date; save as a manual row; paid amount and difference/status in the period row; edit to a shortfall; cancel; delete cancel/confirm; a pending record without a date.
+    - Year switch; income estimate numeric; read-only user (mock-only `view_all`) refused on new/save/delete; no-access user refused, with the renderer skipping.
+    - Reload persistence; other collections unchanged.
+    Result 22/22 on the branch and on `main@4318c73`, with identical per-check results and a byte-identical final mock-cloud snapshot (297,589 bytes). The other seven suites re-run on the branch: 20/20, 28/28, 35/35, 44/44 (one expected warning), 52/52, 58/58, 134/135 (known item). Zero application console errors.
+  - Production read-only baseline (snapshot `meta.savedAt` 2026-10-06 17:13, unchanged): collection figures as recorded for the profit dashboard deploy. TAX_LIABILITIES 5 (營業稅 paid $523,730; 營所稅 paid $381,690); tax years 2026/2025; open income-tax estimate $561,099. Rendered 2026 VAT periods (invoices / invoice total / reserve / paid / difference):
+    - 01~02: 7 / $10,690,695 / $254,540 / $47,019 / $207,521
+    - 03~04: 11 / $10,519,608 / $250,467 / $391,799 / −$141,332
+    - 05~06: 5 / $1,213,357 / $28,889 / $0 / $28,889
+    - 07~08: 11 / $3,504,641 / $83,444 / $0 / $83,444
+    - 09~10: 6 / $9,937,377 / $236,604 / $0 / $236,604
+    - 11~12: 0
+    Rendering the tax page is DOM-only. No production write was performed.
+- Tax next step: Gate 2 review by the user. Merge/deploy only with explicit approval and a fresh backup.
