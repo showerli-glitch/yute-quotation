@@ -157,6 +157,21 @@ const expectedTax = [
 ].join('\n\n');
 const taxBaselineFunctions = new Map(extractFunctions(taxBlock).map(item => [item.name, item.source]));
 
+const profitshareBaselineCommit = execFileSync('git', ['rev-parse', '3bf6549^{commit}'], { cwd: root, encoding: 'utf8' }).trim();
+const profitshareBaselineHtml = execFileSync(
+  'git',
+  ['show', `${profitshareBaselineCommit}:ops/index.html`],
+  { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 }
+);
+// The last inline <script> in main@3bf6549 (after tax.js), replaced in place by profitshare.js
+// (see docs/gate-profitshare-mapping.md).
+const profitshareBlock = sliceLines(profitshareBaselineHtml, 4424, 5436);
+const expectedProfitshare = [
+  '// PROFIT SHARE MODULE. Extracted verbatim from ops/index.html at main@3bf6549.',
+  profitshareBlock.trimEnd(),
+].join('\n\n');
+const profitshareBaselineFunctions = new Map(extractFunctions(profitshareBlock).map(item => [item.name, item.source]));
+
 const clientsVendorsBaselineFunctions = new Map([
   ...extractFunctions(cvSubmitNewClient),
   ...extractFunctions(cvClientsRest),
@@ -292,7 +307,9 @@ for (const src of scripts) {
                 ? profitBaselineFunctions
                 : src === 'js/modules/tax.js'
                   ? taxBaselineFunctions
-                  : baselineFunctions;
+                  : src === 'js/modules/profitshare.js'
+                    ? profitshareBaselineFunctions
+                    : baselineFunctions;
   if (src === 'js/modules/overhead.js') {
     const currentList = extractFunctions(code);
     if (currentList.length !== overheadBaselineList.length) fail(`overhead.js 函式宣告數 ${currentList.length}，基準 ${overheadBaselineList.length}`);
@@ -438,6 +455,12 @@ const expectedCases = [
   ).trimEnd(),
 ].join('\n\n');
 const protectedCurrentFunctions = new Map(extractFunctions(currentHtml).map(item => [item.name, item.source]));
+// After the profit-share batch, ps* functions that earlier batches protected in index.html live in
+// profitshare.js; their byte-for-byte protection is looked up wherever they are now.
+const profitshareCurrentFunctions = fs.existsSync(path.join(root, 'ops/js/modules/profitshare.js'))
+  ? new Map(extractFunctions(fs.readFileSync(path.join(root, 'ops/js/modules/profitshare.js'), 'utf8')).map(item => [item.name, item.source]))
+  : new Map();
+const currentSourceOf = name => protectedCurrentFunctions.get(name) ?? profitshareCurrentFunctions.get(name);
 verifyExactFile('ops/js/modules/cases.js', expectedCases, 'cases.js');
 const expectedCaseFunctionCount = extractFunctions(expectedCases).length;
 if (expectedCaseFunctionCount !== 34) fail(`cases.js 預期 34 個函式，實際基準 ${expectedCaseFunctionCount}`);
@@ -481,7 +504,7 @@ if (!fneSlices.feedback[0].startsWith('function tfStatusColor(') || !fneSlices.s
 const fneBaselineAllFunctions = new Map(extractFunctions(fneBaselineHtml).map(item => [item.name, item.source]));
 // prRenderEmployeeTabs moved into payroll.js in the payroll batch; its byte-for-byte check lives there now.
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'psOpenProfitParticipantModal']) {
-  const current = protectedCurrentFunctions.get(name);
+  const current = currentSourceOf(name);
   if (!current || current !== fneBaselineAllFunctions.get(name)) fail(`回報／筆記／員工批次不應改動 ${name}`);
 }
 for (const name of fneBaselineFunctions.keys()) {
@@ -496,7 +519,7 @@ if (expectedPayrollFunctionCount !== 35) fail(`payroll.js 預期 35 個函式，
 if (!payrollBlock.includes('// PAYROLL DATA') || !payrollBlock.includes('const PR_CONFIG = {') || !/\nfunction printPayslip\(\) \{/.test(payrollBlock)) fail('薪資基準區塊起訖行不正確');
 const payrollBaselineAllFunctions = new Map(extractFunctions(payrollBaselineHtml).map(item => [item.name, item.source]));
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'applyDefaultPeriodForPage', 'psPayrollBreakdown', 'psPayrollSum']) {
-  const current = protectedCurrentFunctions.get(name);
+  const current = currentSourceOf(name);
   if (!current || current !== payrollBaselineAllFunctions.get(name)) fail(`薪資批次不應改動 ${name}`);
 }
 for (const name of payrollBaselineFunctions.keys()) {
@@ -510,7 +533,7 @@ if (overheadBaselineList.length !== 24 || overheadBaselineList.filter(item => it
 if (!overheadBlock.includes('// OVERHEAD DATA') || !overheadBlock.includes('const OH_FIXED_ITEMS = [') || !/\nfunction openAddOverheadModal\(\) \{/.test(overheadBlock)) fail('公司開銷基準區塊起訖行不正確');
 const overheadBaselineAllFunctions = new Map(extractFunctions(overheadBaselineHtml).map(item => [item.name, item.source]));
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'applyDefaultPeriodForPage', 'psComputeData', 'psPayrollSum']) {
-  const current = protectedCurrentFunctions.get(name);
+  const current = currentSourceOf(name);
   if (!current || current !== overheadBaselineAllFunctions.get(name)) fail(`公司開銷批次不應改動 ${name}`);
 }
 for (const item of overheadBaselineList) {
@@ -529,7 +552,7 @@ if (!profitBaselineHtml.split(/(?<=\n)/)[4409].startsWith('<script>') || !profit
 }
 const profitBaselineAllFunctions = new Map(extractFunctions(profitBaselineHtml).map(item => [item.name, item.source]));
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'psComputeData']) {
-  const current = protectedCurrentFunctions.get(name);
+  const current = currentSourceOf(name);
   if (!current || current !== profitBaselineAllFunctions.get(name)) fail(`淨利潤批次不應改動 ${name}`);
 }
 for (const name of profitBaselineFunctions.keys()) {
@@ -544,7 +567,7 @@ if (expectedTaxFunctionCount !== 12) fail(`tax.js 預期 12 個函式，實際�
 if (!taxBlock.includes('// TAX MANAGEMENT') || !/\nfunction renderTaxManagement\(\) \{/.test(taxBlock)) fail('稅務基準區塊起訖行不正確');
 const taxBaselineAllFunctions = new Map(extractFunctions(taxBaselineHtml).map(item => [item.name, item.source]));
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'psComputeData']) {
-  const current = protectedCurrentFunctions.get(name);
+  const current = currentSourceOf(name);
   if (!current || current !== taxBaselineAllFunctions.get(name)) fail(`稅務批次不應改動 ${name}`);
 }
 for (const name of taxBaselineFunctions.keys()) {
@@ -552,6 +575,38 @@ for (const name of taxBaselineFunctions.keys()) {
 }
 for (const declName of ['TAX_SELECTED_YEAR', 'TAX_EDIT_ID']) {
   if (new RegExp(`^(const|let) ${declName}\\b`, 'm').test(currentHtml)) fail(`稅務狀態變數不應仍留在 index.html：${declName}`);
+}
+verifyExactFile('ops/js/modules/profitshare.js', expectedProfitshare, 'profitshare.js');
+const expectedProfitshareFunctionCount = extractFunctions(expectedProfitshare).length;
+if (expectedProfitshareFunctionCount !== 28) fail(`profitshare.js 預期 28 個函式，實際基準 ${expectedProfitshareFunctionCount}`);
+if (!profitshareBlock.includes('// PROFIT SHARE DATA') || !profitshareBlock.includes('function psComputeData() {') || !profitshareBlock.includes('function renderProfitShare() {')) fail('分潤基準區塊起訖行不正確');
+if (scripts[scripts.length - 1] !== 'js/modules/profitshare.js' || scripts[scripts.length - 2] !== 'js/modules/tax.js') fail(`profitshare.js 應為最後一個本機 script、緊接 tax.js：${scripts.slice(-3).join(' ')}`);
+const profitshareBaselineAllFunctions = new Map(extractFunctions(profitshareBaselineHtml).map(item => [item.name, item.source]));
+for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'applyDefaultPeriodForPage']) {
+  const current = protectedCurrentFunctions.get(name);
+  if (!current || current !== profitshareBaselineAllFunctions.get(name)) fail(`分潤批次不應改動 ${name}`);
+}
+for (const name of profitshareBaselineFunctions.keys()) {
+  if (protectedCurrentFunctions.has(name)) fail(`分潤函式不應仍留在 index.html：${name}`);
+}
+for (const declName of ['PROFIT_SPLIT_RATIOS', 'PROFIT_SHARE_PERSON_NAMES', 'PS_TAX_RATE', 'PROFIT_SETTLEMENTS', 'PS_SELECTED_CASES', 'PS_OH_START', 'PS_INITIAL_OVERHEAD_LOCKED_THROUGH', 'psPayoutSettledCollapsed', 'psOhFutureCollapsed']) {
+  if (new RegExp(`^(const|let) ${declName}\\b`, 'm').test(currentHtml)) fail(`分潤資料宣告不應仍留在 index.html：${declName}`);
+}
+// Modularization complete: index.html keeps only the app shell. Its inline function set is frozen;
+// any new business function must go into a module file (update this list deliberately if the shell changes).
+const SHELL_INLINE_FUNCTIONS = [
+  'setTodayMin', 'requestedPageFromUrl', 'activateRequestedPageFromUrl', 'activateDefaultPageForUser', 'opsShowNewVersionBanner',
+  'opsCheckForNewVersion', 'firstAccessiblePage', 'navElForPage', 'toggleMobileSidebar', 'resizeTableWrap', 'closeMobileSidebar',
+  'applyDefaultPeriodForPage', 'navTo', 'renderCurrentPage', 'refreshAccountingLinkedViews', 'applyRole', 'initRoleOptions',
+  'switchRole', 'openRolePanel', 'closeRolePanel', 'openPayreqForVendor', 'openReceivableForClient', 'selectRadio',
+  'payreqVendorPickerMouseDown',
+];
+{
+  const inlineNames = [...protectedCurrentFunctions.keys()].sort();
+  const expectedShell = [...SHELL_INLINE_FUNCTIONS].sort();
+  if (JSON.stringify(inlineNames) !== JSON.stringify(expectedShell)) fail(`index.html 內嵌函式應只剩系統骨架：多出 ${inlineNames.filter(n => !expectedShell.includes(n)).join(',') || '無'}；缺少 ${expectedShell.filter(n => !inlineNames.includes(n)).join(',') || '無'}`);
+  const afterLastModule = currentHtml.slice(currentHtml.indexOf('<script src="js/modules/profitshare.js"></script>'));
+  if (/<script(?![^>]*\ssrc=)[^>]*>/.test(afterLastModule)) fail('profitshare.js 之後不應再有 inline script');
 }
 const vdSortKeyPresent = /^let vdSortKey = 'code', vdSortAsc = true;$/m.test(
   fs.readFileSync(path.join(root, 'ops/js/modules/vendors.js'), 'utf8')
@@ -580,5 +635,5 @@ for (const [index, match] of inlineScripts.entries()) {
 }
 
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；19 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；overhead.js 含 ${overheadBaselineList.length} 個開銷函式宣告（依序比對）；profit.js 含 ${expectedProfitFunctionCount} 個儀表板函式、載入位置不變；tax.js 含 ${expectedTaxFunctionCount} 個稅務函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；20 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；overhead.js 含 ${overheadBaselineList.length} 個開銷函式宣告（依序比對）；profit.js 含 ${expectedProfitFunctionCount} 個儀表板函式、載入位置不變；tax.js 含 ${expectedTaxFunctionCount} 個稅務函式；profitshare.js 含 ${expectedProfitshareFunctionCount} 個分潤函式、為最後載入；index.html 只剩 ${SHELL_INLINE_FUNCTIONS.length} 個系統骨架函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
 }
