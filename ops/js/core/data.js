@@ -1969,6 +1969,7 @@ function ensureCodexSeedData() {
   pyNextId = Math.max(pyNextId || 1, maxId(PAYABLES) + 1);
   rvNextId = Math.max(rvNextId || 1, maxId(RECEIVABLES) + 1);
   if (typeof expNextId !== 'undefined') expNextId = Math.max(expNextId || 1, maxId(EXPENSES) + 1);
+  prNextId = Math.max(prNextId || 1, maxId(PAYROLL) + 1);
   CODEX_SEED_PAYROLL.forEach(seed => {
     if (PAYROLL_DELETED_MONTHS.includes(seed.month)) return;
     const row = PAYROLL.find(r => r.person === seed.person && r.month === seed.month);
@@ -2642,6 +2643,12 @@ function applyDataSnapshot(d) {
     PAYROLL_DELETED_MONTHS.length = 0;
     PAYROLL_DELETED_MONTHS.push(...d.PAYROLL_DELETED_MONTHS.filter(prIsValidMonth));
   }
+  // migration（2026-10-06 使用者確認）：2026-07、2026-09 的刪除墓碑是舊版「刪除月份」把月份加回清單後留下的，
+  // 兩個月的 9 筆薪資都是有發放的正確資料。月份裡仍有薪資紀錄時移除墓碑，避免雲端合併把這兩個月從月份清單拿掉。
+  ['2026-07','2026-09'].forEach(month => {
+    const idx = PAYROLL_DELETED_MONTHS.indexOf(month);
+    if (idx >= 0 && PAYROLL.some(r => r.month === month)) PAYROLL_DELETED_MONTHS.splice(idx, 1);
+  });
   if (Array.isArray(d.DELETED_SOURCE_KEYS)) {
     DELETED_SOURCE_KEYS.length = 0;
     DELETED_SOURCE_KEYS.push(...[...new Set(d.DELETED_SOURCE_KEYS.map(String).filter(Boolean))]);
@@ -2660,6 +2667,8 @@ function applyDataSnapshot(d) {
   attNextId = Math.max(Number(attNextId) || 1, Math.max(0, ...ATTENDANCE_RECORDS.map(r => Number(r.id) || 0)) + 1);
   attLeaveNextId = Math.max(Number(attLeaveNextId) || 1, Math.max(0, ...ATTENDANCE_LEAVES.map(r => Number(r.id) || 0)) + 1);
   auditNextId = Math.max(Number(auditNextId) || 1, Math.max(0, ...AUDIT_LOGS.map(r => Number(r.id) || 0)) + 1);
+  // 薪資流水號不在快照裡，載入後依現有最大編號推算，避免新薪資單與舊的編號重複。
+  prNextId = Math.max(Number(prNextId) || 1, Math.max(0, ...PAYROLL.map(r => Number(r.id) || 0)) + 1);
   if (d.expNextId && typeof expNextId !== 'undefined') expNextId = d.expNextId;
   if (d.USER_PERMISSIONS && typeof d.USER_PERMISSIONS === 'object') {
     Object.entries(d.USER_PERMISSIONS).forEach(([uid, perms]) => {
@@ -4043,17 +4052,43 @@ function opsInitGoogleAuth() {
         });
         const profile = await res.json();
         const email = String(profile.email || '').toLowerCase();
-        const user = opsAuthUserByEmail(email);
+        let user = opsAuthUserByEmail(email);
+        let firebaseSignedIn = false;
+        let userFromCloud = false;
+        if (!user && email.endsWith('@yutesign.com')) {
+          // 本機快取／內建名單找不到這位員工（例如之後才在員工管理新增、第一次在這台裝置登入）：
+          // 先以公司帳號登入 Firebase，只讀雲端員工主檔確認是否在職且已開通；不寫入本機快取，未開通就立刻登出。
+          try {
+            await opsFirebaseSignIn(resp.access_token, email);
+            firebaseSignedIn = true;
+            const snap = await opsCloudRef().get();
+            const cloudEmployees = snap.exists() ? (snap.val()?.data?.EMPLOYEES || []) : [];
+            const emp = (Array.isArray(cloudEmployees) ? cloudEmployees : Object.values(cloudEmployees)).find(e =>
+              e && empEffectiveStatus(e) !== '已離職' &&
+              String(e.email || '').trim().toLowerCase() === email &&
+              employeeAccessRole(e) !== 'none'
+            );
+            if (emp) { user = opsUserFromEmployee(emp); userFromCloud = true; }
+          } catch (e) {
+            console.warn('OPS cloud employee lookup failed:', e);
+          }
+        }
         if (!user) {
+          if (firebaseSignedIn) await firebase.auth().signOut().catch(() => {});
           opsAuthSetError(`此帳號尚未開通 OPS：${email || '未知帳號'}`);
           if (window.google?.accounts?.oauth2?.revoke) google.accounts.oauth2.revoke(resp.access_token);
           return;
         }
-        await opsFirebaseSignIn(resp.access_token, email);
+        if (!firebaseSignedIn) await opsFirebaseSignIn(resp.access_token, email);
         localStorage.setItem(OPS_AUTH_SESSION_KEY, JSON.stringify({ email, loginTime: Date.now() }));
         opsAuthSetError('');
         opsUnlockForUser(user, email, { render:false });
         await opsCloudStart();
+        // 從雲端確認身分的新員工：雲端資料（含權限矩陣）套用後重新套用一次權限，選單才會立刻正確。
+        if (userFromCloud) {
+          const refreshedUser = opsAuthUserByEmail(email);
+          if (refreshedUser) { user = refreshedUser; opsUnlockForUser(user, email, { render:false }); }
+        }
         renderAfterDataSettles('login-cloud-ready');
         showToast(`已登入：${user.name}`, 'success');
       } catch(e) {

@@ -41,7 +41,9 @@ const MOCK_FIREBASE = `(() => {
   window.firebase = fb;
   window.__MOCK_FIREBASE = true;
 })();`;
-const MOCK_GSI = `window.google = { accounts: { oauth2: { initTokenClient() { return { requestAccessToken() {} }; }, revoke() {} } } };`;
+// Google Identity Services stub: the token client answers immediately with a mock access token, so a
+// click on 「使用 Google 帳號登入」 runs the app's real login callback (userinfo is answered by the harness).
+const MOCK_GSI = `window.google = { accounts: { oauth2: { initTokenClient(cfg) { return { requestAccessToken() { setTimeout(() => cfg.callback({ access_token: 'mock-access-token' }), 0); } }; }, revoke() { window.__gsiRevoked = (window.__gsiRevoked || 0) + 1; } } } };`;
 
 // Emulates RTDB dropping null values and empty arrays/objects.
 function rtdbPrune(v) {
@@ -117,6 +119,7 @@ export async function createHarness({ label, rootDir, port }) {
       if (url.startsWith('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js')) { mocked.add(url); return route.fulfill({ status: 200, contentType: 'text/javascript', body: MOCK_FIREBASE }); }
       if (url.startsWith('https://www.gstatic.com/firebasejs/10.12.0/')) { mocked.add(url); return route.fulfill({ status: 200, contentType: 'text/javascript', body: '/* mocked */' }); }
       if (url.startsWith('https://accounts.google.com/gsi/client')) { mocked.add(url); return route.fulfill({ status: 200, contentType: 'text/javascript', body: MOCK_GSI }); }
+      if (url.startsWith('https://www.googleapis.com/oauth2/v2/userinfo')) { mocked.add(url); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ email }) }); }
       blocked.push(url);
       return route.abort('blockedbyclient');
     });

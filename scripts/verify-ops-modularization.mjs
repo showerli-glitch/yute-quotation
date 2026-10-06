@@ -127,6 +127,11 @@ const expectedOverhead = [
   overheadBlock.trimEnd(),
 ].join('\n\n');
 const overheadBaselineList = extractFunctions(overheadBlock);
+// claude/fix-known-issues removed the first, inactive ohDeleteFixedItem declaration (known issue #5);
+// the remaining 23 declarations must still match the split baseline in order.
+const overheadRemovedDuplicate = overheadBaselineList.find(item => item.name === 'ohDeleteFixedItem');
+const overheadExpectedList = overheadBaselineList.filter(item => item !== overheadRemovedDuplicate);
+const expectedOverheadAfterFix = expectedOverhead.replace(overheadRemovedDuplicate.source + '\n', '');
 
 const profitBaselineCommit = execFileSync('git', ['rev-parse', 'e602f72^{commit}'], { cwd: root, encoding: 'utf8' }).trim();
 const profitBaselineHtml = execFileSync(
@@ -192,8 +197,12 @@ const POST_SPLIT_CHANGES = {
     changed: ['openAddPayableModal', 'openEditPayableModal'],
   },
   'ops/js/core/data.js': {
-    reason: 'pay-request applicant stored as name also counts as own row (claude/payreq-applicant-fix)',
-    changed: ['userCanViewCaseScopedRow'],
+    reason: 'pay-request applicant stored as name also counts as own row (claude/payreq-applicant-fix); cloud employee lookup at login, payroll tombstone migration and prNextId derivation (claude/fix-known-issues)',
+    changed: ['userCanViewCaseScopedRow', 'opsInitGoogleAuth', 'applyDataSnapshot', 'ensureCodexSeedData'],
+  },
+  'ops/js/modules/payroll.js': {
+    reason: 'deleted payroll month no longer re-added; month deletion audited (claude/fix-known-issues)',
+    changed: ['prDeleteMonth'],
   },
   'ops/js/modules/payreq.js': {
     reason: 'own rejected pay request editable by name; edit modal re-enables save (claude/payreq-applicant-fix)',
@@ -312,9 +321,9 @@ for (const src of scripts) {
                     : baselineFunctions;
   if (src === 'js/modules/overhead.js') {
     const currentList = extractFunctions(code);
-    if (currentList.length !== overheadBaselineList.length) fail(`overhead.js 函式宣告數 ${currentList.length}，基準 ${overheadBaselineList.length}`);
+    if (currentList.length !== overheadExpectedList.length) fail(`overhead.js 函式宣告數 ${currentList.length}，預期 ${overheadExpectedList.length}`);
     currentList.forEach((item, index) => {
-      const original = overheadBaselineList[index];
+      const original = overheadExpectedList[index];
       compared += 1;
       if (!original || item.name !== original.name || item.source !== original.source) fail(`${src} 第 ${index + 1} 個函式 ${item.name} 並非依序逐字搬移`);
     });
@@ -528,7 +537,8 @@ for (const name of payrollBaselineFunctions.keys()) {
 for (const declName of ['PR_CONFIG', 'PAYROLL_EMPLOYEE_ACCOUNTS', 'CODEX_SEED_PAYROLL', 'PAYROLL', 'DEFAULT_PAYROLL_MONTHS', 'PAYROLL_MONTHS', 'PAYROLL_DELETED_MONTHS', 'DELETED_SOURCE_KEYS', 'prNextId', 'prCurrentEmp', 'prRangeExpanded']) {
   if (new RegExp(`^(const|let) ${declName}\\b`, 'm').test(currentHtml)) fail(`薪資資料宣告不應仍留在 index.html：${declName}`);
 }
-verifyExactFile('ops/js/modules/overhead.js', expectedOverhead, 'overhead.js');
+verifyExactFile('ops/js/modules/overhead.js', expectedOverheadAfterFix, 'overhead.js');
+if (expectedOverheadAfterFix === expectedOverhead) fail('overhead.js 應已移除第一個（無作用的）ohDeleteFixedItem');
 if (overheadBaselineList.length !== 24 || overheadBaselineList.filter(item => item.name === 'ohDeleteFixedItem').length !== 2) fail(`overhead.js 基準應有 24 個函式宣告（ohDeleteFixedItem 兩次），實際 ${overheadBaselineList.length}`);
 if (!overheadBlock.includes('// OVERHEAD DATA') || !overheadBlock.includes('const OH_FIXED_ITEMS = [') || !/\nfunction openAddOverheadModal\(\) \{/.test(overheadBlock)) fail('公司開銷基準區塊起訖行不正確');
 const overheadBaselineAllFunctions = new Map(extractFunctions(overheadBaselineHtml).map(item => [item.name, item.source]));
@@ -635,5 +645,5 @@ for (const [index, match] of inlineScripts.entries()) {
 }
 
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；20 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；overhead.js 含 ${overheadBaselineList.length} 個開銷函式宣告（依序比對）；profit.js 含 ${expectedProfitFunctionCount} 個儀表板函式、載入位置不變；tax.js 含 ${expectedTaxFunctionCount} 個稅務函式；profitshare.js 含 ${expectedProfitshareFunctionCount} 個分潤函式、為最後載入；index.html 只剩 ${SHELL_INLINE_FUNCTIONS.length} 個系統骨架函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；20 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；overhead.js 含 ${overheadExpectedList.length} 個開銷函式宣告（依序比對，已移除重複宣告）；profit.js 含 ${expectedProfitFunctionCount} 個儀表板函式、載入位置不變；tax.js 含 ${expectedTaxFunctionCount} 個稅務函式；profitshare.js 含 ${expectedProfitshareFunctionCount} 個分潤函式、為最後載入；index.html 只剩 ${SHELL_INLINE_FUNCTIONS.length} 個系統骨架函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
 }

@@ -172,6 +172,8 @@ function openVendorModal(code) {
   });
   if (v) document.getElementById('vd-f-code').readOnly = true;
   else document.getElementById('vd-f-code').readOnly = false;
+  // 狀態欄是隱藏輸入框，上面的預設值只套用在下拉選單，新增時要另外設為「有效」。
+  if (!v) document.getElementById('vd-f-status').value = '有效';
   document.getElementById('vd-f-disabledDate').value = v?.disabledDate || '';
   vdRefreshStatusForm();
   document.getElementById('vd-delete-btn').style.display = v && canEditVendor(v) ? '' : 'none';

@@ -128,13 +128,20 @@ function prDeleteMonth() {
   const month = sel.value;
   if (!month) return;
   if (!confirm(`確定要刪除「${sel.options[sel.selectedIndex].textContent}」這個月份嗎？\n所有員工該月份的薪資紀錄都會被一併刪除，且無法復原。`)) return;
+  const removedRows = [];
   for (let i = PAYROLL.length - 1; i >= 0; i--) {
-    if (PAYROLL[i].month === month) PAYROLL.splice(i, 1);
+    if (PAYROLL[i].month === month) removedRows.push(...PAYROLL.splice(i, 1));
   }
   const monthIndex = PAYROLL_MONTHS.indexOf(month);
   if (monthIndex >= 0) PAYROLL_MONTHS.splice(monthIndex, 1);
   if (!PAYROLL_DELETED_MONTHS.includes(month)) PAYROLL_DELETED_MONTHS.push(month);
-  prRenderMonthOptions();
+  recordAuditLog('delete', 'payrollMonth', month, { month, rows: auditClone(removedRows) }, null, {
+    riskLevel:'high',
+    targetLabel:`薪資月份 ${month}`,
+    reason:'刪除薪資月份及該月全部薪資紀錄'
+  });
+  // 不能沿用畫面上仍選著的（剛刪掉的）月份重畫選單，否則會把它加回 PAYROLL_MONTHS。
+  prRenderMonthOptions(PAYROLL_MONTHS[0] || currentMonthKey());
   renderPayroll();
   saveData();
   showToast('月份已刪除 ✓','success');

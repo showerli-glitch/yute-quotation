@@ -16,7 +16,7 @@ const [label, rootDir, portArg, outJson] = process.argv.slice(2);
 const PORT = Number(portArg);
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const APP_URL = `${ORIGIN}/ops/`;
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 // ── Static server: serves the unmodified project files read-only ──
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css', '.json':'application/json', '.png':'image/png', '.jpg':'image/jpeg', '.ico':'image/x-icon', '.svg':'image/svg+xml' };

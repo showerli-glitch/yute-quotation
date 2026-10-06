@@ -5,6 +5,7 @@
 //         node scripts/smoke-payroll.mjs <label> <rootDir> <port> <out.json>
 // Frozen clock (2026-10-06 14:00 Taipei) so two runs produce byte-comparable final cloud snapshots.
 // Amounts are re-derived with an independent formula (A + B − C, transfer = net − advance).
+// Checks labelled 「修正後」 assert the payroll fixes on claude/fix-known-issues (month deletion, prNextId, tombstone migration).
 import { createHarness } from './smoke-lib.mjs';
 
 const [label, rootDir, portArg, outJson] = process.argv.slice(2);
@@ -146,7 +147,8 @@ confirmAnswer = true;
 await page.evaluate(() => { PAYROLL.push({ id: prNextId++, person: 'peng', month: '2026-12', baseSalary: 1, customItems: [] }); });
 await page.click('#btn-payroll-delete-month');
 check('刪除月份：該月薪資紀錄刪除、記入刪除月份墓碑', !(await page.evaluate(() => PAYROLL.some(r => r.month === '2026-12'))) && (await page.evaluate(() => PAYROLL_DELETED_MONTHS.includes('2026-12'))) && (await lastToast(page)) === '月份已刪除 ✓');
-check('既有問題現況：刪除的月份又被加回月份清單（選單仍顯示）', (await page.evaluate(() => PAYROLL_MONTHS.includes('2026-12'))) && (await page.inputValue('#pr-filter-month')) === '2026-12');
+const afterDel = await page.evaluate(() => ({ listed: PAYROLL_MONTHS.includes('2026-12'), sel: document.getElementById('pr-filter-month').value, first: PAYROLL_MONTHS[0], audit: AUDIT_LOGS[0] && { action: AUDIT_LOGS[0].action, type: AUDIT_LOGS[0].targetType, id: AUDIT_LOGS[0].targetId, rows: (AUDIT_LOGS[0].before?.rows || []).length } }));
+check('修正後：刪除的月份不再出現在清單、選單改選其他月份、寫審計', !afterDel.listed && afterDel.sel !== '2026-12' && afterDel.sel === afterDel.first && afterDel.audit?.action === 'delete' && afterDel.audit.type === 'payrollMonth' && afterDel.audit.id === '2026-12' && afterDel.audit.rows === 1, afterDel);
 
 // attendance → payroll draft link
 await nav(page, 'attendance');
@@ -210,9 +212,18 @@ const s2 = await snap();
 if (s2 !== s1) { const a = JSON.parse(s1), b = JSON.parse(s2); const diffs = []; const walk = (x, y, path) => { if (JSON.stringify(x) === JSON.stringify(y)) return; if (x && y && typeof x === 'object' && typeof y === 'object') new Set([...Object.keys(x), ...Object.keys(y)]).forEach(k => walk(x[k], y[k], path + '.' + k)); else diffs.push(`${path}: ${JSON.stringify(x)} → ${JSON.stringify(y)}`); }; walk(a, b, ''); console.log('RELOAD-DIFF', diffs.slice(0, 10).join(' | ')); }
 check('重新載入後薪資／月份／刪除墓碑／提領／帳戶一樣', s2 === s1);
 const ids = await page.evaluate(() => ({ next: prNextId, maxId: Math.max(...PAYROLL.map(r => Number(r.id) || 0)) }));
-check('既有問題現況：薪資流水號沒有存檔，重新載入後回到 1（小於現有最大編號）', ids.next === 1 && ids.maxId > 1, ids);
+check('修正後：重新載入後薪資流水號 = 現有最大編號 + 1', ids.next === ids.maxId + 1, ids);
+// tombstone migration: a tombstoned month that still has payroll rows (2026-07) is restored; one without rows (2026-09) and others stay
+await ctx.close();
+H.state.cloud.data.PAYROLL.push({ id: 9001, person: 'peng', month: '2026-07', baseSalary: 35000 });
+H.state.cloud.data.PAYROLL_MONTHS = [...new Set([...(H.state.cloud.data.PAYROLL_MONTHS || []), '2026-07', '2026-09'])];
+H.state.cloud.data.PAYROLL_DELETED_MONTHS = ['2026-07', '2026-09', '2026-12'];
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW });
+page = await openApp(ctx);
+const tomb = await page.evaluate(() => ({ deleted: PAYROLL_DELETED_MONTHS.slice().sort(), rows0709: PAYROLL.filter(r => ['2026-07', '2026-09'].includes(r.month)).length }));
+check('遷移：2026-07 有薪資紀錄 → 移除刪除標記；2026-09 無紀錄與其他月份保留', JSON.stringify(tomb.deleted) === JSON.stringify(['2026-09', '2026-12']) && tomb.rows0709 === 1, tomb);
 const after = await counts(page);
-check('其他集合不變；PAYROLL +2、PAYABLES +1（提領）', ['CASES', 'RECEIVABLES', 'EXPENSES', 'CLIENTS', 'VENDORS', 'ATTENDANCE_RECORDS'].every(k => after[k] === before[k]) && after.PAYROLL === before.PAYROLL + 2 && after.PAYABLES === before.PAYABLES + 1, { before, after });
+check('其他集合不變；PAYROLL +3（含遷移測試 1 筆）、PAYABLES +1（提領）', ['CASES', 'RECEIVABLES', 'EXPENSES', 'CLIENTS', 'VENDORS', 'ATTENDANCE_RECORDS'].every(k => after[k] === before[k]) && after.PAYROLL === before.PAYROLL + 3 && after.PAYABLES === before.PAYABLES + 1, { before, after });
 await ctx.close();
 
 const fails = await H.finish(outJson, { finalCloudData: JSON.parse(JSON.stringify(H.state.cloud?.data || {})) });

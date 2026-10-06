@@ -329,10 +329,6 @@ function ohResolveFixedExpenseReview(month, item, action) {
   saveData();
   showToast(action === 'adopt' ? '已改用費用申請核准合計' : '已保留目前金額，不再提示這列', 'success');
 }
-function ohDeleteFixedItem(idx) {
-  if (!requireManage('overhead')) return;
-  showToast('固定支出項目刪除已停用，避免移除歷史資料','error');
-}
 function ohRenameFixedItem(idx) {
   if (!requireManage('overhead')) return;
   const oldName = OH_FIXED_CONFIG[idx];
