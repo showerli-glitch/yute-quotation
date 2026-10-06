@@ -69,7 +69,8 @@ function prRenderMonthOptions(preferredMonth) {
   if (!sel) return;
   const current = preferredMonth || sel.value || currentMonthKey();
   const monthSet = new Set(PAYROLL_MONTHS.filter(prIsValidMonth));
-  if (prIsValidMonth(current)) monthSet.add(current);
+  // 已刪除的月份（含預設帶入的本月）不要再自動加回清單，否則月份會同時出現在清單與刪除紀錄裡。
+  if (prIsValidMonth(current) && !PAYROLL_DELETED_MONTHS.includes(current)) monthSet.add(current);
   const months = [...monthSet].sort((a,b) => b.localeCompare(a));
   PAYROLL_MONTHS.length = 0;
   PAYROLL_MONTHS.push(...months);
@@ -113,6 +114,9 @@ function submitPayrollMonth() {
   const month = document.getElementById('pr-new-month')?.value || '';
   if (!prIsValidMonth(month)) { showToast('請選擇正確月份', 'error'); return; }
   if (PAYROLL_MONTHS.includes(month)) { alert('此月份已存在'); prRenderMonthOptions(month); renderPayroll(); return; }
+  // 手動重新新增曾刪除的月份：移除刪除紀錄，月份才會留在清單上。
+  const deletedIndex = PAYROLL_DELETED_MONTHS.indexOf(month);
+  if (deletedIndex >= 0) PAYROLL_DELETED_MONTHS.splice(deletedIndex, 1);
   PAYROLL_MONTHS.push(month);
   prRenderMonthOptions(month);
   closeModal('modal-payroll-month');
@@ -127,6 +131,7 @@ function prDeleteMonth() {
   if (!sel) return;
   const month = sel.value;
   if (!month) return;
+  if (PAYROLL_MONTHS.filter(m => m !== month).length === 0) { alert('至少要保留一個薪資月份，無法刪除最後一個月份。'); return; }
   if (!confirm(`確定要刪除「${sel.options[sel.selectedIndex].textContent}」這個月份嗎？\n所有員工該月份的薪資紀錄都會被一併刪除，且無法復原。`)) return;
   const removedRows = [];
   for (let i = PAYROLL.length - 1; i >= 0; i--) {
@@ -141,7 +146,7 @@ function prDeleteMonth() {
     reason:'刪除薪資月份及該月全部薪資紀錄'
   });
   // 不能沿用畫面上仍選著的（剛刪掉的）月份重畫選單，否則會把它加回 PAYROLL_MONTHS。
-  prRenderMonthOptions(PAYROLL_MONTHS[0] || currentMonthKey());
+  prRenderMonthOptions(PAYROLL_MONTHS[0]);
   renderPayroll();
   saveData();
   showToast('月份已刪除 ✓','success');

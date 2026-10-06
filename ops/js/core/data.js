@@ -2643,12 +2643,10 @@ function applyDataSnapshot(d) {
     PAYROLL_DELETED_MONTHS.length = 0;
     PAYROLL_DELETED_MONTHS.push(...d.PAYROLL_DELETED_MONTHS.filter(prIsValidMonth));
   }
-  // migration（2026-10-06 使用者確認）：2026-07、2026-09 的刪除墓碑是舊版「刪除月份」把月份加回清單後留下的，
-  // 兩個月的 9 筆薪資都是有發放的正確資料。月份裡仍有薪資紀錄時移除墓碑，避免雲端合併把這兩個月從月份清單拿掉。
-  ['2026-07','2026-09'].forEach(month => {
-    const idx = PAYROLL_DELETED_MONTHS.indexOf(month);
-    if (idx >= 0 && PAYROLL.some(r => r.month === month)) PAYROLL_DELETED_MONTHS.splice(idx, 1);
-  });
+  // migration（2026-10-06 使用者確認）：見 opsDropRecoveredPayrollTombstones。
+  // 同時改寫傳入的 d，讓本機快取與雲端合併基準（opsCloudBaseSnapshot）也是修正後的內容。
+  opsDropRecoveredPayrollTombstones(PAYROLL_DELETED_MONTHS, PAYROLL);
+  if (Array.isArray(d.PAYROLL_DELETED_MONTHS)) opsDropRecoveredPayrollTombstones(d.PAYROLL_DELETED_MONTHS, d.PAYROLL || PAYROLL);
   if (Array.isArray(d.DELETED_SOURCE_KEYS)) {
     DELETED_SOURCE_KEYS.length = 0;
     DELETED_SOURCE_KEYS.push(...[...new Set(d.DELETED_SOURCE_KEYS.map(String).filter(Boolean))]);
@@ -3122,6 +3120,7 @@ function opsCloudMergePayrollExtras(merged, baseData, localData, remoteData, mer
     ...(remoteData?.PAYROLL_DELETED_MONTHS || []),
     ...(localData?.PAYROLL_DELETED_MONTHS || [])
   ].filter(prIsValidMonth))].sort((a,b) => b.localeCompare(a));
+  opsDropRecoveredPayrollTombstones(deletedMonths, mergedRows);
   const deletedSet = new Set(deletedMonths);
   const months = new Set([
     ...(remoteData?.PAYROLL_MONTHS || []),
@@ -3999,6 +3998,8 @@ function opsUnlockForUser(user, email = '', options = {}) {
 }
 
 function opsInitGoogleAuth() {
+  // 登入按鈕在 HTML 預設停用（避免程式還沒載入完就被點，出現 opsStartGoogleLogin is not defined），載入完成才開放。
+  if (document.getElementById('ops-login-btn')?.textContent === '載入中...') opsAuthSetLoading(false);
   if (!OPS_AUTH_ENFORCED) {
     opsUnlockForUser(USERS[0], 'local-dev');
     return;
@@ -4052,43 +4053,17 @@ function opsInitGoogleAuth() {
         });
         const profile = await res.json();
         const email = String(profile.email || '').toLowerCase();
-        let user = opsAuthUserByEmail(email);
-        let firebaseSignedIn = false;
-        let userFromCloud = false;
-        if (!user && email.endsWith('@yutesign.com')) {
-          // 本機快取／內建名單找不到這位員工（例如之後才在員工管理新增、第一次在這台裝置登入）：
-          // 先以公司帳號登入 Firebase，只讀雲端員工主檔確認是否在職且已開通；不寫入本機快取，未開通就立刻登出。
-          try {
-            await opsFirebaseSignIn(resp.access_token, email);
-            firebaseSignedIn = true;
-            const snap = await opsCloudRef().get();
-            const cloudEmployees = snap.exists() ? (snap.val()?.data?.EMPLOYEES || []) : [];
-            const emp = (Array.isArray(cloudEmployees) ? cloudEmployees : Object.values(cloudEmployees)).find(e =>
-              e && empEffectiveStatus(e) !== '已離職' &&
-              String(e.email || '').trim().toLowerCase() === email &&
-              employeeAccessRole(e) !== 'none'
-            );
-            if (emp) { user = opsUserFromEmployee(emp); userFromCloud = true; }
-          } catch (e) {
-            console.warn('OPS cloud employee lookup failed:', e);
-          }
-        }
+        const user = opsAuthUserByEmail(email);
         if (!user) {
-          if (firebaseSignedIn) await firebase.auth().signOut().catch(() => {});
           opsAuthSetError(`此帳號尚未開通 OPS：${email || '未知帳號'}`);
           if (window.google?.accounts?.oauth2?.revoke) google.accounts.oauth2.revoke(resp.access_token);
           return;
         }
-        if (!firebaseSignedIn) await opsFirebaseSignIn(resp.access_token, email);
+        await opsFirebaseSignIn(resp.access_token, email);
         localStorage.setItem(OPS_AUTH_SESSION_KEY, JSON.stringify({ email, loginTime: Date.now() }));
         opsAuthSetError('');
         opsUnlockForUser(user, email, { render:false });
         await opsCloudStart();
-        // 從雲端確認身分的新員工：雲端資料（含權限矩陣）套用後重新套用一次權限，選單才會立刻正確。
-        if (userFromCloud) {
-          const refreshedUser = opsAuthUserByEmail(email);
-          if (refreshedUser) { user = refreshedUser; opsUnlockForUser(user, email, { render:false }); }
-        }
         renderAfterDataSettles('login-cloud-ready');
         showToast(`已登入：${user.name}`, 'success');
       } catch(e) {
@@ -4179,4 +4154,19 @@ function initSidebarStatusResizer() {
   resizer.addEventListener('pointerup', stop);
   resizer.addEventListener('pointercancel', stop);
   window.addEventListener('resize', () => applyHeight(currentHeight()));
+}
+
+// ── Post-split additions (not part of the verbatim move) ──
+
+// 2026-07、2026-09 的薪資月份刪除墓碑是舊版「刪除月份」把月份加回清單後留下的（2026-10-06 使用者確認：
+// 兩個月的 9 筆薪資都是有發放的正確資料）。月份裡仍有薪資紀錄時移除墓碑（就地修改陣列），
+// 避免雲端合併把這兩個月從月份清單拿掉。載入快照與雲端合併都要套用，舊版用戶端寫回的墓碑才不會復活。
+function opsDropRecoveredPayrollTombstones(deletedMonths, rows) {
+  if (!Array.isArray(deletedMonths)) return deletedMonths;
+  const list = Array.isArray(rows) ? rows : Object.values(rows || {});
+  ['2026-07','2026-09'].forEach(month => {
+    const idx = deletedMonths.indexOf(month);
+    if (idx >= 0 && list.some(r => r?.month === month)) deletedMonths.splice(idx, 1);
+  });
+  return deletedMonths;
 }

@@ -155,27 +155,31 @@ await ctx.close();
 // ═══════════ B: the new employee logs in (mock) and gets the saved permissions ═══════════
 H.setScenario('B-new-employee(qa.new)');
 // Fresh browser (no local cache): the local seed does not know the new employee, so the session is not
-// restored and the login screen shows. Fixed on claude/fix-known-issues: pressing 「使用 Google 帳號登入」
-// now confirms the employee against the cloud EMPLOYEES list and signs them in.
+// restored and the login screen shows. Pressing 「使用 Google 帳號登入」 is still refused: the cloud employee
+// lookup tried on claude/fix-known-issues was withdrawn after the Codex review (P1: an unlisted company account
+// would read the whole snapshot before being refused). Known issue #1 stays open until a rules-level allowlist exists.
+// The login button starts disabled in HTML and is enabled once the scripts have loaded.
 const loginFresh = async email => {
   const c = await newContext(email, { fixedTime: NOW });
   const pg = await c.newPage();
   await pg.goto(`http://127.0.0.1:${portArg}/ops/`, { waitUntil: 'load' });
   await pg.waitForTimeout(1500);
   const pending0 = await pg.evaluate(() => document.body.classList.contains('auth-pending'));
+  const btn0 = await pg.evaluate(() => { const b = document.getElementById('ops-login-btn'); return { disabled: b.disabled, text: b.textContent }; });
   await pg.click('#ops-login-btn');
   await pg.waitForFunction(() => !document.body.classList.contains('auth-pending') || (document.getElementById('ops-auth-error')?.textContent || '').length > 0, null, { timeout: 15000 }).catch(() => {});
   await pg.waitForTimeout(1200);
-  return { c, pg, pending0 };
+  return { c, pg, pending0, btn0 };
 };
 let lf = await loginFresh(QA_EMAIL);
 const fresh = await lf.pg.evaluate(() => ({ unlocked: !document.body.classList.contains('auth-pending'), email: opsAuthenticatedEmail, name: currentUser?.name, clients: permissionLevel('clients'), canCreate: canCreateCase(), newClientBtn: getComputedStyle(document.getElementById('btn-new-client')).display !== 'none', empNav: getComputedStyle(document.getElementById('nav-employees')).display, cloudReady: opsCloudReady, cached: !!localStorage.getItem('yutesign_ops_v2') }));
-check('修正後：新員工在全新瀏覽器按登入可進入（雲端確認身分）', lf.pending0 && fresh.unlocked && fresh.email === QA_EMAIL && fresh.name === 'QA新人' && fresh.cloudReady && fresh.cached, fresh);
-check('修正後：登入後立即套用雲端權限（新增客戶可見、員工頁隱藏）', fresh.clients === 'manage' && fresh.canCreate === true && fresh.newClientBtn && fresh.empNav === 'none', fresh);
+const freshHtml = await lf.pg.evaluate(() => document.getElementById('ops-auth-error').textContent);
+check('修正後：登入按鈕在程式載入完成後才可點（載入後為可點、文字還原）', lf.btn0.disabled === false && lf.btn0.text === '使用 Google 帳號登入', lf.btn0);
+check('已知問題 #1（暫不修）：新員工在全新瀏覽器按登入仍被拒絕、不讀雲端、不留快取', lf.pending0 && !fresh.unlocked && !fresh.email && !fresh.cloudReady && !fresh.cached && freshHtml === '此帳號尚未開通 OPS：qa.new@yutesign.com', { ...fresh, error: freshHtml });
 await lf.c.close();
 lf = await loginFresh('nobody@yutesign.com');
 const nobody = await lf.pg.evaluate(() => ({ pending: document.body.classList.contains('auth-pending'), error: document.getElementById('ops-auth-error').textContent, fbUser: firebase.auth().currentUser, cached: localStorage.getItem('yutesign_ops_v2'), session: localStorage.getItem('yutesign_ops_auth_session'), revoked: window.__gsiRevoked || 0 }));
-check('非員工的公司帳號：拒絕、登出 Firebase、不留本機快取', nobody.pending && nobody.error === '此帳號尚未開通 OPS：nobody@yutesign.com' && nobody.fbUser === null && nobody.cached === null && nobody.revoked === 1, nobody);
+check('非員工的公司帳號：拒絕、撤銷 Google token、不留本機快取', nobody.pending && nobody.error === '此帳號尚未開通 OPS：nobody@yutesign.com' && nobody.cached === null && nobody.revoked === 1, nobody);
 await lf.c.close();
 lf = await loginFresh('someone@gmail.com');
 const outsider = await lf.pg.evaluate(() => ({ pending: document.body.classList.contains('auth-pending'), error: document.getElementById('ops-auth-error').textContent, cached: localStorage.getItem('yutesign_ops_v2') }));
@@ -249,7 +253,7 @@ await ctx.close();
 H.setScenario('E-departed-login(qa.new)');
 lf = await loginFresh(QA_EMAIL);
 const departed = await lf.pg.evaluate(() => ({ pending: document.body.classList.contains('auth-pending'), email: opsAuthenticatedEmail, error: document.getElementById('ops-auth-error').textContent, fbUser: firebase.auth().currentUser, cached: localStorage.getItem('yutesign_ops_v2') }));
-check('已離職員工：按登入也被拒絕（雲端確認已離職）、不留快取', departed.pending && !departed.email && departed.error === '此帳號尚未開通 OPS：qa.new@yutesign.com' && departed.fbUser === null && departed.cached === null, departed);
+check('已離職員工：按登入也被拒絕、不留快取', departed.pending && !departed.email && departed.error === '此帳號尚未開通 OPS：qa.new@yutesign.com' && departed.cached === null, departed);
 await lf.c.close();
 
 const fails = await H.finish(outJson, { finalCloudData: JSON.parse(JSON.stringify(H.state.cloud?.data || {})) });

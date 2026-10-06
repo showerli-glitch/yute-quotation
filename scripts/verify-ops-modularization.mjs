@@ -197,12 +197,13 @@ const POST_SPLIT_CHANGES = {
     changed: ['openAddPayableModal', 'openEditPayableModal'],
   },
   'ops/js/core/data.js': {
-    reason: 'pay-request applicant stored as name also counts as own row (claude/payreq-applicant-fix); cloud employee lookup at login, payroll tombstone migration and prNextId derivation (claude/fix-known-issues)',
-    changed: ['userCanViewCaseScopedRow', 'opsInitGoogleAuth', 'applyDataSnapshot', 'ensureCodexSeedData'],
+    reason: 'pay-request applicant stored as name also counts as own row (claude/payreq-applicant-fix); login button enabled after load, payroll tombstone migration (snapshot + cloud merge) and prNextId derivation (claude/fix-known-issues)',
+    changed: ['userCanViewCaseScopedRow', 'opsInitGoogleAuth', 'applyDataSnapshot', 'ensureCodexSeedData', 'opsCloudMergePayrollExtras'],
+    appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
   },
   'ops/js/modules/payroll.js': {
-    reason: 'deleted payroll month no longer re-added; month deletion audited (claude/fix-known-issues)',
-    changed: ['prDeleteMonth'],
+    reason: 'deleted payroll month no longer re-added; last month cannot be deleted; re-adding a deleted month clears its tombstone; month deletion audited (claude/fix-known-issues)',
+    changed: ['prDeleteMonth', 'prRenderMonthOptions', 'submitPayrollMonth'],
   },
   'ops/js/modules/payreq.js': {
     reason: 'own rejected pay request editable by name; edit modal re-enables save (claude/payreq-applicant-fix)',

@@ -5,7 +5,8 @@
 //         node scripts/smoke-payroll.mjs <label> <rootDir> <port> <out.json>
 // Frozen clock (2026-10-06 14:00 Taipei) so two runs produce byte-comparable final cloud snapshots.
 // Amounts are re-derived with an independent formula (A + B − C, transfer = net − advance).
-// Checks labelled 「修正後」 assert the payroll fixes on claude/fix-known-issues (month deletion, prNextId, tombstone migration).
+// Checks labelled 「修正後」 assert the payroll fixes on claude/fix-known-issues (month deletion, prNextId, tombstone migration,
+// and the Codex review follow-ups: migration reaches cache/merge base and survives an old client's write; current/last month deletion).
 import { createHarness } from './smoke-lib.mjs';
 
 const [label, rootDir, portArg, outJson] = process.argv.slice(2);
@@ -224,6 +225,52 @@ const tomb = await page.evaluate(() => ({ deleted: PAYROLL_DELETED_MONTHS.slice(
 check('遷移：2026-07 有薪資紀錄 → 移除刪除標記；2026-09 無紀錄與其他月份保留', JSON.stringify(tomb.deleted) === JSON.stringify(['2026-09', '2026-12']) && tomb.rows0709 === 1, tomb);
 const after = await counts(page);
 check('其他集合不變；PAYROLL +3（含遷移測試 1 筆）、PAYABLES +1（提領）', ['CASES', 'RECEIVABLES', 'EXPENSES', 'CLIENTS', 'VENDORS', 'ATTENDANCE_RECORDS'].every(k => after[k] === before[k]) && after.PAYROLL === before.PAYROLL + 3 && after.PAYABLES === before.PAYABLES + 1, { before, after });
+
+// Codex P2: the migration must also reach the local cache and the cloud merge base, and an old client that writes the
+// 2026-07 tombstone back first must not make it reappear through the three-way merge.
+const migratedBase = await page.evaluate(() => ({ base: (opsCloudBaseSnapshot?.PAYROLL_DELETED_MONTHS || []).slice().sort(), cache: (JSON.parse(localStorage.getItem('yutesign_ops_v2') || '{}').PAYROLL_DELETED_MONTHS || []).slice().sort() }));
+check('修正後：遷移同時套用到本機快取與雲端合併基準', JSON.stringify(migratedBase.base) === JSON.stringify(['2026-09', '2026-12']) && JSON.stringify(migratedBase.cache) === JSON.stringify(['2026-09', '2026-12']), migratedBase);
+// The full conflict path is not driven here: like real RTDB, the mock drops empty arrays, so the cloud base differs from
+// createDataSnapshot() outside PAYROLL and the app (unchanged behaviour) shows the conflict dialog instead of merging.
+// The PAYROLL three-way merge itself is called directly with an old client's remote that still carries the tombstone.
+const merged = await page.evaluate(() => {
+  const cfg = OPS_CLOUD_ROW_MERGE_CONFIGS.find(c => c.collection === 'PAYROLL');
+  // base = this client's migrated state (same shape as createDataSnapshot, so only PAYROLL differs locally)
+  const base = opsCloudClone(createDataSnapshot());
+  const local = opsCloudClone(base);
+  local.PAYROLL = [...local.PAYROLL, { id: 9100, person: 'peng', month: '2026-08', baseSalary: 1, customItems: [] }];
+  const remote = opsCloudClone(base);
+  remote.PAYROLL_DELETED_MONTHS = ['2026-07', '2026-09', '2026-12'];
+  remote.PAYROLL_MONTHS = (remote.PAYROLL_MONTHS || []).filter(m => m !== '2026-07');
+  const out = opsCloudMergeSingleCollection(base, local, remote, cfg);
+  return { ok: out.ok, deleted: (out.data?.PAYROLL_DELETED_MONTHS || []).slice().sort(), has07: (out.data?.PAYROLL_MONTHS || []).includes('2026-07'), row08: (out.data?.PAYROLL || []).some(r => r && r.id === 9100) };
+});
+check('修正後：舊版用戶端寫回 2026-07 墓碑，薪資三方合併後墓碑不復活、月份保留', merged.ok && JSON.stringify(merged.deleted) === JSON.stringify(['2026-09', '2026-12']) && merged.has07 && merged.row08, merged);
+
+// Codex P3: deleting the current month must not re-add it; the last remaining month cannot be deleted.
+const p3dialogs = [];
+page.on('dialog', d => { p3dialogs.push(d.message()); return d.accept(); });
+await nav(page, 'payroll');
+await page.evaluate(() => { prRenderMonthOptions('2026-10'); document.getElementById('pr-filter-month').value = '2026-10'; });
+await page.click('#btn-payroll-delete-month');
+await page.evaluate(() => prRenderMonthOptions(currentMonthKey()));
+const curDel = await page.evaluate(() => ({ listed: PAYROLL_MONTHS.includes('2026-10'), deleted: PAYROLL_DELETED_MONTHS.includes('2026-10'), sel: document.getElementById('pr-filter-month').value }));
+check('修正後：刪除本月後再以本月為預設重畫選單，本月不會被加回清單', !curDel.listed && curDel.deleted && curDel.sel !== '2026-10' && curDel.sel !== '', curDel);
+await page.evaluate(() => { document.getElementById('pr-new-month').value = '2026-10'; submitPayrollMonth(); });
+const readd = await page.evaluate(() => ({ listed: PAYROLL_MONTHS.includes('2026-10'), deleted: PAYROLL_DELETED_MONTHS.includes('2026-10') }));
+check('修正後：手動重新新增曾刪除的月份，移除刪除紀錄', readd.listed && !readd.deleted, readd);
+const lastMonth = await page.evaluate(() => {
+  const keep = PAYROLL_MONTHS.slice();
+  PAYROLL_MONTHS.splice(0, PAYROLL_MONTHS.length, '2026-10');
+  prRenderMonthOptions('2026-10');
+  const rowsBefore = PAYROLL.length;
+  prDeleteMonth();
+  const out = { listed: PAYROLL_MONTHS.includes('2026-10'), rowsSame: PAYROLL.length === rowsBefore };
+  PAYROLL_MONTHS.splice(0, PAYROLL_MONTHS.length, ...keep);
+  prRenderMonthOptions('2026-10');
+  return out;
+});
+check('修正後：只剩一個月份時不能刪除（提示至少保留一個月份）', lastMonth.listed && lastMonth.rowsSame && p3dialogs.includes('至少要保留一個薪資月份，無法刪除最後一個月份。'), { lastMonth, p3dialogs });
 await ctx.close();
 
 const fails = await H.finish(outJson, { finalCloudData: JSON.parse(JSON.stringify(H.state.cloud?.data || {})) });
