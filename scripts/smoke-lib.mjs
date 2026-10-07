@@ -27,6 +27,10 @@ const MOCK_FIREBASE = `(() => {
       const stored = await window.__mockRtdbSet(p, JSON.parse(JSON.stringify(v)));
       listeners.filter(l => l.p === p).forEach(l => setTimeout(() => l.cb(snap(stored)), 0));
     },
+    async update(obj) {
+      const stored = await window.__mockRtdbUpdate(p, JSON.parse(JSON.stringify(obj)));
+      listeners.filter(l => l.p === p).forEach(l => setTimeout(() => l.cb(snap(stored)), 0));
+    },
     on(evt, cb) { listeners.push({ p, cb }); window.__mockRtdbGet(p).then(v => cb(snap(v))); return cb; },
     off() { for (let i = listeners.length - 1; i >= 0; i--) if (listeners[i].p === p) listeners.splice(i, 1); },
   });
@@ -76,7 +80,7 @@ export async function createHarness({ label, rootDir, port }) {
   });
   await new Promise(r => server.listen(port, '127.0.0.1', r));
 
-  const state = { cloud: null, scenario: '', driveFiles: [] };
+  const state = { cloud: null, scenario: '', driveFiles: [], rtdb: {}, rtdbFail: false };
   const results = [];
   const consoleLog = [];
   const blocked = [];
@@ -92,11 +96,27 @@ export async function createHarness({ label, rootDir, port }) {
   async function newContext(email, { fixedTime, geolocation, serviceWorkers = 'block' } = {}) {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'zh-TW', timezoneId: 'Asia/Taipei', serviceWorkers, geolocation, permissions: geolocation ? ['geolocation'] : [] });
     if (fixedTime) await ctx.clock.setFixedTime(fixedTime);
-    await ctx.exposeFunction('__mockRtdbGet', p => (p === 'ops/yutesign/snapshot' ? state.cloud : null));
+    // ops/yutesign/snapshot is the OPS cloud; quotation/... is a small path tree for the quotation system's shared
+    // item prices. Any other path is a bug and throws.
+    const treeGet = p => p.split('/').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), state.rtdb) ?? null;
+    const treeSet = (p, v) => {
+      const keys = p.split('/'); let o = state.rtdb;
+      keys.slice(0, -1).forEach(k => { if (!o[k] || typeof o[k] !== 'object') o[k] = {}; o = o[k]; });
+      const pruned = rtdbPrune(v);
+      if (pruned === undefined) delete o[keys[keys.length - 1]]; else o[keys[keys.length - 1]] = pruned;
+    };
+    await ctx.exposeFunction('__mockRtdbGet', p => (p === 'ops/yutesign/snapshot' ? state.cloud : p.startsWith('quotation/') ? treeGet(p) : null));
     await ctx.exposeFunction('__mockRtdbSet', (p, v) => {
+      if (p.startsWith('quotation/')) { treeSet(p, v); return treeGet(p); }
       if (p !== 'ops/yutesign/snapshot') throw new Error('unexpected path ' + p);
       state.cloud = rtdbPrune(v);
       return state.cloud;
+    });
+    await ctx.exposeFunction('__mockRtdbUpdate', (p, obj) => {
+      if (!p.startsWith('quotation/')) throw new Error('unexpected update path ' + p);
+      if (state.rtdbFail) throw new Error('PERMISSION_DENIED (mock offline)');
+      Object.entries(obj || {}).forEach(([k, v]) => treeSet(p + '/' + k, v));
+      return treeGet(p);
     });
     await ctx.addInitScript(({ email }) => {
       window.__MOCK_AUTH_EMAIL = email;

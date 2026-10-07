@@ -28,7 +28,7 @@ const POST_SPLIT_CHANGES = {
 const HTML_CHANGES = [
   ['<link rel="apple-touch-icon" href="https://showerli-glitch.github.io/yute-quotation/favicon.png?v=202606222000">',
    '<link rel="manifest" href="quotation.webmanifest">\n<meta name="theme-color" content="#123D33">\n<meta name="mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-title" content="宇德報價">\n<meta name="apple-mobile-web-app-status-bar-style" content="default">\n<link rel="apple-touch-icon" href="quotation/icons/apple-touch-icon.png">'],
-  ['<script src="quotation/js/app.js"></script>\n', '<script src="quotation/js/app.js"></script>\n<script src="quotation/js/pwa.js"></script>\n<script src="quotation/js/mobile.js"></script>\n'],
+  ['<script src="quotation/js/app.js"></script>\n', '<script src="quotation/js/app.js"></script>\n<script src="quotation/js/pwa.js"></script>\n<script src="quotation/js/mobile.js"></script>\n<script src="quotation/js/pricesync.js"></script>\n'],
   ['<link rel="stylesheet" href="quotation/styles/quotation.css">\n', '<link rel="stylesheet" href="quotation/styles/quotation.css">\n<link rel="stylesheet" href="quotation/styles/mobile.css">\n'],
 ];
 

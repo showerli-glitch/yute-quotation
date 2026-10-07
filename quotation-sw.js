@@ -3,7 +3,7 @@
 // service worker with the narrower /ops/ scope) is never affected. Same strategy as ops/sw.js: same-origin
 // files network-first and always revalidated, the cache only as the offline fallback; versioned third-party
 // libraries cache-first; Google login, Drive and Firebase never touched.
-const SW_VERSION = '2026-10-07.3';
+const SW_VERSION = '2026-10-08.1';
 const CACHE = 'quotation-shell-' + SW_VERSION;
 const SHELL = [
   './',
@@ -11,7 +11,7 @@ const SHELL = [
   'quotation.webmanifest',
   'quotation/styles/quotation.css', 'quotation/styles/mobile.css',
   'quotation/js/boot.js', 'quotation/js/defaultitems.js', 'quotation/js/items.js', 'quotation/js/quote.js',
-  'quotation/js/output.js', 'quotation/js/app.js', 'quotation/js/pwa.js', 'quotation/js/mobile.js', 'quotation/js/shell.js',
+  'quotation/js/output.js', 'quotation/js/app.js', 'quotation/js/pwa.js', 'quotation/js/mobile.js', 'quotation/js/pricesync.js', 'quotation/js/shell.js',
   'quotation/icons/icon-192.png', 'quotation/icons/icon-512.png', 'quotation/icons/apple-touch-icon.png',
 ];
 
