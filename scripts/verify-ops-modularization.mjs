@@ -4,7 +4,10 @@ import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
 
 const root = process.cwd();
-const currentHtml = fs.readFileSync(path.join(root, 'ops/index.html'), 'utf8');
+import { opsContentHash, stripStamps } from './ops-version.mjs';
+const rawCurrentHtml = fs.readFileSync(path.join(root, 'ops/index.html'), 'utf8');
+// Cache-busting stamps (?v=<hash>) are removed before every structural comparison below.
+const currentHtml = stripStamps(rawCurrentHtml);
 const baselineHtml = execFileSync(
   'git',
   ['show', 'pre-refactor-baseline-20260922:ops/index.html'],
@@ -646,6 +649,15 @@ for (const [index, match] of inlineScripts.entries()) {
   catch (error) { fail(`ops/index.html inline script 語法錯誤：${error.message}`); }
 }
 
+{
+  // Cache-busting stamp: every local script, the mobile stylesheet and the manifest carry ?v=<hash of ops/>.
+  const expectedStamp = opsContentHash(root);
+  const refs = [...rawCurrentHtml.matchAll(/(?:src="js\/[^"?]+\.js|href="styles\/[^"?]+\.css|href="manifest\.webmanifest)(\?v=[0-9a-f]{8})?"/g)];
+  const unstamped = refs.filter(m => !m[1]);
+  const stale = refs.filter(m => m[1] && m[1] !== '?v=' + expectedStamp);
+  if (!refs.length) fail('index.html 找不到任何要加版本戳記的檔案參照');
+  if (unstamped.length || stale.length) fail(`index.html 的版本戳記不是最新（應為 ?v=${expectedStamp}）：請執行 node scripts/stamp-ops-version.mjs`);
+}
 if (!process.exitCode) {
   console.log(`PASS: ${scripts.length} 個本機 script 語法正確；20 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；overhead.js 含 ${overheadExpectedList.length} 個開銷函式宣告（依序比對，已移除重複宣告）；profit.js 含 ${expectedProfitFunctionCount} 個儀表板函式、載入位置不變；tax.js 含 ${expectedTaxFunctionCount} 個稅務函式；profitshare.js 含 ${expectedProfitshareFunctionCount} 個分潤函式、後面只接新增的 mobile.js；index.html 只剩 ${SHELL_INLINE_FUNCTIONS.length} 個系統骨架函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
 }

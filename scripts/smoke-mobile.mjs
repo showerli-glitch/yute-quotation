@@ -40,8 +40,9 @@ page.on('dialog', d => d.accept());
 const before = await counts(page);
 const missing = await page.evaluate(() => ['mobileGo', 'mobileOpen', 'mobileShowOwnPage', 'mobileBuildTasks', 'mobileRenderHome', 'mobileSyncChrome'].filter(n => typeof window[n] !== 'function'));
 check('手機版函式皆為全域函式', missing.length === 0, missing.join(','));
-const scriptsLoaded = await page.evaluate(() => [...document.scripts].map(s => s.src.split('/ops/')[1]).filter(Boolean));
-check('mobile.js 是最後載入的 script、mobile.css 有載入', scriptsLoaded[scriptsLoaded.length - 1] === 'js/modules/mobile.js' && (await page.evaluate(() => [...document.styleSheets].some(s => (s.href || '').endsWith('styles/mobile.css')))), scriptsLoaded.slice(-3));
+const scriptsLoaded = await page.evaluate(() => [...document.scripts].map(s => (s.src.split('/ops/')[1] || '').replace(/\?v=[0-9a-f]{8}$/, '')).filter(Boolean));
+check('mobile.js 是最後載入的 script、mobile.css 有載入', scriptsLoaded[scriptsLoaded.length - 1] === 'js/modules/mobile.js' && (await page.evaluate(() => [...document.styleSheets].some(s => /styles\/mobile\.css(\?v=[0-9a-f]{8})?$/.test(s.href || '')))), scriptsLoaded.slice(-3));
+check('所有本機 script／樣式／manifest 都帶版本戳記（?v=雜湊）', await page.evaluate(() => [...document.querySelectorAll('script[src^="js/"], link[href^="styles/"], link[rel="manifest"]')].every(e => /\?v=[0-9a-f]{8}$/.test(e.getAttribute('src') || e.getAttribute('href')))));
 
 let st = await state(page);
 check('手機登入後落在「今天」、隱藏舊上方列、顯示底部分頁', st.page === 'mhome' && st.ownHeader && !st.topbar && st.navShown && st.active.join() === 'page-mhome', st);
@@ -351,6 +352,75 @@ await page.evaluate(() => { USER_PERMISSIONS.lu_yanchen = { attendance: 'view_se
 check('（模擬）沒有申請權限：快速動作隱藏、直接開啟被拒絕', await page.evaluate(() => document.getElementById('m-q-expense').hidden && document.getElementById('m-q-payreq').hidden) && await (async () => { await page.evaluate(() => mobileShowOwnPage('mhome')); await page.evaluate(() => mobileOpenApply('expense')); return (await page.evaluate(() => currentPage)) === 'mhome'; })());
 await ctx.close();
 
+// ═══════════ H: 案件／客戶／廠商 新增（沿用現有表單視窗） ═══════════
+H.setScenario('H-create(shower)');
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW });
+page = await openPhone(ctx);
+page.on('dialog', d => d.accept());
+await tabBtn(page, 'cases').click();
+check('案件分頁顯示子導覽（案件／客戶／廠商）與「＋ 新增案件」', await page.evaluate(() => !document.getElementById('m-subnav').hidden && document.getElementById('m-sub-dashboard').classList.contains('active') && document.getElementById('m-sub-add').textContent === '＋ 新增案件' && !document.getElementById('m-sub-add').hidden));
+await page.click('#m-sub-clients');
+check('切到「客戶」：頁面為客戶主檔、按鈕變「＋ 新增客戶」', await page.evaluate(() => currentPage === 'clients' && document.getElementById('m-sub-add').textContent === '＋ 新增客戶' && document.getElementById('m-sub-clients').classList.contains('active')));
+check('新增視窗在手機為全螢幕（寬度＝視窗）', await (async () => { await page.click('#m-sub-add'); await page.waitForTimeout(400); const w = await page.evaluate(() => { const m = document.querySelector('#modal-client .modal'); const r = m.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), vw: innerWidth, vh: innerHeight, open: document.getElementById('modal-client').classList.contains('open') }; }); return w.open && w.w === w.vw && w.h === w.vh; })());
+check('視窗輸入欄字級 16px、高度 ≥ 44px', await page.evaluate(() => [...document.querySelectorAll('#modal-client .form-input')].filter(e => e.offsetParent).every(e => parseFloat(getComputedStyle(e).fontSize) >= 16 && e.getBoundingClientRect().height >= 43.5)));
+const clBefore = await page.evaluate(() => CLIENTS.length);
+await page.fill('#cl-f-code', 'zzm');
+await clearToasts(page);
+await page.click('#modal-client .btn-primary');
+check('客戶：缺簡稱被擋下（沿用電腦版檢查）', (await page.evaluate(() => window.__toasts.at(-1))).includes('必填') && (await page.evaluate(() => CLIENTS.length)) === clBefore);
+await page.fill('#cl-f-shortName', '手機客戶'); await page.fill('#cl-f-fullName', '手機客戶股份有限公司'); await page.fill('#cl-f-taxId', '12345678'); await page.fill('#cl-f-contact', '王小明'); await page.fill('#cl-f-phone', '0912345678');
+await page.click('#modal-client .btn-primary');
+const newClient = await page.evaluate(() => CLIENTS[CLIENTS.length - 1]);
+check('客戶：新增成功、代碼轉大寫、欄位正確', (await page.evaluate(() => CLIENTS.length)) === clBefore + 1 && newClient.code === 'ZZM' && newClient.shortName === '手機客戶' && newClient.fullName === '手機客戶股份有限公司' && newClient.taxId === '12345678' && newClient.contact === '王小明', newClient);
+await page.click('#m-sub-vendors');
+check('「廠商」：按鈕變「＋ 新增廠商」', await page.evaluate(() => document.getElementById('m-sub-add').textContent === '＋ 新增廠商'));
+await page.click('#m-sub-add');
+const vBefore = await page.evaluate(() => VENDORS.length);
+await page.fill('#vd-f-code', 'zz-901'); await page.fill('#vd-f-name', '手機測試廠商');
+await clearToasts(page);
+await page.click('#modal-vendor .btn-primary');
+check('廠商：缺工種被擋下', (await page.evaluate(() => window.__toasts.at(-1))).includes('必填') && (await page.evaluate(() => VENDORS.length)) === vBefore);
+await page.selectOption('#vd-f-trade', { index: 1 });
+await page.fill('#vd-f-code', 'zz-901');
+await page.click('#modal-vendor .btn-primary');
+const newVendor = await page.evaluate(() => VENDORS[VENDORS.length - 1]);
+check('廠商：新增成功、狀態預設「有效」、代碼大寫', (await page.evaluate(() => VENDORS.length)) === vBefore + 1 && newVendor.code === 'ZZ-901' && newVendor.name === '手機測試廠商' && newVendor.status === '有效', newVendor);
+await page.click('#m-sub-dashboard');
+await page.click('#m-sub-add');
+await page.selectOption('#new-client-code', 'ZZM');
+await page.fill('#new-case-name', '手機新增個案測試');
+await page.fill('#new-case-amount', '300000');
+const caseBefore = await page.evaluate(() => CASES.length);
+await page.click('#modal-new-case .btn-primary');
+const newCase = await page.evaluate(() => CASES[CASES.length - 1]);
+check('個案：新增成功（沿用電腦版編號、狀態、分潤預設）', (await page.evaluate(() => CASES.length)) === caseBefore + 1 && newCase.name === '手機新增個案測試' && newCase.client === 'ZZM' && newCase.status === '進行中' && newCase.amount === 300000 && newCase.profitSplit === '三人', newCase);
+// quick add from the payreq form
+await page.evaluate(() => mobileOpenApply('payreq'));
+await page.click('#m-pr-newvendor');
+check('請款表單「＋ 新廠商」開啟廠商視窗', await page.evaluate(() => document.getElementById('modal-vendor').classList.contains('open')));
+await page.fill('#vd-f-name', '請款內新增廠商'); await page.selectOption('#vd-f-trade', { index: 1 }); await page.fill('#vd-f-code', 'zz-902');
+await page.click('#modal-vendor .btn-primary');
+check('新增廠商後回到請款表單，並自動帶入該廠商', await page.evaluate(() => currentPage === 'mapply' && document.getElementById('m-pr-vendor').value === 'ZZ-902 - 請款內新增廠商'));
+await page.click('#m-pr-newcase');
+await page.selectOption('#new-client-code', 'ZZM'); await page.fill('#new-case-name', '請款內新增個案');
+await page.click('#modal-new-case .btn-primary');
+check('新增個案後回到請款表單，並自動選取該個案', await page.evaluate(() => currentPage === 'mapply' && document.getElementById('m-pr-case').selectedOptions[0].textContent.includes('請款內新增個案')));
+await page.fill('#m-pr-amount', '5000'); await page.fill('#m-pr-date', '2026-10-30'); await page.fill('#m-pr-summary', '新廠商新個案請款');
+await page.click('#m-pr-submit');
+const qrow = await page.evaluate(() => PAYABLES[PAYABLES.length - 1]);
+check('用新廠商、新個案送出請款成功', qrow.summary === '新廠商新個案請款' && qrow.vendor === '請款內新增廠商' && qrow.case === (await page.evaluate(() => CASES[CASES.length - 1].code)), qrow);
+await page.evaluate(() => { mobileOpenApply('payreq'); });
+check('桌面版同樣的視窗不受影響（寬螢幕仍是置中視窗）', await (async () => { await page.setViewportSize({ width: 1440, height: 900 }); await page.waitForTimeout(150); await page.evaluate(() => openModal('modal-client')); const w = await page.evaluate(() => document.querySelector('#modal-client .modal').getBoundingClientRect().width); await page.evaluate(() => closeModal('modal-client')); return w < 700; })());
+await ctx.close();
+H.setScenario('I-create(lu)');
+ctx = await newContext('lu@yutesign.com', { fixedTime: NOW });
+page = await openPhone(ctx);
+page.on('dialog', d => d.accept());
+await page.evaluate(() => mobileOpen('clients'));
+check('員工（無新增權限）：看得到客戶但沒有「＋ 新增」', await page.evaluate(() => !document.getElementById('m-subnav').hidden && document.getElementById('m-sub-add').hidden === !canApplySelf('clients')) && await page.evaluate(() => canCreateCase() === false));
+check('員工直接呼叫新增個案被拒絕', await (async () => { await page.evaluate(() => { mobileSubnavAdd(); }); return !(await page.evaluate(() => document.getElementById('modal-new-case').classList.contains('open'))); })());
+await ctx.close();
+
 // ═══════════ D: PWA install config ═══════════
 H.setScenario('D-pwa');
 ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW, serviceWorkers: 'allow' });
@@ -360,7 +430,7 @@ const head = await page.evaluate(() => ({
   theme: document.querySelector('meta[name="theme-color"]')?.content,
   apple: document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href'),
 }));
-check('頁首有 manifest、theme-color、apple-touch-icon（皆為相對路徑）', head.manifest === 'manifest.webmanifest' && head.theme === '#123D33' && head.apple === 'icons/apple-touch-icon.png', head);
+check('頁首有 manifest、theme-color、apple-touch-icon（皆為相對路徑）', /^manifest\.webmanifest(\?v=[0-9a-f]{8})?$/.test(head.manifest) && head.theme === '#123D33' && head.apple === 'icons/apple-touch-icon.png', head);
 const manifest = await page.evaluate(async () => (await fetch('manifest.webmanifest')).json());
 check('manifest：standalone、相對 start_url／scope、深綠主題色', manifest.display === 'standalone' && manifest.start_url === './' && manifest.scope === './' && manifest.theme_color === '#123D33' && manifest.lang === 'zh-TW', manifest);
 const iconRes = await page.evaluate(async icons => Promise.all(icons.map(async i => { const r = await fetch(i.src); const b = await r.blob(); return { src: i.src, ok: r.ok, type: b.type, size: b.size, purpose: i.purpose }; })), manifest.icons);
@@ -380,7 +450,7 @@ check('快取版本名稱帶版號、外殼檔案已存入', cached.names.length
 const swFiles = await page.evaluate(async () => { const src = await (await fetch('sw.js')).text(); const m = [...src.matchAll(/'((?:js|styles|icons)\/[^']+|index\.html|manifest\.webmanifest)'/g)].map(x => x[1]); return m; });
 const missingShell = await page.evaluate(async files => (await Promise.all(files.map(async f => (await fetch(f, { cache: 'no-store' })).ok ? null : f))).filter(Boolean), swFiles);
 check('sw.js 列的外殼檔案全部存在（沒有 404）', swFiles.length >= 28 && missingShell.length === 0, { count: swFiles.length, missingShell });
-const scriptsInHtml = await page.evaluate(() => [...document.scripts].map(s => s.getAttribute('src')).filter(s => s && !/^https?:/.test(s)));
+const scriptsInHtml = await page.evaluate(() => [...document.scripts].map(s => s.getAttribute('src')).filter(s => s && !/^https?:/.test(s)).map(s => s.replace(/\?v=[0-9a-f]{8}$/, '')));
 check('sw.js 的外殼清單涵蓋 index.html 載入的所有本機 script', scriptsInHtml.every(s => swFiles.includes(s)), scriptsInHtml.filter(s => !swFiles.includes(s)));
 await ctx.setOffline(true);
 const offline = await page.evaluate(async () => {

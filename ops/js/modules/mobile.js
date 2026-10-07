@@ -26,7 +26,41 @@ function mobileTabOf(page) {
   return MOBILE_TAB_OF_PAGE[page] || 'me';
 }
 
+function mobileSyncSubnav(page) {
+  const bar = document.getElementById('m-subnav');
+  if (!bar) return;
+  const on = ['dashboard', 'clients', 'vendors'].includes(page);
+  bar.hidden = !on;
+  ['dashboard', 'clients', 'vendors'].forEach(p => {
+    const chip = document.getElementById('m-sub-' + p);
+    if (!chip) return;
+    chip.hidden = !canAccess(p);
+    chip.classList.toggle('active', p === page);
+  });
+  const add = document.getElementById('m-sub-add');
+  if (add) {
+    const label = { dashboard: '＋ 新增案件', clients: '＋ 新增客戶', vendors: '＋ 新增廠商' }[page] || '';
+    add.textContent = label;
+    add.hidden = !on || !mobileCanAddFor(page);
+  }
+}
+
+function mobileCanAddFor(page) {
+  if (page === 'dashboard') return canCreateCase();
+  if (page === 'clients') return canApplySelf('clients');
+  if (page === 'vendors') return canApplySelf('vendors');
+  return false;
+}
+
+function mobileSubnavAdd() {
+  if (!mobileCanAddFor(currentPage)) { showToast('您沒有新增的權限', 'error'); return; }
+  if (currentPage === 'dashboard') openNewCaseModal();
+  else if (currentPage === 'clients') openClientModal();
+  else if (currentPage === 'vendors') openVendorModal();
+}
+
 function mobileSyncChrome(page) {
+  mobileSyncSubnav(page);
   document.body.classList.toggle('m-own-header', MOBILE_OWN_PAGES.includes(page));
   const tab = mobileTabOf(page);
   document.querySelectorAll('.m-nav-btn').forEach(btn => {
@@ -548,6 +582,8 @@ function mobileRenderPayreqForm() {
   mobileSetOptions(caseSel, [...tmp.options].map(o => ({ value: o.value, label: o.textContent })), false);
   caseSel.value = [...caseSel.options].some(o => o.value === prevCase) ? prevCase : '';
   const manager = canManage('payreq');
+  document.getElementById('m-pr-newvendor').hidden = !canApplySelf('vendors');
+  document.getElementById('m-pr-newcase').hidden = !canCreateCase();
   document.getElementById('m-pr-applicant-wrap').hidden = !manager;
   if (manager) {
     const sel = document.getElementById('m-pr-applicant');
@@ -653,3 +689,41 @@ function mobileSubmitPayreq() {
   else payreqEditId = null;
   mobileRenderPayreqForm();
 }
+
+// ── quick-add from inside a form: open the existing modal, then come back with the new row selected ──
+function mobileNewVendorFromForm() {
+  if (!canApplySelf('vendors')) { showToast('您沒有新增廠商的權限', 'error'); return; }
+  openVendorModal();
+}
+
+function mobileNewCaseFromForm() {
+  if (!canCreateCase()) { showToast('您沒有新增個案的權限', 'error'); return; }
+  openNewCaseModal();
+}
+
+(function mobileHookCreate() {
+  const originalVendor = window.submitVendor;
+  window.submitVendor = function () {
+    const before = VENDORS.length;
+    const wasEdit = !!vdEditCode;
+    const result = originalVendor.apply(this, arguments);
+    if (!wasEdit && VENDORS.length > before && currentPage === 'mapply') {
+      const v = VENDORS[VENDORS.length - 1];
+      mobileRenderPayreqForm();
+      document.getElementById('m-pr-vendor').value = v.code + ' - ' + v.name;
+    }
+    return result;
+  };
+  const originalCase = window.submitNewCase;
+  window.submitNewCase = function () {
+    const before = CASES.length;
+    const result = originalCase.apply(this, arguments);
+    if (CASES.length > before && currentPage === 'mapply') {
+      const c = CASES[CASES.length - 1];
+      mobileRenderPayreqForm();
+      const sel = document.getElementById('m-pr-case');
+      if ([...sel.options].some(o => o.value === c.code)) sel.value = c.code;
+    }
+    return result;
+  };
+})();

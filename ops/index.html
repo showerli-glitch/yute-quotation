@@ -14,8 +14,8 @@
 <link rel="icon" type="image/svg+xml" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.svg?v=202606221952">
 <link rel="icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.ico?v=202606221952" sizes="any">
 <link rel="icon" type="image/png" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221952">
-<link rel="stylesheet" href="styles/mobile.css">
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles/mobile.css?v=b9db5c6d">
+<link rel="manifest" href="manifest.webmanifest?v=b9db5c6d">
 <meta name="theme-color" content="#123D33">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1242,6 +1242,14 @@ body.auth-pending .auth-screen{display:flex}
   <!-- ════ PAGE: DASHBOARD ════ -->
   <div class="content">
   <!-- ════ PHONE-ONLY PAGES (今天／財務／我的); styled by styles/mobile.css, logic in js/modules/mobile.js ════ -->
+  <div class="m-subnav m-only" id="m-subnav" hidden>
+    <div class="m-chips m-chips-light">
+      <button type="button" class="m-chip" id="m-sub-dashboard" onclick="mobileOpen('dashboard')">案件</button>
+      <button type="button" class="m-chip" id="m-sub-clients" onclick="mobileOpen('clients')">客戶</button>
+      <button type="button" class="m-chip" id="m-sub-vendors" onclick="mobileOpen('vendors')">廠商</button>
+    </div>
+    <button type="button" class="m-add" id="m-sub-add" onclick="mobileSubnavAdd()">＋ 新增</button>
+  </div>
   <div class="page" id="page-mhome">
     <div class="m-hero">
       <div class="m-hero-top"><span>YUTE / OPS</span><span id="m-sync">● 已同步</span></div>
@@ -1288,13 +1296,13 @@ body.auth-pending .auth-screen{display:flex}
       </div>
       <div id="m-ap-payreq" class="m-form" hidden>
         <div class="m-editing" id="m-pr-editing" hidden><span id="m-pr-editing-text"></span><button type="button" onclick="mobilePayreqCancelEdit()">取消修改</button></div>
-        <div class="m-field"><label for="m-pr-vendor">受款廠商</label><input id="m-pr-vendor" class="m-input" list="m-dl-vendors" placeholder="輸入廠商名稱或代碼（依代碼排序）" autocomplete="off"><datalist id="m-dl-vendors"></datalist></div>
+        <div class="m-field"><div class="m-label-row"><label for="m-pr-vendor">受款廠商</label><button type="button" class="m-link" id="m-pr-newvendor" onclick="mobileNewVendorFromForm()">＋ 新廠商</button></div><input id="m-pr-vendor" class="m-input" list="m-dl-vendors" placeholder="輸入廠商名稱或代碼（依代碼排序）" autocomplete="off"><datalist id="m-dl-vendors"></datalist></div>
         <div class="m-field-row">
           <div class="m-field"><label for="m-pr-amount">金額</label><div class="m-money"><span>$</span><input id="m-pr-amount" class="m-input" inputmode="numeric" placeholder="0" autocomplete="off"></div></div>
           <div class="m-field"><label for="m-pr-date">希望付款日</label><input id="m-pr-date" class="m-input" type="date"></div>
         </div>
         <div class="m-field" id="m-pr-applicant-wrap" hidden><label for="m-pr-applicant">申請人</label><select id="m-pr-applicant" class="m-input"></select></div>
-        <div class="m-field"><label for="m-pr-case">個案（選填）</label><select id="m-pr-case" class="m-input"></select></div>
+        <div class="m-field"><div class="m-label-row"><label for="m-pr-case">個案（選填）</label><button type="button" class="m-link" id="m-pr-newcase" onclick="mobileNewCaseFromForm()">＋ 新個案</button></div><select id="m-pr-case" class="m-input"></select></div>
         <div class="m-field"><label for="m-pr-summary">摘要</label><input id="m-pr-summary" class="m-input" placeholder="例如：[工程項目] 第一期" autocomplete="off"></div>
         <div class="m-field-row">
           <div class="m-field"><label>發票</label><div class="m-seg" id="m-pr-invoice"></div></div>
@@ -4054,11 +4062,11 @@ body.auth-pending .auth-screen{display:flex}
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<script src="js/core/types.js"></script>
-<script src="js/core/config.js"></script>
-<script src="js/core/data.js"></script>
-<script src="js/core/accounting.js"></script>
-<script src="js/core/ui.js"></script>
+<script src="js/core/types.js?v=b9db5c6d"></script>
+<script src="js/core/config.js?v=b9db5c6d"></script>
+<script src="js/core/data.js?v=b9db5c6d"></script>
+<script src="js/core/accounting.js?v=b9db5c6d"></script>
+<script src="js/core/ui.js?v=b9db5c6d"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   loadData(); // 從 localStorage 還原資料
@@ -4537,25 +4545,25 @@ function payreqVendorPickerMouseDown(input) {
 
 
 </script>
-<script src="js/modules/payables.js"></script>
+<script src="js/modules/payables.js?v=b9db5c6d"></script>
 <script>
 
 </script>
-<script src="js/modules/receivables.js"></script>
-<script src="js/modules/profit.js"></script>
-<script src="js/modules/expenses.js"></script>
-<script src="js/modules/cases.js"></script>
-<script src="js/modules/clients.js"></script>
-<script src="js/modules/vendors.js"></script>
-<script src="js/modules/attendance.js"></script>
-<script src="js/modules/payreq.js"></script>
-<script src="js/modules/feedback.js"></script>
-<script src="js/modules/systemnotes.js"></script>
-<script src="js/modules/employees.js"></script>
-<script src="js/modules/payroll.js"></script>
-<script src="js/modules/overhead.js"></script>
-<script src="js/modules/tax.js"></script>
-<script src="js/modules/profitshare.js"></script>
-<script src="js/modules/mobile.js"></script>
+<script src="js/modules/receivables.js?v=b9db5c6d"></script>
+<script src="js/modules/profit.js?v=b9db5c6d"></script>
+<script src="js/modules/expenses.js?v=b9db5c6d"></script>
+<script src="js/modules/cases.js?v=b9db5c6d"></script>
+<script src="js/modules/clients.js?v=b9db5c6d"></script>
+<script src="js/modules/vendors.js?v=b9db5c6d"></script>
+<script src="js/modules/attendance.js?v=b9db5c6d"></script>
+<script src="js/modules/payreq.js?v=b9db5c6d"></script>
+<script src="js/modules/feedback.js?v=b9db5c6d"></script>
+<script src="js/modules/systemnotes.js?v=b9db5c6d"></script>
+<script src="js/modules/employees.js?v=b9db5c6d"></script>
+<script src="js/modules/payroll.js?v=b9db5c6d"></script>
+<script src="js/modules/overhead.js?v=b9db5c6d"></script>
+<script src="js/modules/tax.js?v=b9db5c6d"></script>
+<script src="js/modules/profitshare.js?v=b9db5c6d"></script>
+<script src="js/modules/mobile.js?v=b9db5c6d"></script>
 </body>
 </html>
