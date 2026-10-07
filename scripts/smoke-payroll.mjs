@@ -273,5 +273,35 @@ const lastMonth = await page.evaluate(() => {
 check('修正後：只剩一個月份時不能刪除（提示至少保留一個月份）', lastMonth.listed && lastMonth.rowsSame && p3dialogs.includes('至少要保留一個薪資月份，無法刪除最後一個月份。'), { lastMonth, p3dialogs });
 await ctx.close();
 
+// Known issue #6 end to end: two people open OPS from the (RTDB-pruned) mock cloud; B saves an expense first, then A
+// saves a different expense. A's save hits the conflict check and must merge row by row instead of the conflict dialog.
+H.setScenario('K6-concurrent-save');
+// The earlier scenarios leave the mock cloud as an old client wrote it (unsorted payroll months); one ordinary save
+// first, as in production, where the live snapshot is already in the app's normalised form.
+const ctx0 = await newContext('shower.li@yutesign.com');
+const p0 = await openApp(ctx0);
+await p0.evaluate(() => saveData()); await waitSynced(p0); await ctx0.close();
+const ctxA = await newContext('shower.li@yutesign.com'); // real clock: the conflict check compares save times
+const ctxB = await newContext('nc@yutesign.com');
+const pA = await openApp(ctxA);
+const pB = await openApp(ctxB);
+const addExp = (pg, item) => pg.evaluate(item => {
+  const id = Math.max(0, ...EXPENSES.map(e => Number(e.id) || 0)) + 1;
+  EXPENSES.push({ id, date: '2026-10-06', month: '2026-10', person: currentUser.name, category: '交通', item, amount: 123, status: 'pending', caseKey: '', companyId: COMPANY_ID });
+  saveData();
+  return id;
+}, item);
+const idleDiff = await pA.evaluate(() => { const b = opsCloudBaseSnapshot, l = createDataSnapshot(); return [...new Set([...Object.keys(b), ...Object.keys(l)])].filter(k => { const cj = typeof opsCloudCanonicalJson === 'function' ? opsCloudCanonicalJson : v => JSON.stringify(v ?? null); return k !== 'savedAt' && cj(b[k]) !== cj(l[k]); }); });
+check('#6：剛從雲端開啟、還沒修改時，本機資料與合併基準相同（Firebase 形式比對）', idleDiff.length === 0, idleDiff);
+await addExp(pB, 'K6-B 先存');
+await waitSynced(pB);
+await addExp(pA, 'K6-A 後存');
+await pA.waitForFunction(() => !opsCloudSaveInFlight && (!opsCloudPendingSnapshot || document.getElementById('modal-cloud-conflict')?.classList.contains('open')), null, { timeout: 15000 }).catch(() => {});
+await pA.waitForTimeout(800);
+const k6 = await pA.evaluate(() => ({ modal: document.getElementById('modal-cloud-conflict')?.classList.contains('open') || false, toasts: (window.__toasts || []).filter(t => /合併/.test(t)) }));
+const cloudExp = (H.state.cloud?.data?.EXPENSES || []).filter(Boolean).filter(e => /^K6-/.test(e.item)).map(e => e.item).sort();
+check('#6：兩人同時新增不同費用 → 自動逐筆合併，沒有跳出衝突視窗，雲端兩筆都在', !k6.modal && JSON.stringify(cloudExp) === JSON.stringify(['K6-A 後存', 'K6-B 先存']), { k6, cloudExp });
+await ctxA.close(); await ctxB.close();
+
 const fails = await H.finish(outJson, { finalCloudData: JSON.parse(JSON.stringify(H.state.cloud?.data || {})) });
 process.exit(fails ? 1 : 0);

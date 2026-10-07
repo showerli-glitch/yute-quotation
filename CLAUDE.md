@@ -36,5 +36,5 @@
 
 - 改到 `ops/` 底下任何檔案後，先跑 `node scripts/stamp-ops-version.mjs` 更新版本戳記（否則驗證腳本會失敗）。
 - 每次修改後跑 `node scripts/verify-ops-modularization.mjs`、`python3 -m json.tool firebase-database.rules.json`、`git diff --check`。刻意修改的函式要登記在驗證腳本的 `POST_SPLIT_CHANGES`。
-- 10 套本機模擬測試在 `scripts/smoke-*.mjs`，只用模擬雲端、攔截所有外部請求，不會碰正式資料。需要 `playwright-core`（裝在 repo 外的 `/tmp/ops-smoke`）和 Chrome／Chromium，透過環境變數 `PLAYWRIGHT_CORE` 與 `CHROME_PATH` 指定；用法寫在各腳本開頭。全部通過的基準是 625 項：原本 9 套 427 項（135、58、52、47、41、28、20、22、24；員工那套有 1 則預期警告）加手機版 `smoke-mobile.mjs` 198 項（它的 Service Worker 警告是測試工具擋掉註冊，屬預期）。
+- 10 套本機模擬測試在 `scripts/smoke-*.mjs`，只用模擬雲端、攔截所有外部請求，不會碰正式資料。需要 `playwright-core`（裝在 repo 外的 `/tmp/ops-smoke`）和 Chrome／Chromium，透過環境變數 `PLAYWRIGHT_CORE` 與 `CHROME_PATH` 指定；用法寫在各腳本開頭。全部通過的基準是 637 項：原本 9 套 429 項（135、58、52、47、43、28、20、22、24；員工那套與薪資那套各有 1 則預期警告）加手機版 `smoke-mobile.mjs` 208 項（它的 Service Worker 警告是測試工具擋掉註冊，屬預期）。報價系統另有 `smoke-quotation.mjs` 43 項。腳本的 `<rootDir>` 要給絕對路徑。
 - 正式資料唯讀摘要：`scripts/ops-prod-readonly-summary.js`，在已登入的正式 OPS 分頁 console 執行，只做一次 `get()`。雲端環境沒有使用者已登入的 Chrome，這一步改由使用者匯出備份讓你比對，或在有登入 Chrome 的電腦上做。

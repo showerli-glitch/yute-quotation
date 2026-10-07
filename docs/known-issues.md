@@ -5,7 +5,7 @@
 ## 待處理
 
 - **#1 新員工在全新瀏覽器登不進去**：`claude/fix-known-issues` 原本的修正已依 Codex 複查（P1）撤回，見下方 #1。2026-10-07 使用者決定暫緩：近期沒有新進員工，有需要時先用替代做法。
-- **#6 雲端逐筆合併在空集合時無法啟動**：見下方 #6，需先做正式資料唯讀確認。
+- **#6 雲端逐筆合併在空集合時無法啟動**：2026-10-08 已修正（分支 `claude/ops-finance-note`，待部署），見下方 #6。
 
 #2～#5 已修正並於 2026-10-07 部署（`adcd8f2`），詳見「已解決」。
 
@@ -83,24 +83,13 @@
 - **證據**：`scripts/smoke-overhead.mjs` 第一項檢查確認生效的是有 `confirm` 的版本；驗證腳本對 `overhead.js` 改用依序比對。
 - **建議做法**：確認業務上要不要允許刪除固定項目，再刪掉其中一個。這不影響資料，可以和其他小修正一起做。
 
-### 6.（待處理） 雲端逐筆合併在雲端缺少空集合時無法啟動
+### 6.（已修正，待部署） 雲端逐筆合併在雲端缺少空集合時無法啟動
 
 - **發現**：2026-10-06，為 Codex P2 補合併測試時。
 - **現象**：兩人同時存檔發生衝突時，`opsCloudTryMergePending*` 會先用 `opsCloudChangedOutsideCollection` 確認「本機只改了某一個集合」。Firebase Realtime Database 不保存空陣列、空物件與 `null`，所以從雲端讀回的基準少了 `TEST_FEEDBACK: []`、`DELETED_SOURCE_KEYS: []` 這類欄位，陣列裡的 `null` 也會不見；本機 `createDataSnapshot()` 卻有。比對時這些欄位被當成「本機也改了」，合併放棄，直接跳出衝突視窗。
 - **影響**：資料不會壞，只是應該能自動合併的情況改成要人工處理衝突。正式資料是否真的有這些空欄位，還沒確認。
 - **證據**：`scripts/smoke-payroll.mjs` 的模擬雲端（照 RTDB 規則刪除空值）觸發衝突視窗；比對差異為 `TEST_FEEDBACK`、`ATTENDANCE_RECORDS`、`ATTENDANCE_LEAVES`、`DELETED_SOURCE_KEYS`、`OVERHEAD`、`PAYROLL_EMPLOYEE_ACCOUNTS`。因此 P2 的合併測試改為直接呼叫 `opsCloudMergeSingleCollection`。
 - **建議做法**：先在正式頁面唯讀比對 `opsCloudBaseSnapshot` 與 `createDataSnapshot()` 的差異欄位。若確實存在，再讓比對前把兩邊都經過同一個「RTDB 正規化」（移除空值）。這會改變衝突處理行為，修正前需要核准。
-
-## 已解決
-
-| 問題 | 解決方式 | 上線版本 |
-|---|---|---|
-| #2 新增廠商狀態預設空白 | `openVendorModal` 新增模式把隱藏的狀態欄設為「有效」 | `adcd8f2`（2026-10-07） |
-| #3 刪除薪資月份後月份跑回清單 | `prDeleteMonth` 改用剩餘月份重畫選單並寫審計、不能刪最後一個月份；已刪除的月份不再被預設本月加回；遷移：2026-07、2026-09 仍有薪資紀錄時移除刪除標記，同時套用到本機快取、合併基準與雲端合併結果（下次存檔自動寫回雲端） | `adcd8f2`（2026-10-07） |
-| #4 薪資單編號重複 | 載入與種子時以「現有最大編號 + 1」推算 `prNextId`；既有重複編號不改（系統以人＋月份辨識） | `adcd8f2`（2026-10-07） |
-| #5 公司開銷重複的 `ohDeleteFixedItem` | 刪除第一個沒有作用的宣告，保留目前生效的版本（可刪除、需確認） | `adcd8f2`（2026-10-07） |
-| 請款「申請人」存名字、卻用帳號 ID 比對，申請人看不到自己沒指定個案的請款、退回後無法修改重送 | `userCanViewCaseScopedRow`、`openEditPayreqModal`、`renderPayreq` 改為名字或 ID 皆可 | `4e42a53`（2026-10-06） |
-| 登入畫面在程式載入前可按，出現 `opsStartGoogleLogin is not defined`（Codex 複查） | 登入按鈕預設停用、顯示「載入中...」，`opsInitGoogleAuth` 第一次執行時開放 | `adcd8f2`（2026-10-07） |
-| 送出請款後開「編輯」，「儲存修改」按鈕卡在停用 | `openEditPayreqModal` 開啟時恢復按鈕 | `4e42a53`（2026-10-06） |
-| 應付帳款的受款廠商下拉依新增順序排列 | 改為依廠商代碼排序 | `c9c78dd`（2026-10-05） |
-| 無法刪除誤建的廠商 | 新增「刪除廠商」，有使用紀錄或系統內建的廠商不可刪 | `c9c78dd`（2026-10-05） |
+- **2026-10-08 正式資料唯讀確認**：開啟正式 OPS、未做任何修改時，`opsCloudBaseSnapshot` 與 `createDataSnapshot()` 有 10 個欄位不同：`TEST_FEEDBACK`、`PAYROLL_DELETED_MONTHS`、`INVOICE_REQUESTS` 在雲端不存在（空陣列）、`irNextId` 不存在、`OVERHEAD.2026-06.variable` 空陣列被刪；`ATTENDANCE_SETTINGS`、`PAYROLL_EMPLOYEE_ACCOUNTS`、`USER_PERMISSIONS` 只有欄位順序不同；`TAX_LIABILITIES` 5 筆的 `updatedAt` 每次開啟都被 `syncTaxLiabilityForPayable` 改成當下時間。所以正式環境兩人同時存檔時，逐筆合併一定放棄、一律跳衝突視窗。使用者說最近沒遇到，是因為很少真的同時存檔。
+- **修正**：衝突時把合併基準與本機資料都轉成 Firebase 實際儲存的形式（`opsCloudCanonical`：欄位排序、去掉 null／空陣列／空物件）再比較，逐筆指紋 `opsCloudRowFingerprint` 也用同一形式；`syncTaxLiabilityForPayable` 只在內容真的變動時才更新 `updatedAt`。合併規則本身（哪些集合可以合、同一筆衝突怎麼處理）不變。
+- **測試**：`smoke-payroll.mjs` 新增情境 K6：兩個人從模擬雲端開啟，B 先存一筆費用、A 再存另一筆 → 自動逐筆合併、沒有衝突視窗、雲端兩筆都在；同一測試在 `main` 上重現舊問題（衝突視窗、B 的那筆沒進 A 的版本）。全部 10 套 637 項通過。

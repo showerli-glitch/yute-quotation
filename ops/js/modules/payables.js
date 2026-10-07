@@ -734,6 +734,7 @@ function syncTaxLiabilityForPayable(payable) {
   }
   const existing = existingIdx >= 0 ? TAX_LIABILITIES[existingIdx] : null;
   const row = existing || { id:TAX_LIABILITIES.reduce((m,r) => Math.max(m, Number(r.id)||0), 0) + 1, sourceKey:`payable-tax-${payable.id}`, sourcePayableId:payable.id };
+  const before = existing ? JSON.stringify(existing) : '';
   Object.assign(row, {
     taxType:row.payableTaxFieldsAdjusted ? row.taxType : inferredType,
     period:row.payableTaxFieldsAdjusted ? row.period : taxPeriodFromPayable(payable, inferredType),
@@ -745,6 +746,9 @@ function syncTaxLiabilityForPayable(payable) {
     sourceKey:existing?.sourceKey || `payable-tax-${payable.id}`
   });
   tagCompany([row]);
+  // Runs on every load: only stamp updatedAt when something changed, otherwise the tax rows looked edited on every
+  // open and blocked the cloud row-by-row merge (known issue #6).
+  if (existing && JSON.stringify(row) === before) return;
   touchRowMeta(row, !existing);
   if (!existing) TAX_LIABILITIES.push(row);
 }

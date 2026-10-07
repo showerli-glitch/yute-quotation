@@ -2919,8 +2919,7 @@ function opsCloudRowKey(row) {
 
 function opsCloudRowFingerprint(row) {
   if (!row || typeof row !== 'object') return '';
-  const clean = opsCloudClone(row);
-  return JSON.stringify(clean);
+  return opsCloudCanonicalJson(row);
 }
 
 function opsCloudMapRows(rows) {
@@ -3694,15 +3693,18 @@ function opsCloudFlushPendingSave() {
     updateDataStatus(frozen);
     setSaveIndicator('error');
     if (String(e?.message || '').includes('OPS_CLOUD_CONFLICT')) {
-      opsCloudTryMergePendingReceivables(frozen).then(merged => {
+      // Compare base and local in the form Firebase stores (known issue #6), so untouched collections match.
+      if (opsCloudBaseSnapshot) opsCloudBaseSnapshot = opsCloudCanonical(opsCloudBaseSnapshot) || {};
+      const local = opsCloudCanonical(frozen) || {};
+      opsCloudTryMergePendingReceivables(local).then(merged => {
         if (merged) return true;
-        return opsCloudTryMergePendingPayables(frozen);
+        return opsCloudTryMergePendingPayables(local);
       }).then(merged => {
         if (merged) return true;
-        return opsCloudTryMergePendingOtherRows(frozen);
+        return opsCloudTryMergePendingOtherRows(local);
       }).then(merged => {
         if (merged) return true;
-        return opsCloudTryMergePendingOverhead(frozen);
+        return opsCloudTryMergePendingOverhead(local);
       }).then(merged => {
         if (merged) {
           opsCloudConsecutiveFailures = 0;
@@ -4169,4 +4171,30 @@ function opsDropRecoveredPayrollTombstones(deletedMonths, rows) {
     if (idx >= 0 && list.some(r => r?.month === month)) deletedMonths.splice(idx, 1);
   });
   return deletedMonths;
+}
+
+// Known issue #6: Firebase Realtime Database drops empty arrays/objects and nulls and returns object keys in its own
+// order, so a snapshot read back from the cloud never JSON-matched the same data built locally, and every concurrent
+// save fell through to the conflict dialog. The merge now compares both sides in this canonical form (sorted keys,
+// no null/empty values), which is exactly what Firebase would store.
+function opsCloudCanonical(value) {
+  if (value === null || value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    const out = value.map(opsCloudCanonical).filter(v => v !== undefined);
+    return out.length ? out : undefined;
+  }
+  if (typeof value === 'object') {
+    const out = {};
+    Object.keys(value).sort().forEach(key => {
+      const v = opsCloudCanonical(value[key]);
+      if (v !== undefined) out[key] = v;
+    });
+    return Object.keys(out).length ? out : undefined;
+  }
+  if (typeof value === 'number' && !Number.isFinite(value)) return undefined;
+  return value;
+}
+
+function opsCloudCanonicalJson(value) {
+  return JSON.stringify(opsCloudCanonical(value) ?? null);
 }

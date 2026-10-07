@@ -196,8 +196,8 @@ const POST_SPLIT_CHANGES = {
     appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
   },
   'ops/js/core/data.js': {
-    reason: 'pay-request applicant stored as name also counts as own row (claude/payreq-applicant-fix); login button enabled after load, payroll tombstone migration (snapshot + cloud merge) and prNextId derivation (claude/fix-known-issues)',
-    changed: ['userCanViewCaseScopedRow', 'opsInitGoogleAuth', 'applyDataSnapshot', 'ensureCodexSeedData', 'opsCloudMergePayrollExtras'],
+    reason: 'pay-request applicant stored as name also counts as own row (claude/payreq-applicant-fix); login button enabled after load, payroll tombstone migration (snapshot + cloud merge) and prNextId derivation (claude/fix-known-issues); cloud merge compares the Firebase-canonical form (known issue #6)',
+    changed: ['userCanViewCaseScopedRow', 'opsInitGoogleAuth', 'applyDataSnapshot', 'ensureCodexSeedData', 'opsCloudMergePayrollExtras', 'opsCloudRowFingerprint', 'opsCloudFlushPendingSave'],
     appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
   },
   'ops/js/modules/payroll.js': {
@@ -210,8 +210,8 @@ const POST_SPLIT_CHANGES = {
     literalChanges: [['const OPS_AUTH_SESSION_HOURS = 4;', 'const OPS_AUTH_SESSION_HOURS = 8;']],
   },
   'ops/js/modules/payables.js': {
-    reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort); payable attachments button (claude/pwa-polish)',
-    changed: ['openAddPayableModal', 'openEditPayableModal', 'renderPayable'],
+    reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort); payable attachments button (claude/pwa-polish); tax row only re-stamped when changed (known issue #6)',
+    changed: ['openAddPayableModal', 'openEditPayableModal', 'renderPayable', 'syncTaxLiabilityForPayable'],
   },
   'ops/js/modules/expenses.js': {
     reason: 'expense row action shows a 單據 (attachments) button (claude/pwa-nodes)',
