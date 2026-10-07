@@ -791,6 +791,35 @@ const pyBtn = await page.evaluate(() => {
 check('電腦版應付：有單據的列顯示「單據（2）」並可開啟列表', pyBtn.found && pyBtn.text === '單據（2）' && pyBtn.links === 2, pyBtn);
 await ctx.close();
 
+// ═══════════ P: 平板 ═══════════
+const MOBILE_OWN_PAGES_LIST = ['mhome', 'mfinance', 'mme', 'mreview', 'mapply', 'minvoice', 'minbox', 'mprofitshare'];
+H.setScenario('P-tablet');
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW });
+page = await openApp(ctx);
+await page.setViewportSize({ width: 820, height: 1180 });
+await page.reload({ waitUntil: 'load' }); await waitReady(page);
+const tp = await page.evaluate(() => ({ page: currentPage, nav: getComputedStyle(document.getElementById('m-nav')).display, sidebarLeft: document.getElementById('sidebar').getBoundingClientRect().right, mainW: document.querySelector('.main').clientWidth }));
+check('平板直放（820）：手機版介面、落在「今天」、側邊欄收起、內容全寬', tp.page === 'mhome' && tp.nav !== 'none' && tp.sidebarLeft <= 0 && tp.mainW === 820, tp);
+await page.evaluate(() => mobileOpen('payable'));
+await page.waitForTimeout(250);
+const cols = await page.evaluate(() => getComputedStyle(document.getElementById('py-tbody')).gridTemplateColumns.split(' ').length);
+check('平板直放：應付卡片排兩欄', cols === 2, cols);
+await page.evaluate(() => { mobileGo('me'); });
+await page.click('#page-mme .m-row:has-text("所有功能")');
+await page.waitForTimeout(450);
+check('平板直放：「所有功能」打開側邊欄抽屜', await page.evaluate(() => document.getElementById('sidebar').getBoundingClientRect().left >= 0));
+await page.evaluate(() => closeMobileSidebar());
+await page.evaluate(() => mobileOpenApply('payreq'));
+await page.click('#m-pr-newvendor');
+await page.waitForTimeout(400);
+check('平板直放：新增視窗是置中的對話框（不是全螢幕）', await page.evaluate(() => { const r = document.querySelector('#modal-vendor .modal').getBoundingClientRect(); return r.width <= 641 && r.left > 0; }));
+await page.evaluate(() => closeModal('modal-vendor'));
+await page.setViewportSize({ width: 1180, height: 820 });
+await page.waitForTimeout(250);
+const tl = await page.evaluate(() => ({ page: currentPage, nav: getComputedStyle(document.getElementById('m-nav')).display, sidebar: getComputedStyle(document.getElementById('sidebar')).position, btnH: [...document.querySelectorAll('.topbar .btn')].filter(b => b.offsetParent).map(b => b.getBoundingClientRect().height)[0] || 0 }));
+check('平板轉橫放（1180）：離開手機專用頁回到電腦版頁面、側邊欄、無底部分頁、按鈕 ≥ 40px', !MOBILE_OWN_PAGES_LIST.includes(tl.page) && tl.nav === 'none' && tl.sidebar !== 'fixed' && tl.btnH >= 40, tl);
+await ctx.close();
+
 // ═══════════ D: PWA install config ═══════════
 H.setScenario('D-pwa');
 ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW, serviceWorkers: 'allow' });

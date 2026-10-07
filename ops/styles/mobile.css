@@ -1,7 +1,8 @@
-/* Mobile shell (PWA phase 1). New file, not extracted from the baseline.
-   Everything is scoped to phone width; the desktop and tablet cascade is untouched. */
+/* Mobile shell (PWA). New file, not extracted from the baseline.
+   Phone and tablet portrait (up to 1023px) use the phone layout; tablet landscape (1024–1279px) keeps the
+   desktop layout with touch sizing; wider screens are untouched. */
 .m-only{display:none}
-@media(max-width:767px){
+@media(max-width:1023px){
   .m-only{display:block}
 
   /* ── bottom tab bar ── */
@@ -195,7 +196,7 @@
    inset (~59pt), so the page ended above the home indicator and showed a beige band; only 100lvh is the full
    screen. The top "scroll edge" blur is skipped only when a fixed, full-width, solid box taller than 10px
    sits at the edge. Standalone only: in a Safari tab lvh and dvh differ for other reasons. */
-@media (display-mode: standalone) and (max-width:767px){
+@media (display-mode: standalone) and (max-width:1023px){
   html,body{height:100lvh}
   body .main{height:100lvh}
   .m-nav{bottom:calc(100dvh - 100lvh)}
@@ -204,7 +205,7 @@
 
 /* ── Existing list tables become cards on a phone. Same rows, filters, permissions and buttons as the desktop;
       only the layout changes (thead hidden, each row a card: title + amount on top, other cells labelled). ── */
-@media(max-width:767px){
+@media(max-width:1023px){
   table:has(> tbody#case-tbody), table:has(> tbody#dash-rv-tbody), table:has(> tbody#cl-tbody), table:has(> tbody#vd-tbody), table:has(> tbody#py-tbody), table:has(> tbody#rv-tbody), table:has(> tbody#payreq-pending-tbody), table:has(> tbody#payreq-rejected-tbody), table:has(> tbody#payreq-approved-tbody), table:has(> tbody#exp-tbody), table:has(> tbody#att-record-tbody), table:has(> tbody#att-leave-tbody){display:block;width:100%!important;min-width:0!important;border:0!important;background:transparent!important}
   table:has(> tbody#case-tbody) > thead, table:has(> tbody#dash-rv-tbody) > thead, table:has(> tbody#cl-tbody) > thead, table:has(> tbody#vd-tbody) > thead, table:has(> tbody#py-tbody) > thead, table:has(> tbody#rv-tbody) > thead, table:has(> tbody#payreq-pending-tbody) > thead, table:has(> tbody#payreq-rejected-tbody) > thead, table:has(> tbody#payreq-approved-tbody) > thead, table:has(> tbody#exp-tbody) > thead, table:has(> tbody#att-record-tbody) > thead, table:has(> tbody#att-leave-tbody) > thead{display:none!important}
   #case-tbody, #dash-rv-tbody, #cl-tbody, #vd-tbody, #py-tbody, #rv-tbody, #payreq-pending-tbody, #payreq-rejected-tbody, #payreq-approved-tbody, #exp-tbody, #att-record-tbody, #att-leave-tbody{display:flex;flex-direction:column;gap:10px}
@@ -360,6 +361,34 @@
   #page-profit .sticky-table-wrap{overflow-x:auto!important;height:auto!important;max-width:100%}
   #page-profit > div{max-width:100%;min-width:0}
   #case-tbody > tr > td button, #case-tbody > tr > td select, #dash-rv-tbody > tr > td button, #dash-rv-tbody > tr > td select, #cl-tbody > tr > td button, #cl-tbody > tr > td select, #vd-tbody > tr > td button, #vd-tbody > tr > td select, #py-tbody > tr > td button, #py-tbody > tr > td select, #rv-tbody > tr > td button, #rv-tbody > tr > td select, #payreq-pending-tbody > tr > td button, #payreq-pending-tbody > tr > td select, #payreq-rejected-tbody > tr > td button, #payreq-rejected-tbody > tr > td select, #payreq-approved-tbody > tr > td button, #payreq-approved-tbody > tr > td select, #exp-tbody > tr > td button, #exp-tbody > tr > td select, #att-record-tbody > tr > td button, #att-record-tbody > tr > td select, #att-leave-tbody > tr > td button, #att-leave-tbody > tr > td select{min-height:40px!important;padding:0 12px!important;font-size:13px!important}
+  #case-tbody > tr > td select, #py-tbody > tr > td select, #rv-tbody > tr > td select, #exp-tbody > tr > td select, #payreq-pending-tbody > tr > td select, #payreq-rejected-tbody > tr > td select, #payreq-approved-tbody > tr > td select{width:auto!important;min-width:96px;padding-right:28px!important}
   #ops-new-version-banner{padding-top:calc(10px + env(safe-area-inset-top,0px))!important;font-size:14px!important}
   #ops-new-version-banner button{min-height:40px}
+}
+
+/* ── Tablet portrait (768–1023px): phone layout, but the desktop sidebar must become the drawer here too
+      (the shell's own drawer rules stop at 768px), and cards use two columns. ── */
+@media(min-width:768px) and (max-width:1023px){
+  body .sidebar{position:fixed;left:-260px;top:0;bottom:0;transition:left 0.3s;z-index:100;box-shadow:18px 0 50px rgba(0,0,0,.18)}
+  body .sidebar.open{left:0}
+  body .sidebar-backdrop.show{display:block}
+  body .mobile-menu-btn{display:inline-flex!important}
+  body .content{padding-left:20px;padding-right:20px}
+  .m-body{max-width:900px;margin:0 auto;width:100%;box-sizing:border-box}
+  body.m-own-header .m-body{padding:20px}
+  .m-quick{grid-template-columns:repeat(4,minmax(0,1fr));max-width:720px}
+  #m-tasks, .m-mine, #m-rv-list, .ir-list{display:grid!important;grid-template-columns:1fr 1fr;gap:12px}
+  #case-tbody, #cl-tbody, #vd-tbody, #py-tbody, #rv-tbody, #payreq-pending-tbody, #payreq-rejected-tbody, #payreq-approved-tbody, #exp-tbody, #att-record-tbody, #att-leave-tbody{display:grid!important;grid-template-columns:1fr 1fr;gap:12px}
+  .modal-overlay{align-items:center;justify-content:center;padding:24px}
+  .modal-overlay .modal{width:min(640px,100vw)!important;max-width:640px!important;height:auto!important;max-height:calc(100dvh - 48px)!important;border-radius:16px;border:1px solid var(--border2)}
+  .m-subnav{margin:-18px -20px 14px}
+}
+
+/* ── Tablet landscape (1024–1279px): desktop layout, sized for fingers. ── */
+@media(min-width:1024px) and (max-width:1279px){
+  .btn, .btn-sm{min-height:40px}
+  .nav-item{min-height:44px}
+  .form-input, .form-select, .search-input, .filter-select{min-height:40px;font-size:15px}
+  .modal-close{min-width:40px;min-height:40px}
+  #page-payable .sticky-table-wrap, #page-receivable .sticky-table-wrap, #page-profit .sticky-table-wrap{overflow-x:auto}
 }

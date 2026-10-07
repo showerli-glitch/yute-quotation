@@ -14,7 +14,7 @@ const MOBILE_TAB_OF_PAGE = {
 };
 
 function mobileIsActive() {
-  return window.matchMedia('(max-width: 767px)').matches;
+  return window.matchMedia('(max-width: 1023px)').matches;
 }
 
 function mobileHasFinanceTab() {
@@ -1211,4 +1211,21 @@ async function mobileCheckNewVersion() {
   setTimeout(mobileCheckNewVersion, 15000);
   setInterval(mobileCheckNewVersion, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') mobileCheckNewVersion(); });
+})();
+
+// ── Rotating a tablet (or resizing a window) across 1023px: phone-only pages do not exist in the desktop
+// layout, so leave them for the person's normal desktop page. ──
+(function mobileWatchLayout() {
+  const mq = window.matchMedia('(max-width: 1023px)');
+  const onChange = () => {
+    if (!currentUser?.id) return;
+    if (!mq.matches && MOBILE_OWN_PAGES.includes(currentPage)) {
+      const target = (typeof USER_DEFAULT_PAGE !== 'undefined' && USER_DEFAULT_PAGE[currentUser.id] && canAccess(USER_DEFAULT_PAGE[currentUser.id])) ? USER_DEFAULT_PAGE[currentUser.id] : firstAccessiblePage();
+      document.body.classList.remove('m-own-header');
+      navTo(target, navElForPage(target));
+    } else {
+      mobileSyncChrome(currentPage);
+    }
+  };
+  if (mq.addEventListener) mq.addEventListener('change', onChange); else if (mq.addListener) mq.addListener(onChange);
 })();

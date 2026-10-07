@@ -21,7 +21,7 @@
 .ir-btn.primary{background:#123D33;border-color:#123D33;color:#fff;font-weight:700}
 .ir-empty{font-size:13px;color:var(--text3);padding:6px 2px}
 .ir-sub{font-size:13px;font-weight:700;color:var(--text);margin-top:8px}
-@media(max-width:767px){
+@media(max-width:1023px){
   .ir-copy{min-height:44px;min-width:56px}
   .ir-btn{min-height:44px;flex:1;font-size:14px}
   .ir-label{width:64px}
