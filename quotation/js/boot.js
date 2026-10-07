@@ -13,7 +13,7 @@
     if(!s)return;
     var d=JSON.parse(s);
     if(!d.email||!d.email.endsWith('@yutesign.com'))return;
-    if(Date.now()-d.loginTime>4*3600*1000)return;
+    if(Date.now()-d.loginTime>8*3600*1000)return;
     document.addEventListener('DOMContentLoaded',function(){
       var ls=document.getElementById('loginScreen');
       var ma=document.getElementById('mainApp');

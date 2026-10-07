@@ -85,6 +85,58 @@ check('沒有頁面錯誤', errors.length === 0, errors);
 obs.errors = errors.length;
 await ctx.close();
 
+
+// ═══════════ PWA (only on the PWA branch; not part of the split comparison) ═══════════
+const hasPwa = await (async () => { try { return (await fetch(`${ORIGIN}/quotation-sw.js`)).ok; } catch (e) { return false; } })();
+if (hasPwa) {
+  H.setScenario('Q-pwa');
+  const pctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW, serviceWorkers: 'allow' });
+  await pctx.addInitScript(() => { try { if (!localStorage.getItem('yutesign_session')) localStorage.setItem('yutesign_session', JSON.stringify({ email: 'shower.li@yutesign.com', loginTime: Date.now() })); } catch (e) {} });
+  const p2 = await pctx.newPage();
+  await p2.setViewportSize({ width: 390, height: 844 });
+  await p2.goto(`${ORIGIN}/`, { waitUntil: 'load' });
+  await p2.waitForFunction(() => typeof renderQuote === 'function', null, { timeout: 15000 });
+  const head = await p2.evaluate(async () => ({ manifest: document.querySelector('link[rel=manifest]')?.getAttribute('href'), apple: document.querySelector('link[rel=apple-touch-icon]')?.getAttribute('href'), title: document.querySelector('meta[name=apple-mobile-web-app-title]')?.content, m: await (await fetch('quotation.webmanifest')).json() }));
+  check('報價系統 manifest：獨立名稱「宇德報價」、相對路徑、與 OPS 不同的 id', /^quotation\.webmanifest\?v=[0-9a-f]{8}$/.test(head.manifest) && head.m.short_name === '宇德報價' && head.m.start_url === './' && head.m.display === 'standalone' && /apple-touch-icon\.png\?v=/.test(head.apple) && head.title === '宇德報價', head);
+  const icons = await p2.evaluate(async icons => Promise.all(icons.map(i => new Promise(res => { const im = new Image(); im.onload = () => res(i.src + ':' + im.naturalWidth); im.onerror = () => res(i.src + ':error'); im.src = i.src; }))), head.m.icons);
+  check('圖示存在且尺寸正確', JSON.stringify(icons) === JSON.stringify(['quotation/icons/icon-192.png:192', 'quotation/icons/icon-512.png:512', 'quotation/icons/icon-maskable-512.png:512']), icons);
+  const reg = await p2.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); if (!r) return null; const sw = r.active || r.waiting || r.installing; if (sw && sw.state !== 'activated') await new Promise(res => sw.addEventListener('statechange', () => sw.state === 'activated' && res())); return { scope: new URL(r.scope).pathname }; });
+  check('手機寬度：註冊報價系統的 service worker', reg && reg.scope === '/', reg);
+  await p2.reload({ waitUntil: 'load' }); await p2.waitForTimeout(800);
+  const opsUntouched = await p2.evaluate(async () => { await fetch('ops/index.html'); await fetch('ops/sw.js'); await new Promise(r => setTimeout(r, 300)); const keys = await caches.keys(); const urls = []; for (const k of keys) { const c = await caches.open(k); (await c.keys()).forEach(r => urls.push(new URL(r.url).pathname)); } return { keys, opsCached: urls.filter(u => u.startsWith('/ops/')), shell: urls.filter(u => u.startsWith('/quotation/')).length }; });
+  check('service worker 不碰 OPS（ops/ 底下的請求不進快取）、只快取報價系統檔案', opsUntouched.keys.every(k => k.startsWith('quotation-shell-')) && opsUntouched.opsCached.length === 0 && opsUntouched.shell >= 8, opsUntouched);
+  const sess = await p2.evaluate(() => SESSION_HOURS);
+  check('報價系統登入時間 8 小時', sess === 8, sess);
+  const navs = [];
+  p2.on('request', r => { if (r.url().startsWith('https://accounts.google.com/o/oauth2/v2/auth')) navs.push(r.url()); });
+  await p2.evaluate(() => { window.__forceStandalone = true; startLogin(); });
+  await p2.waitForTimeout(800);
+  const u = navs[0] ? new URL(navs[0]) : null;
+  check('已安裝 app：登入改整頁前往 Google（同一個用戶端、回到網站根目錄、含雲端硬碟範圍）', !!u && u.searchParams.get('client_id').startsWith('239869421522-') && new URL(u.searchParams.get('redirect_uri')).pathname === '/' && u.searchParams.get('response_type') === 'token' && /drive\.file/.test(u.searchParams.get('scope')) && /^login\./.test(u.searchParams.get('state')), navs[0] || 'none');
+  await pctx.close();
+  const c3 = await newContext('shower.li@yutesign.com', { fixedTime: NOW });
+  await c3.addInitScript(() => { try { if (!localStorage.getItem('yutesign_session')) localStorage.setItem('yutesign_session', JSON.stringify({ email: 'shower.li@yutesign.com', loginTime: Date.now() })); } catch (e) {} });
+  const p3 = await c3.newPage();
+  await p3.goto(`${ORIGIN}/`, { waitUntil: 'load' });
+  await p3.waitForFunction(() => typeof renderQuote === 'function', null, { timeout: 15000 });
+  const ret = await p3.evaluate(async () => {
+    localStorage.setItem('yutesign_quote_oauth_pending', JSON.stringify({ state: 'drive.ok', purpose: 'drive', at: Date.now() }));
+    history.replaceState(null, '', location.pathname + '#access_token=tok-ok&state=drive.ok');
+    driveAccessToken = null; qpwaHandleReturn();
+    const ok = { token: driveAccessToken, hash: location.hash };
+    localStorage.setItem('yutesign_quote_oauth_pending', JSON.stringify({ state: 'drive.real', purpose: 'drive', at: Date.now() }));
+    history.replaceState(null, '', location.pathname + '#access_token=tok-bad&state=drive.forged');
+    driveAccessToken = null; qpwaHandleReturn();
+    return { ok, forged: driveAccessToken, hash2: location.hash };
+  });
+  check('從 Google 回來：state 相符才採用 token，網址的 token 立刻清掉', ret.ok.token === 'tok-ok' && ret.ok.hash === '' && ret.forged === null && ret.hash2 === '', ret);
+  const login = await p3.evaluate(async () => { document.getElementById('mainApp').style.display = 'none'; document.getElementById('loginScreen').style.display = ''; await qpwaCompleteLogin('mock-access-token'); return { main: document.getElementById('mainApp').style.display, login: document.getElementById('loginScreen').style.display, token: driveAccessToken, session: JSON.parse(localStorage.getItem('yutesign_session')).email }; });
+  check('整頁轉址登入的後續步驟完成（進入主畫面、記住 8 小時登入）', login.main === '' && login.login === 'none' && login.token === 'mock-access-token' && login.session === 'shower.li@yutesign.com', login);
+  const ver = await p3.evaluate(async () => { const cur = qpwaCurrentStamp(); const real = window.fetch; const html = await (await real(location.pathname, { cache: 'no-store' })).text(); window.fetch = async () => new Response(html); const same = await qpwaCheckNewVersion(); window.fetch = async () => new Response(html.replaceAll('?v=' + cur, '?v=deadbeef')); const diff = await qpwaCheckNewVersion(); window.fetch = real; return { cur, same, diff, banner: document.getElementById('qpwa-new-version')?.textContent || '' }; });
+  check('新版提示：版本相同不提示、不同時顯示「立即重新整理」', /^[0-9a-f]{8}$/.test(ver.cur) && ver.same === false && ver.diff === true && ver.banner.includes('立即重新整理'), ver);
+  await c3.close();
+}
+
 const fails = await H.finish(outJson, { observations: obs, observationsHash: hash(JSON.stringify(obs)) });
 console.log('observations hash', hash(JSON.stringify(obs)));
 process.exit(fails ? 1 : 0);

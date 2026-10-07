@@ -20,7 +20,16 @@ const PARTS = [
 ];
 const MAIN = ['quotation/js/defaultitems.js', 'quotation/js/items.js', 'quotation/js/quote.js', 'quotation/js/output.js', 'quotation/js/app.js'];
 // Later intentional edits: { file: [[from, to], ...] } applied to the moved body before comparing.
-const POST_SPLIT_CHANGES = {};
+const POST_SPLIT_CHANGES = {
+  'quotation/js/app.js': [['const SESSION_HOURS = 4;', 'const SESSION_HOURS = 8;']],
+  'quotation/js/boot.js': [['if(Date.now()-d.loginTime>4*3600*1000)return;', 'if(Date.now()-d.loginTime>8*3600*1000)return;']],
+};
+// Intentional edits to the page itself (PWA tags, the new pwa.js), undone before comparing: [original, now].
+const HTML_CHANGES = [
+  ['<link rel="apple-touch-icon" href="https://showerli-glitch.github.io/yute-quotation/favicon.png?v=202606222000">',
+   '<link rel="manifest" href="quotation.webmanifest">\n<meta name="theme-color" content="#123D33">\n<meta name="mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-title" content="宇德報價">\n<meta name="apple-mobile-web-app-status-bar-style" content="default">\n<link rel="apple-touch-icon" href="quotation/icons/apple-touch-icon.png">'],
+  ['<script src="quotation/js/app.js"></script>\n', '<script src="quotation/js/app.js"></script>\n<script src="quotation/js/pwa.js"></script>\n'],
+];
 
 const body = file => {
   const text = fs.readFileSync(path.join(root, file), 'utf8');
@@ -34,7 +43,11 @@ const body = file => {
 };
 
 const rawHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-let html = stripQuotationStamps(rawHtml);
+let html = stripQuotationStamps(rawHtml).replace(/href="quotation\.webmanifest\?v=[0-9a-f]{8}"/, 'href="quotation.webmanifest"');
+for (const [from, to] of HTML_CHANGES) {
+  if (html.split(to).length !== 2) fail(`index.html 缺少記錄的修改：${to.slice(0, 70)}`);
+  html = html.replace(to, () => from);
+}
 for (const [file, tag, open, close] of PARTS) {
   if (html.split(tag).length !== 2) fail(`index.html 應恰好有一個 ${tag}`);
   html = html.replace(tag, () => `${open}\n${body(file)}\n${close}`);
@@ -55,6 +68,7 @@ for (const file of [...MAIN, 'quotation/js/boot.js', 'quotation/js/shell.js']) {
   catch (e) { fail(`${file} 語法錯誤：${e.message}`); }
 }
 const extra = fs.readdirSync(path.join(root, 'quotation/js')).filter(f => !MAIN.includes('quotation/js/' + f) && !['boot.js', 'shell.js'].includes(f));
+for (const f of ['quotation-sw.js']) if (fs.existsSync(path.join(root, f))) { try { new vm.Script(fs.readFileSync(path.join(root, f), 'utf8'), { filename: f }); } catch (e) { fail(`${f} 語法錯誤：${e.message}`); } }
 for (const f of extra) {
   try { new vm.Script(fs.readFileSync(path.join(root, 'quotation/js', f), 'utf8'), { filename: f }); }
   catch (e) { fail(`quotation/js/${f} 語法錯誤：${e.message}`); }
@@ -65,4 +79,4 @@ const refs = [...rawHtml.matchAll(/(?:src|href)="quotation[^"]*"/g)].map(m => m[
 if (!refs.length || refs.some(r => !r.includes('?v=' + expected))) fail(`index.html 的報價系統版本戳記不是最新（應為 ?v=${expected}）：請執行 node scripts/stamp-quotation-version.mjs`);
 
 if (failed) process.exit(1);
-console.log(`PASS: 報價系統 ${MAIN.length + 3} 個檔案組回去與 ${BASELINE} 的 index.html 逐字相同；${MAIN.length + 2 + extra.length} 個 script 語法正確；版本戳記 ?v=${expected}。` + (Object.keys(POST_SPLIT_CHANGES).length ? ` 拆檔後的刻意修改：${Object.keys(POST_SPLIT_CHANGES).join('、')}` : ''));
+console.log(`PASS: 報價系統 ${MAIN.length + 3} 個檔案組回去與 ${BASELINE} 的 index.html 逐字相同；${MAIN.length + 2 + extra.length} 個 script 語法正確；版本戳記 ?v=${expected}。` + (Object.keys(POST_SPLIT_CHANGES).length ? ` 拆檔後的刻意修改：${Object.keys(POST_SPLIT_CHANGES).join('、')}、index.html（${HTML_CHANGES.length} 處）` : ''));

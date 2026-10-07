@@ -332,7 +332,7 @@ loadGsi();
 
 // ===== 登入驗證 =====
 const ALLOWED_DOMAIN = 'yutesign.com';
-const SESSION_HOURS = 4; // 重開頁面幾小時內免重新登入
+const SESSION_HOURS = 8; // 重開頁面幾小時內免重新登入
 let loginTokenClient;
 
 function startLogin(){
