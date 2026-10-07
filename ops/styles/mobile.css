@@ -195,9 +195,6 @@
 /* Installed iPhone app: the status bar style is "default" (opaque, page starts below it). With
    "black-translucent" iOS 26 drew a blur over the header and left the web view 62px short of the screen
    bottom (measured on the user's iPhone: innerHeight 812 vs screen 874, safe-area top 62 / bottom 34). */
-  .m-nav{bottom:calc(100dvh - 100lvh)}
-  .m-statusbar{height:max(env(safe-area-inset-top,0px),12px)}
-}
 
 /* ── Existing list tables become cards on a phone. Same rows, filters, permissions and buttons as the desktop;
       only the layout changes (thead hidden, each row a card: title + amount on top, other cells labelled). ── */
