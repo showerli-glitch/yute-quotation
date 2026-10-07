@@ -674,6 +674,50 @@ await page.evaluate(() => { try { localStorage.setItem(mobileShortcutKey(), JSON
 check('即使儲存了沒有權限的項目，也不會顯示', JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('#m-quick .m-quick-btn')].filter(b => !b.hidden).map(b => b.id.replace('m-q-', '')))) === JSON.stringify(['attendance']));
 await ctx.close();
 
+// ═══════════ M: 節點 5 — 列表改卡片、打卡頁、淨利潤摘要 ═══════════
+H.setScenario('M-node5(shower)');
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW, geolocation: NEAR });
+page = await openPhone(ctx);
+page.on('dialog', d => d.accept());
+const TABLES = { dashboard: 'case-tbody', clients: 'cl-tbody', vendors: 'vd-tbody', payable: 'py-tbody', receivable: 'rv-tbody', payreq: 'payreq-pending-tbody', expense: 'exp-tbody', attendance: 'att-record-tbody' };
+for (const [pg, tb] of Object.entries(TABLES)) {
+  await page.evaluate(x => mobileOpen(x), pg);
+  await page.waitForTimeout(250);
+  const info = await page.evaluate(tb => {
+    const body = document.getElementById(tb); const table = body.closest('table'); const row = body.querySelector('tr');
+    const vis = el => el && getComputedStyle(el).display !== 'none';
+    const main = document.querySelector('.main');
+    const overflowing = [...document.querySelectorAll('.page.active *')].filter(e => { if (!e.offsetParent) return false; const r = e.getBoundingClientRect(); if (r.right <= innerWidth + 2) return false; let p = e.parentElement; while (p && !p.classList.contains('page')) { if (getComputedStyle(p).overflowX !== 'visible') return false; p = p.parentElement; } return true; }).length;
+    return { thead: vis(table.tHead), rowDisplay: row ? getComputedStyle(row).display : 'none', rows: body.querySelectorAll('tr').length, overflowing, mainScroll: main.scrollWidth > main.clientWidth && getComputedStyle(main).overflowX !== 'hidden' };
+  }, tb);
+  check(`${pg}：表格在手機顯示為卡片（表頭隱藏、每列一張卡）、沒有超出畫面寬度`, !info.thead && (info.rows === 0 || info.rowDisplay === 'flex') && info.overflowing === 0 && !info.mainScroll, info);
+}
+await page.evaluate(() => mobileOpen('payreq'));
+const prCard = await page.evaluate(() => { const row = document.querySelector('#payreq-pending-tbody tr'); if (!row) return null; const b = [...row.querySelectorAll('button')].find(x => x.textContent.trim() === '核准'); return { has: !!b, h: b ? b.getBoundingClientRect().height : 0, onclick: b ? b.getAttribute('onclick') : '' }; });
+check('請款卡片內仍是原本的「核准」按鈕（同一個函式）', !prCard || (prCard.has && /approveReq/.test(prCard.onclick)), prCard);
+await page.evaluate(() => mobileOpen('attendance'));
+await page.waitForTimeout(300);
+const att = await page.evaluate(() => { const body = document.querySelector('.att-page-body'); const first = [...body.children].filter(c => getComputedStyle(c).display !== 'none').sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0]; const btn = document.getElementById('att-gps-in-btn'); return { firstIsEntry: first.classList.contains('att-entry-grid'), btnH: btn.getBoundingClientRect().height, bg: getComputedStyle(btn).backgroundColor }; });
+check('打卡頁：定位打卡卡片排在最上面、上下班按鈕高度 ≥ 96px、深綠主色', att.firstIsEntry && att.btnH >= 95 && att.bg === 'rgb(18, 61, 51)', att);
+await page.evaluate(() => mobileGo('finance'));
+await page.click('#m-f-profitshare');
+st = await state(page);
+const ps = await page.evaluate(() => { const d = psComputeData(); return { total: document.getElementById('m-ps-total').hidden, rows: document.querySelectorAll('#m-ps-people .m-card').length, expectRows: d.rows.length, text: document.getElementById('m-ps-total').innerText }; });
+check('淨利潤摘要（業主）：自有頁面、合計卡片、每人一張卡（與 psComputeData 一致）', st.page === 'mprofitshare' && st.tab === 'finance' && !ps.total && ps.rows === ps.expectRows && ps.text.includes('合計淨利'), ps);
+await page.click('#page-mprofitshare .m-submit.alt');
+check('「看完整儀表」開啟原本的淨利潤儀表', (await page.evaluate(() => currentPage)) === 'profitshare');
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.evaluate(() => navTo('payable', document.getElementById('nav-payable')));
+await page.waitForTimeout(200);
+check('桌面寬度：應付表格仍是表格（表頭顯示、列為 table-row）', await page.evaluate(() => { const b = document.getElementById('py-tbody'); return getComputedStyle(b.closest('table').tHead).display !== 'none' && (!b.querySelector('tr') || getComputedStyle(b.querySelector('tr')).display === 'table-row'); }));
+await ctx.close();
+H.setScenario('M-node5(peng)');
+ctx = await newContext('peng@yutesign.com', { fixedTime: NOW });
+page = await openPhone(ctx);
+const pengPs = await page.evaluate(() => { if (!canAccess('profitshare')) return { access: false }; mobileOpenProfitShare(); return { access: true, total: document.getElementById('m-ps-total').hidden, names: [...document.querySelectorAll('#m-ps-people .m-card-title')].map(e => e.textContent) }; });
+check('淨利潤摘要（非業主）：看不到合計、只看到自己', !pengPs.access || (pengPs.total === true && pengPs.names.every(n => n === '彭俞豪')), pengPs);
+await ctx.close();
+
 // ═══════════ D: PWA install config ═══════════
 H.setScenario('D-pwa');
 ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW, serviceWorkers: 'allow' });

@@ -201,3 +201,163 @@
   .m-nav{bottom:calc(100dvh - 100lvh)}
   .m-statusbar{height:max(env(safe-area-inset-top,0px),12px)}
 }
+
+/* ── Existing list tables become cards on a phone. Same rows, filters, permissions and buttons as the desktop;
+      only the layout changes (thead hidden, each row a card: title + amount on top, other cells labelled). ── */
+@media(max-width:767px){
+  table:has(> tbody#case-tbody), table:has(> tbody#dash-rv-tbody), table:has(> tbody#cl-tbody), table:has(> tbody#vd-tbody), table:has(> tbody#py-tbody), table:has(> tbody#rv-tbody), table:has(> tbody#payreq-pending-tbody), table:has(> tbody#payreq-rejected-tbody), table:has(> tbody#payreq-approved-tbody), table:has(> tbody#exp-tbody), table:has(> tbody#att-record-tbody), table:has(> tbody#att-leave-tbody){display:block;width:100%!important;min-width:0!important;border:0!important;background:transparent!important}
+  table:has(> tbody#case-tbody) > thead, table:has(> tbody#dash-rv-tbody) > thead, table:has(> tbody#cl-tbody) > thead, table:has(> tbody#vd-tbody) > thead, table:has(> tbody#py-tbody) > thead, table:has(> tbody#rv-tbody) > thead, table:has(> tbody#payreq-pending-tbody) > thead, table:has(> tbody#payreq-rejected-tbody) > thead, table:has(> tbody#payreq-approved-tbody) > thead, table:has(> tbody#exp-tbody) > thead, table:has(> tbody#att-record-tbody) > thead, table:has(> tbody#att-leave-tbody) > thead{display:none!important}
+  #case-tbody, #dash-rv-tbody, #cl-tbody, #vd-tbody, #py-tbody, #rv-tbody, #payreq-pending-tbody, #payreq-rejected-tbody, #payreq-approved-tbody, #exp-tbody, #att-record-tbody, #att-leave-tbody{display:flex;flex-direction:column;gap:10px}
+  #case-tbody > tr, #dash-rv-tbody > tr, #cl-tbody > tr, #vd-tbody > tr, #py-tbody > tr, #rv-tbody > tr, #payreq-pending-tbody > tr, #payreq-rejected-tbody > tr, #payreq-approved-tbody > tr, #exp-tbody > tr, #att-record-tbody > tr, #att-leave-tbody > tr{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:14px;padding:12px 14px!important;height:auto!important}
+  #case-tbody > tr > td, #dash-rv-tbody > tr > td, #cl-tbody > tr > td, #vd-tbody > tr > td, #py-tbody > tr > td, #rv-tbody > tr > td, #payreq-pending-tbody > tr > td, #payreq-rejected-tbody > tr > td, #payreq-approved-tbody > tr > td, #exp-tbody > tr > td, #att-record-tbody > tr > td, #att-leave-tbody > tr > td{flex:1 1 100%;display:block;padding:0!important;border:0!important;text-align:left!important;max-width:none!important;min-width:0!important;white-space:normal!important;font-size:13px;order:1}
+  #case-tbody > tr > td[colspan], #dash-rv-tbody > tr > td[colspan], #cl-tbody > tr > td[colspan], #vd-tbody > tr > td[colspan], #py-tbody > tr > td[colspan], #rv-tbody > tr > td[colspan], #payreq-pending-tbody > tr > td[colspan], #payreq-rejected-tbody > tr > td[colspan], #payreq-approved-tbody > tr > td[colspan], #exp-tbody > tr > td[colspan], #att-record-tbody > tr > td[colspan], #att-leave-tbody > tr > td[colspan]{text-align:center!important;color:var(--text3)}
+  #case-tbody > tr > td:not([colspan]):nth-child(2){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #case-tbody > tr > td:not([colspan]):nth-child(5){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #case-tbody > tr > td:not([colspan]):nth-child(11){display:none!important}
+  #case-tbody > tr > td:not([colspan]):nth-child(1)::before{content:'編號';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #case-tbody > tr > td:not([colspan]):nth-child(3)::before{content:'客戶';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #case-tbody > tr > td:not([colspan]):nth-child(4)::before{content:'狀態';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #case-tbody > tr > td:not([colspan]):nth-child(6)::before{content:'收款進度';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #case-tbody > tr > td:not([colspan]):nth-child(7)::before{content:'保固款';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #case-tbody > tr > td:not([colspan]):nth-child(8)::before{content:'到期日';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #case-tbody > tr > td:not([colspan]):nth-child(9)::before{content:'待收';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #case-tbody > tr > td:not([colspan]):nth-child(10)::before{content:'負責人';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #case-tbody > tr > td:not([colspan]):nth-child(12){display:flex!important;flex-wrap:wrap;gap:6px;margin-top:4px}
+  #dash-rv-tbody > tr > td:not([colspan]):nth-child(3){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #dash-rv-tbody > tr > td:not([colspan]):nth-child(4){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #dash-rv-tbody > tr > td:not([colspan]):nth-child(1)::before{content:'收款日';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #dash-rv-tbody > tr > td:not([colspan]):nth-child(2)::before{content:'個案';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #dash-rv-tbody > tr > td:not([colspan]):nth-child(5)::before{content:'狀態';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #cl-tbody > tr > td:not([colspan]):nth-child(2){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #cl-tbody > tr > td:not([colspan]):nth-child(1){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #cl-tbody > tr > td:not([colspan]):nth-child(6){display:none!important}
+  #cl-tbody > tr > td:not([colspan]):nth-child(9){display:none!important}
+  #cl-tbody > tr > td:not([colspan]):nth-child(3)::before{content:'全名';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #cl-tbody > tr > td:not([colspan]):nth-child(4)::before{content:'統編';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #cl-tbody > tr > td:not([colspan]):nth-child(5)::before{content:'類型';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #cl-tbody > tr > td:not([colspan]):nth-child(7)::before{content:'聯絡人';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #cl-tbody > tr > td:not([colspan]):nth-child(8)::before{content:'電話';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #cl-tbody > tr > td:not([colspan]):nth-child(10){display:flex!important;flex-wrap:wrap;gap:6px;margin-top:4px}
+  #vd-tbody > tr > td:not([colspan]):nth-child(2){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #vd-tbody > tr > td:not([colspan]):nth-child(1){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #vd-tbody > tr > td:not([colspan]):nth-child(4){display:none!important}
+  #vd-tbody > tr > td:not([colspan]):nth-child(7){display:none!important}
+  #vd-tbody > tr > td:not([colspan]):nth-child(8){display:none!important}
+  #vd-tbody > tr > td:not([colspan]):nth-child(9){display:none!important}
+  #vd-tbody > tr > td:not([colspan]):nth-child(10){display:none!important}
+  #vd-tbody > tr > td:not([colspan]):nth-child(3)::before{content:'工種';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #vd-tbody > tr > td:not([colspan]):nth-child(5)::before{content:'聯絡人';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #vd-tbody > tr > td:not([colspan]):nth-child(6)::before{content:'電話';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #vd-tbody > tr > td:not([colspan]):nth-child(11)::before{content:'狀態';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #vd-tbody > tr > td:not([colspan]):nth-child(12){display:flex!important;flex-wrap:wrap;gap:6px;margin-top:4px}
+  #py-tbody > tr > td:not([colspan]):nth-child(3){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #py-tbody > tr > td:not([colspan]):nth-child(5){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #py-tbody > tr > td:not([colspan]):nth-child(1){display:none!important}
+  #py-tbody > tr > td:not([colspan]):nth-child(7){display:none!important}
+  #py-tbody > tr > td:not([colspan]):nth-child(9){display:none!important}
+  #py-tbody > tr > td:not([colspan]):nth-child(10){display:none!important}
+  #py-tbody > tr > td:not([colspan]):nth-child(11){display:none!important}
+  #py-tbody > tr > td:not([colspan]):nth-child(15){display:none!important}
+  #py-tbody > tr > td:not([colspan]):nth-child(16){display:none!important}
+  #py-tbody > tr > td:not([colspan]):nth-child(2)::before{content:'個案';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #py-tbody > tr > td:not([colspan]):nth-child(4)::before{content:'摘要';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #py-tbody > tr > td:not([colspan]):nth-child(6)::before{content:'希望付款';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #py-tbody > tr > td:not([colspan]):nth-child(8)::before{content:'已匯款';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #py-tbody > tr > td:not([colspan]):nth-child(12)::before{content:'附件';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #py-tbody > tr > td:not([colspan]):nth-child(13)::before{content:'申請人';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #py-tbody > tr > td:not([colspan]):nth-child(14)::before{content:'狀態';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #py-tbody > tr > td:not([colspan]):nth-child(17){display:flex!important;flex-wrap:wrap;gap:6px;margin-top:4px}
+  #rv-tbody > tr > td:not([colspan]):nth-child(3){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #rv-tbody > tr > td:not([colspan]):nth-child(5){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #rv-tbody > tr > td:not([colspan]):nth-child(1){display:none!important}
+  #rv-tbody > tr > td:not([colspan]):nth-child(8){display:none!important}
+  #rv-tbody > tr > td:not([colspan]):nth-child(9){display:none!important}
+  #rv-tbody > tr > td:not([colspan]):nth-child(2)::before{content:'個案';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #rv-tbody > tr > td:not([colspan]):nth-child(4)::before{content:'項目';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #rv-tbody > tr > td:not([colspan]):nth-child(6)::before{content:'入帳';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #rv-tbody > tr > td:not([colspan]):nth-child(7)::before{content:'發票';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #rv-tbody > tr > td:not([colspan]):nth-child(10)::before{content:'狀態';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #rv-tbody > tr > td:not([colspan]):nth-child(11){display:flex!important;flex-wrap:wrap;gap:6px;margin-top:4px}
+  #payreq-pending-tbody > tr > td:not([colspan]):nth-child(3){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #payreq-pending-tbody > tr > td:not([colspan]):nth-child(5){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #payreq-pending-tbody > tr > td:not([colspan]):nth-child(1){display:none!important}
+  #payreq-pending-tbody > tr > td:not([colspan]):nth-child(7){display:none!important}
+  #payreq-pending-tbody > tr > td:not([colspan]):nth-child(8){display:none!important}
+  #payreq-pending-tbody > tr > td:not([colspan]):nth-child(2)::before{content:'個案';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-pending-tbody > tr > td:not([colspan]):nth-child(4)::before{content:'摘要';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-pending-tbody > tr > td:not([colspan]):nth-child(6)::before{content:'付款日';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-pending-tbody > tr > td:not([colspan]):nth-child(9)::before{content:'申請人';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-pending-tbody > tr > td:not([colspan]):nth-child(10)::before{content:'狀態';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-pending-tbody > tr > td:not([colspan]):nth-child(11){display:flex!important;flex-wrap:wrap;gap:6px;margin-top:4px}
+  #payreq-rejected-tbody > tr > td:not([colspan]):nth-child(3){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #payreq-rejected-tbody > tr > td:not([colspan]):nth-child(5){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #payreq-rejected-tbody > tr > td:not([colspan]):nth-child(1){display:none!important}
+  #payreq-rejected-tbody > tr > td:not([colspan]):nth-child(2)::before{content:'個案';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-rejected-tbody > tr > td:not([colspan]):nth-child(4)::before{content:'摘要';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-rejected-tbody > tr > td:not([colspan]):nth-child(6)::before{content:'付款日';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-rejected-tbody > tr > td:not([colspan]):nth-child(7)::before{content:'申請人';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-rejected-tbody > tr > td:not([colspan]):nth-child(8)::before{content:'狀態';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-rejected-tbody > tr > td:not([colspan]):nth-child(9){display:flex!important;flex-wrap:wrap;gap:6px;margin-top:4px}
+  #payreq-approved-tbody > tr > td:not([colspan]):nth-child(3){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #payreq-approved-tbody > tr > td:not([colspan]):nth-child(5){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #payreq-approved-tbody > tr > td:not([colspan]):nth-child(1){display:none!important}
+  #payreq-approved-tbody > tr > td:not([colspan]):nth-child(2)::before{content:'個案';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-approved-tbody > tr > td:not([colspan]):nth-child(4)::before{content:'摘要';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-approved-tbody > tr > td:not([colspan]):nth-child(6)::before{content:'付款日';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-approved-tbody > tr > td:not([colspan]):nth-child(7)::before{content:'申請人';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-approved-tbody > tr > td:not([colspan]):nth-child(8)::before{content:'狀態';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #payreq-approved-tbody > tr > td:not([colspan]):nth-child(9){display:flex!important;flex-wrap:wrap;gap:6px;margin-top:4px}
+  #exp-tbody > tr > td:not([colspan]):nth-child(6){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #exp-tbody > tr > td:not([colspan]):nth-child(7){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #exp-tbody > tr > td:not([colspan]):nth-child(1){display:none!important}
+  #exp-tbody > tr > td:not([colspan]):nth-child(3){display:none!important}
+  #exp-tbody > tr > td:not([colspan]):nth-child(2)::before{content:'申請人';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #exp-tbody > tr > td:not([colspan]):nth-child(4)::before{content:'個案';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #exp-tbody > tr > td:not([colspan]):nth-child(5)::before{content:'日期';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #exp-tbody > tr > td:not([colspan]):nth-child(8)::before{content:'類別';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #exp-tbody > tr > td:not([colspan]):nth-child(9)::before{content:'憑證';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #exp-tbody > tr > td:not([colspan]):nth-child(10)::before{content:'備註';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #exp-tbody > tr > td:not([colspan]):nth-child(11)::before{content:'狀態';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #exp-tbody > tr > td:not([colspan]):nth-child(12){display:flex!important;flex-wrap:wrap;gap:6px;margin-top:4px}
+  #att-record-tbody > tr > td:not([colspan]):nth-child(1){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #att-record-tbody > tr > td:not([colspan]):nth-child(6){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #att-record-tbody > tr > td:not([colspan]):nth-child(2)::before{content:'人員';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #att-record-tbody > tr > td:not([colspan]):nth-child(3)::before{content:'上班';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #att-record-tbody > tr > td:not([colspan]):nth-child(4)::before{content:'下班';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #att-record-tbody > tr > td:not([colspan]):nth-child(5)::before{content:'地點';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #att-record-tbody > tr > td:not([colspan]):nth-child(7){display:flex!important;flex-wrap:wrap;gap:6px;margin-top:4px}
+  #att-leave-tbody > tr > td:not([colspan]):nth-child(1){order:-2;flex:1 1 55%;font-size:15px!important;font-weight:700;color:var(--text)}
+  #att-leave-tbody > tr > td:not([colspan]):nth-child(3){order:-1;flex:0 0 auto;text-align:right!important;font-family:'DM Mono',monospace;font-weight:700;font-size:15px!important}
+  #att-leave-tbody > tr > td:not([colspan]):nth-child(2)::before{content:'假別';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #att-leave-tbody > tr > td:not([colspan]):nth-child(4)::before{content:'備註';display:inline-block;min-width:56px;color:var(--text3);font-size:11px;margin-right:6px}
+  #att-leave-tbody > tr > td:not([colspan]):nth-child(5){display:flex!important;flex-wrap:wrap;gap:6px;margin-top:4px}
+  #page-payable .sticky-table-wrap, #page-receivable .sticky-table-wrap, .table-wrap{height:auto!important;max-height:none!important;overflow:visible!important}
+  .page-toolbar{flex-wrap:wrap!important;gap:8px}
+  .page-toolbar .search-input, .page-toolbar .filter-select{min-height:44px;font-size:16px}
+  /* 出勤: the GPS punch card first, bigger buttons; details below */
+  .att-page-body{display:flex;flex-direction:column}
+  .att-page-body > .att-entry-grid{order:-1;margin-bottom:16px}
+  .att-page-body > .announce{display:none}
+  .att-punch-btn{min-height:96px!important;font-size:19px!important;font-weight:700;border-radius:16px!important}
+  .att-gps-meta > div:nth-child(n+3){display:none}
+  .att-gps-meta{grid-template-columns:1fr 1fr!important}
+  /* section headers (title + search/sort/buttons) wrap instead of squeezing the title */
+  .sec-hd{flex-wrap:wrap!important;gap:10px!important;align-items:flex-start!important}
+  .sec-hd > .sec-title{flex:1 1 100%;writing-mode:horizontal-tb;white-space:nowrap}
+  .sec-hd > div{flex-wrap:wrap!important;width:100%}
+  .sec-hd .search-input{flex:1 1 100%;min-width:0!important;height:44px!important;font-size:16px}
+  .sec-hd .filter-select{height:44px!important;font-size:16px}
+  .page .announce{display:none}
+  .kpi-val{font-size:18px!important;overflow-wrap:anywhere}
+  .btn-primary{background:#123D33!important;border-color:#123D33!important;color:#fff!important}
+  body .expense-mobile-hint{display:none}
+  .m-ps-amt{font-family:'DM Mono',monospace;font-weight:700}
+  /* 成本控制: KPI cards in two columns, filters wrap, the wide table scrolls inside its own box */
+  .profit-toolbar{flex-wrap:wrap!important;overflow:visible!important}
+  .profit-kpi-grid{display:grid!important;grid-template-columns:1fr 1fr!important;overflow:visible!important}
+  .profit-kpi-grid .kpi-card{min-width:0!important}
+  #page-profit .profit-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch;max-width:100%}
+  #page-profit .sticky-table-wrap{overflow-x:auto!important;height:auto!important;max-width:100%}
+  #page-profit > div{max-width:100%;min-width:0}
+  #case-tbody > tr > td button, #case-tbody > tr > td select, #dash-rv-tbody > tr > td button, #dash-rv-tbody > tr > td select, #cl-tbody > tr > td button, #cl-tbody > tr > td select, #vd-tbody > tr > td button, #vd-tbody > tr > td select, #py-tbody > tr > td button, #py-tbody > tr > td select, #rv-tbody > tr > td button, #rv-tbody > tr > td select, #payreq-pending-tbody > tr > td button, #payreq-pending-tbody > tr > td select, #payreq-rejected-tbody > tr > td button, #payreq-rejected-tbody > tr > td select, #payreq-approved-tbody > tr > td button, #payreq-approved-tbody > tr > td select, #exp-tbody > tr > td button, #exp-tbody > tr > td select, #att-record-tbody > tr > td button, #att-record-tbody > tr > td select, #att-leave-tbody > tr > td button, #att-leave-tbody > tr > td select{min-height:40px!important;padding:0 12px!important;font-size:13px!important}
+}

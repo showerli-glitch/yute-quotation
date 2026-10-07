@@ -3,12 +3,12 @@
 // existing pages. It only reads data and calls existing functions; it never writes data.
 // Loaded last, after profitshare.js.
 
-const MOBILE_OWN_PAGES = ['mhome', 'mfinance', 'mme', 'mreview', 'mapply', 'minvoice', 'minbox'];
+const MOBILE_OWN_PAGES = ['mhome', 'mfinance', 'mme', 'mreview', 'mapply', 'minvoice', 'minbox', 'mprofitshare'];
 const MOBILE_FINANCE_PAGES = ['payable', 'receivable', 'profit', 'profitshare', 'overhead', 'tax'];
 const MOBILE_TAB_OF_PAGE = {
   mhome: 'today', mapply: 'today', attendance: 'today',
   dashboard: 'cases', clients: 'cases', vendors: 'cases',
-  mfinance: 'finance', mreview: 'finance', minvoice: 'finance', payreq: 'finance', payable: 'finance', receivable: 'finance', expense: 'finance',
+  mfinance: 'finance', mprofitshare: 'finance', mreview: 'finance', minvoice: 'finance', payreq: 'finance', payable: 'finance', receivable: 'finance', expense: 'finance',
   profit: 'finance', profitshare: 'finance', overhead: 'finance', tax: 'finance',
   mme: 'me', minbox: 'me',
 };
@@ -226,7 +226,8 @@ function mobileRenderMe() {
 }
 
 function mobileRenderOwnPage(id) {
-  if (id === 'minbox') mobileRenderInbox();
+  if (id === 'mprofitshare') mobileRenderProfitShare();
+  else if (id === 'minbox') mobileRenderInbox();
   else if (id === 'minvoice') mobileRenderInvoiceQueue();
   else if (id === 'mapply') mobileRenderApply();
   else if (id === 'mreview') mobileRenderReview();
@@ -888,7 +889,7 @@ const MOBILE_SHORTCUTS = [
   { id: 'receivable', label: '應收', icon: '<path d="M12 3v14M7 12l5 5 5-5"/><path d="M5 21h14"/>', allowed: () => canAccess('receivable'), run: () => mobileOpen('receivable') },
   { id: 'payable', label: '應付', icon: '<path d="M12 21V7M7 12l5-5 5 5"/><path d="M5 3h14"/>', allowed: () => canAccess('payable'), run: () => mobileOpen('payable') },
   { id: 'profit', label: '成本控制', icon: '<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>', allowed: () => canAccess('profit'), run: () => mobileOpen('profit') },
-  { id: 'profitshare', label: '淨利潤', icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.5 1.5 0 010 3h-3a1.5 1.5 0 000 3H15"/>', allowed: () => canAccess('profitshare'), run: () => mobileOpen('profitshare') },
+  { id: 'profitshare', label: '淨利潤', icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.5 1.5 0 010 3h-3a1.5 1.5 0 000 3H15"/>', allowed: () => canAccess('profitshare'), run: () => mobileOpenProfitShare() },
   { id: 'cases', label: '案件', icon: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/>', allowed: () => ['dashboard', 'clients', 'vendors'].some(canAccess), run: () => mobileGo('cases') },
   { id: 'clients', label: '客戶', icon: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 15-5 16 0"/>', allowed: () => canAccess('clients'), run: () => mobileOpen('clients') },
   { id: 'vendors', label: '廠商', icon: '<path d="M3 21V9l9-5 9 5v12"/><path d="M9 21v-6h6v6"/>', allowed: () => canAccess('vendors'), run: () => mobileOpen('vendors') },
@@ -1028,4 +1029,45 @@ function mobileScreenInfo() {
     navigator.userAgent.replace(/^.*?\(/, '(').slice(0, 80),
   ];
   window.alert(lines.join('\n'));
+}
+
+// ── 淨利潤: read-only phone summary from psComputeData() (same visibility rule as renderProfitShare) ──
+function mobileOpenProfitShare() {
+  if (!canAccess('profitshare')) { showToast('您沒有此功能的權限', 'error'); return; }
+  mobileShowOwnPage('mprofitshare');
+}
+
+function mobileRenderProfitShare() {
+  if (!canAccess('profitshare')) return;
+  const data = psComputeData();
+  const canSeeAll = ['OWNER', 'FINANCE'].includes(currentUser.roleCode);
+  const money = v => (v < 0 ? '-$ ' : '$ ') + Math.abs(Math.round(Number(v) || 0)).toLocaleString('zh-TW');
+  const sub = document.getElementById('m-ps-sub');
+  if (sub) sub.textContent = '未結算 ' + (data.caseRows || []).length + ' 個案・' + (data.ohMonths || []).length + ' 個月公司開銷';
+  const total = document.getElementById('m-ps-total');
+  total.textContent = '';
+  total.hidden = !canSeeAll;
+  if (canSeeAll) {
+    [['合計淨利', data.grandNet], ['已分配', data.allocatedProfit], ['公司保留', data.companyRetained], ['公司開銷', data.overheadTotal]].forEach(([label, v]) => {
+      const row = mobileEl('div', 'm-row');
+      row.appendChild(mobileEl('span', '', label));
+      row.appendChild(mobileEl('span', 'm-ps-amt', money(v)));
+      total.appendChild(row);
+    });
+  }
+  const rows = canSeeAll ? data.rows : data.rows.filter(r => r.person === currentUser.id);
+  document.getElementById('m-ps-people-title').textContent = canSeeAll ? '每人應得（淨額／未付）' : '我的分潤';
+  const box = document.getElementById('m-ps-people');
+  box.textContent = '';
+  if (!rows.length) box.appendChild(mobileEl('div', 'm-empty', '目前沒有未結算的分潤'));
+  rows.forEach(r => {
+    const card = mobileEl('div', 'm-card');
+    const top = mobileEl('div', 'm-card-top');
+    top.appendChild(mobileEl('span', 'm-card-title', r.name || r.person));
+    top.appendChild(mobileEl('span', 'm-card-amount', money(r.net)));
+    card.appendChild(top);
+    card.appendChild(mobileEl('div', 'm-card-detail', '已付分潤 ' + money(r.bonus) + '・薪資扣抵 ' + money(r.salary) + (r.adjustment ? '・結案後抵扣 ' + money(r.adjustment) : '')));
+    card.appendChild(mobileEl('div', 'm-card-detail', '尚未支付 ' + money(r.unpaid)));
+    box.appendChild(card);
+  });
 }
