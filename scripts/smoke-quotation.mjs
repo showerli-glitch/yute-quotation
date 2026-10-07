@@ -256,6 +256,37 @@ if (hasPhone) {
   await shot('7-drive');
   await m.evaluate(() => syncDismiss());
 
+  // Date shortcut and the installed-app PDF (html2pdf served from a local copy; skipped when it is missing).
+  await m.evaluate(() => qmOpenPage('info'));
+  await m.click('.qm-date .qm-btn');
+  const today = await m.evaluate(() => [document.getElementById('projDate').value, document.getElementById('qm-f-projDate').value]);
+  check('日期「今天」按鍵：寫入今天日期', today[0] === '2026-10-06' && today[1] === '2026-10-06', today);
+  const dateBox = await m.evaluate(() => { const r = document.getElementById('qm-f-projDate').getBoundingClientRect(); return { right: Math.round(r.right), vw: innerWidth, h: Math.round(r.height) }; });
+  check('日期欄不超出畫面', dateBox.right <= dateBox.vw - 16 && dateBox.h >= 44, dateBox);
+  await shot('8-info-date');
+  await m.evaluate(() => qmBack());
+  const localPdfLib = process.env.HTML2PDF_JS || '/tmp/ops-smoke/html2pdf.bundle.min.js';
+  const fsMod = await import('node:fs');
+  if (fsMod.existsSync(localPdfLib)) {
+    await m.route('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/**', r => r.fulfill({ status: 200, contentType: 'text/javascript', body: fsMod.readFileSync(localPdfLib, 'utf8') }));
+    await m.evaluate(() => { window.__forceStandalone = true; window.__printed = 0; window.print = () => { window.__printed++; }; qmPdf(); });
+    await m.waitForFunction(() => !!qmPdfFile || /失敗/.test(document.getElementById('qm-sheet-box').textContent), null, { timeout: 60000 });
+    const pdf = await m.evaluate(async () => { const t = new TextDecoder('latin1').decode(await qmPdfFile.arrayBuffer()); return { name: qmPdfFile.name, head: t.slice(0, 5), pages: (t.match(/\/Type\s*\/Page[^s]/g) || []).length, size: qmPdfFile.size, printed: window.__printed, sheet: document.getElementById('qm-sheet-box').textContent.trim().slice(0, 30) }; });
+    check('已安裝 app：輸出 PDF 產生 A4 檔案（不靠 window.print）', pdf.head === '%PDF-' && pdf.pages >= 2 && pdf.printed === 0 && pdf.name === '宇德報價單_手機測試工程_2026-10-06.pdf', pdf);
+    await shot('9-pdf-ready');
+    if (shots) {
+      const b64 = await m.evaluate(async () => { const u = new Uint8Array(await qmPdfFile.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode(...u.subarray(i, i + 8192)); return btoa(s); });
+      fsMod.writeFileSync(`${shots}/phone.pdf`, Buffer.from(b64, 'base64'));
+      await m.evaluate(() => { document.getElementById('printDoc').innerHTML = buildPrintDoc(); });
+      await m.emulateMedia({ media: 'print' });
+      fsMod.writeFileSync(`${shots}/desktop-print.pdf`, await m.pdf({ format: 'A4', preferCSSPageSize: true }));
+      await m.emulateMedia({ media: 'screen' });
+      await m.evaluate(() => { document.getElementById('printDoc').innerHTML = ''; });
+    }
+    await m.evaluate(() => { qmCloseSheet(); window.__forceStandalone = false; qmPdf(); });
+    check('瀏覽器分頁：輸出 PDF 仍走電腦版列印', await m.evaluate(() => window.__printed) === 1);
+  }
+
   await m.setViewportSize({ width: 1180, height: 820 });
   await m.waitForTimeout(200);
   check('平板橫放（≥1024px）：回到電腦版畫面', !(await vis('#qm')) && await vis('.screen-ui'));

@@ -296,7 +296,7 @@ function qmMoreView() {
   const body = `
     <div class="qm-label">輸出給客戶（版型和電腦版相同）</div>
     <div class="qm-actions"><button type="button" class="qm-btn qm-primary qm-wide qm-tall" onclick="qmPdf()">輸出 PDF</button><button type="button" class="qm-btn qm-outline qm-wide qm-tall" onclick="exportToExcel()">下載 Excel</button></div>
-    <div class="qm-hint">PDF：開啟列印畫面後，在分享／列印選單選「儲存為 PDF」，或直接傳 Line、Email。</div>
+    <div class="qm-hint">PDF：產生 A4 檔案後可以直接分享到 Line、Email，或存到「檔案」。</div>
     <div class="qm-label">報價單</div>
     <div class="qm-list">
       <button type="button" onclick="qmOpenPage('info')">工程資訊與費用設定<span>›</span></button>
@@ -314,9 +314,80 @@ function qmMoreView() {
   return { head, body };
 }
 
-function qmPdf() {
+function qmToday() {
+  const d = new Date();
+  const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  qmSet('projDate', v);
+  const el = qmEl('qm-f-projDate'); if (el) el.value = v;
+}
+
+// PDF. In a browser tab the desktop print (doPrint → 列印／儲存為 PDF). The installed iPhone app ignores
+// window.print(), so there the same buildPrintDoc() pages are turned into an A4 PDF file (html2pdf, loaded
+// only when needed) and handed to the share sheet (Line, Email, 儲存到檔案).
+const QM_HTML2PDF = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+let qmPdfFile = null;
+function qmLoadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (window.html2pdf) return resolve();
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('PDF 模組載入失敗，請確認網路連線'));
+    document.head.appendChild(s);
+  });
+}
+function qmPdfFileName() {
+  const name = (qmVal('projName') || '未命名工程').trim().replace(/[\\/:*?"<>|]/g, '_');
+  const date = qmVal('projDate') || new Date().toISOString().split('T')[0];
+  return '宇德報價單_' + name + '_' + date + '.pdf';
+}
+async function qmPdf() {
   if (!quoteItems.length && !confirm('報價單沒有工項，仍要輸出嗎？')) return;
-  doPrint();
+  if (!qpwaIsStandalone()) { doPrint(); return; }
+  const box = qmEl('qm-sheet-box');
+  qmSheetId = null; box.dataset.for = '';
+  box.innerHTML = '<div class="qm-row"><b>輸出 PDF</b></div><div class="qm-hint">正在產生 PDF（A4，版型和電腦版相同），請稍候…</div>';
+  qmEl('qm-sheet').style.display = '';
+  // The pages are laid out in a hidden holder; html2pdf copies the inner page (which has no off-screen style).
+  const page = document.createElement('div');
+  page.style.cssText = 'position:fixed;left:-10000px;top:0;width:186mm';
+  const sheet = document.createElement('div');
+  sheet.style.cssText = 'width:186mm;background:#fff;color:#000';
+  page.appendChild(sheet);
+  try {
+    await qmLoadScript(QM_HTML2PDF);
+    sheet.innerHTML = buildPrintDoc();
+    document.body.appendChild(page);
+    const fileName = qmPdfFileName();
+    const blob = await html2pdf().set({
+      margin: [12, 12, 15, 12], filename: fileName,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: 'tr' },
+    }).from(sheet).outputPdf('blob');
+    qmPdfFile = new File([blob], fileName, { type: 'application/pdf' });
+    box.innerHTML = `<div class="qm-row"><b>PDF 已產生</b><button type="button" class="qm-x" onclick="qmCloseSheet()" aria-label="關閉">✕</button></div>
+      <div class="qm-hint">${qmEsc(fileName)}（${Math.max(1, Math.round(blob.size / 1024))} KB）<br>按「分享」可以傳 Line、Email，或選「儲存到檔案」。</div>
+      <div class="qm-actions"><button type="button" class="qm-btn qm-outline qm-wide" onclick="qmPdfDownload()">下載</button><button type="button" class="qm-btn qm-primary qm-wide" onclick="qmPdfShare()">分享</button></div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="qm-row"><b>輸出 PDF</b><button type="button" class="qm-x" onclick="qmCloseSheet()" aria-label="關閉">✕</button></div><div class="qm-hint">PDF 產生失敗：${qmEsc(e.message || e)}</div>`;
+  } finally {
+    page.remove();
+  }
+}
+async function qmPdfShare() {
+  if (!qmPdfFile) return;
+  if (navigator.canShare && navigator.canShare({ files: [qmPdfFile] })) {
+    try { await navigator.share({ files: [qmPdfFile], title: qmPdfFile.name }); } catch (e) { if (e.name !== 'AbortError') alert('分享失敗：' + e.message); }
+    return;
+  }
+  qmPdfDownload();
+}
+function qmPdfDownload() {
+  if (!qmPdfFile) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(qmPdfFile); a.download = qmPdfFile.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
 
 function qmLogout() {
@@ -358,7 +429,8 @@ function qmInfoBody() {
   const inp = (id, label, type = 'text', extra = '') => `<label class="qm-field"><span>${label}</span><input id="qm-f-${id}" type="${type}" value="${qmEsc(qmVal(id))}" ${type === 'number' ? 'inputmode="decimal"' : ''} ${extra} onchange="qmSet('${id}',this.value)"></label>`;
   return `
     ${inp('projName', '工程名稱')}
-    <div class="qm-two">${inp('projClient', '業主')}${inp('projDate', '日期', 'date')}</div>
+    ${inp('projClient', '業主')}
+    <div class="qm-field"><span>日期</span><div class="qm-two qm-date"><input id="qm-f-projDate" type="date" value="${qmEsc(qmVal('projDate'))}" onchange="qmSet('projDate',this.value)"><button type="button" class="qm-btn qm-soft" onclick="qmToday()">今天</button></div></div>
     ${inp('projAddr', '工程地址')}
     ${inp('projEmail', '負責人 Email', 'email')}
     <div class="qm-label qm-strong">費用設定</div>

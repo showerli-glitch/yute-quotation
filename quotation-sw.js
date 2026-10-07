@@ -3,7 +3,7 @@
 // service worker with the narrower /ops/ scope) is never affected. Same strategy as ops/sw.js: same-origin
 // files network-first and always revalidated, the cache only as the offline fallback; versioned third-party
 // libraries cache-first; Google login, Drive and Firebase never touched.
-const SW_VERSION = '2026-10-07.2';
+const SW_VERSION = '2026-10-07.3';
 const CACHE = 'quotation-shell-' + SW_VERSION;
 const SHELL = [
   './',
@@ -40,6 +40,7 @@ function isOps(url) {
 function isImmutableThirdParty(url) {
   return (url.hostname === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/10.12.0/'))
     || (url.hostname === 'cdnjs.cloudflare.com' && url.pathname.startsWith('/ajax/libs/xlsx/0.18.5/'))
+    || (url.hostname === 'cdnjs.cloudflare.com' && url.pathname.startsWith('/ajax/libs/html2pdf.js/0.10.1/'))
     || url.hostname === 'fonts.googleapis.com'
     || url.hostname === 'fonts.gstatic.com';
 }
