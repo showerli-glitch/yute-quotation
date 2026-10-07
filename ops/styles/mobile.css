@@ -11,6 +11,10 @@
     background:var(--surface);border-top:1px solid var(--border);
     padding-bottom:env(safe-area-inset-bottom,0);box-sizing:content-box;
   }
+  /* iOS 26 tints the status-bar and home-indicator areas from fixed elements at the screen edges:
+     a fixed green strip at the top, and the tab bar's own colour continued below it at the bottom. */
+  .m-statusbar{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0);background:#123D33;z-index:96;pointer-events:none}
+  .m-nav::after{content:'';position:absolute;left:0;right:0;top:100%;height:200px;background:var(--surface)}
   .m-nav-btn{
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
     background:none;border:0;color:var(--text3);font:inherit;font-size:12px;cursor:pointer;min-height:44px;
