@@ -16,6 +16,7 @@
 - `index.html`: the separate quotation system entry page. It is not the OPS entry and is outside this refactor except for preserving the existing link from OPS.
 - `Yutesign-attendance.html` and `cheliwo_zhonghe.html`: standalone legacy/special-purpose pages, outside this refactor.
 - `favicon.*`, `logo.jpg`, and `ops/favicon.*`: static assets.
+- Since the split and the PWA work: `ops/js/core/*` (5 files), `ops/js/modules/*` (19 files, ending with `profitshare.js`, `invoicerequest.js`, `receipts.js`, `mobile.js`), `ops/styles/{mobile,invoicerequest,receipts}.css`, `ops/manifest.webmanifest`, `ops/sw.js`, `ops/icons/`. Scripts in `scripts/`: the verifier, the stamp tool (`stamp-ops-version.mjs` + `ops-version.mjs`), the read-only production summary, and ten smoke suites sharing `smoke-lib.mjs`. Product notes for the phone version: `docs/pwa-notes.md`.
 - `README.md`: minimal repository description.
 - There is currently no package manifest, bundler, linter, typechecker, test runner, or CI configuration in the repository.
 
