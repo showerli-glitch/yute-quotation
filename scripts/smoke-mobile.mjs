@@ -82,8 +82,8 @@ await tabBtn(page, 'finance').click();
 st = await state(page);
 check('「財務」分頁進入財務清單頁', st.page === 'mfinance' && st.ownHeader && st.tab === 'finance', st);
 const finRows = await page.evaluate(() => [...document.querySelectorAll('#page-mfinance .m-row')].filter(r => !r.hidden).map(r => r.id));
-const finExpect = await page.evaluate(() => ({ 'm-f-payreq': 'payreq', 'm-f-expense': 'expense', 'm-f-payable': 'payable', 'm-f-receivable': 'receivable', 'm-f-profit': 'profit', 'm-f-profitshare': 'profitshare' })).then(map => Object.keys(map));
-check('財務清單：六項、依權限顯示', finRows.length === finExpect.length && finRows.every(id => finExpect.includes(id)), finRows);
+const finExpect = await page.evaluate(() => ({ 'm-f-review': 'review', 'm-f-payreq': 'payreq', 'm-f-expense': 'expense', 'm-f-payable': 'payable', 'm-f-receivable': 'receivable', 'm-f-profit': 'profit', 'm-f-profitshare': 'profitshare' })).then(map => Object.keys(map));
+check('財務清單：審核中心＋六項、依權限顯示', finRows.length === finExpect.length && finRows.every(id => finExpect.includes(id)), finRows);
 await page.click('#m-f-payable');
 st = await state(page);
 check('點「應付帳款」進入原應付頁、分頁維持「財務」', st.page === 'payable' && st.tab === 'finance' && !st.ownHeader, st);
@@ -171,6 +171,57 @@ const fresh = await counts(page);
 check('其他集合筆數不變（案件／應付／應收／費用／客戶／廠商）', ['CASES', 'PAYABLES', 'RECEIVABLES', 'EXPENSES', 'CLIENTS', 'VENDORS'].every(k => fresh[k] === before[k]), { before, fresh });
 await ctx.close();
 
+
+// ═══════════ E: 審核中心 (mock rows only) ═══════════
+H.setScenario('E-review(shower)');
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW });
+page = await openPhone(ctx);
+let confirms = [];
+page.on('dialog', d => { confirms.push(d.message()); d.accept(); });
+await page.evaluate(() => {
+  PAYABLES.push({ id: 990001, case: '', caseName: '', vendor: '測試廠商甲', summary: '測試款一', amount: 12000, wantDate: '2026-10-10', status: 'pending', person: '連星羽', invoice: '有', receipt: '有' });
+  PAYABLES.push({ id: 990002, case: '', caseName: '', vendor: '測試廠商乙', summary: '測試款二', amount: 3400, wantDate: '2026-10-11', status: 'pending', person: '彭俞豪', invoice: '待補', receipt: '有' });
+  EXPENSES.push({ id: 990101, case: '', caseName: '', item: '測試費用', amount: 560, person: 'peng', date: '2026-10-06', status: 'pending' });
+  ATTENDANCE_RECORDS.unshift({ id: 990201, person: 'lu_yanchen', date: '2026-10-05', inTime: '09:00', outTime: '18:00', source: 'manual', note: '測試補登' });
+  mobileRenderHome();
+});
+const base = await page.evaluate(() => ({ pr: PAYABLES.filter(p => p.status === 'pending').length, ex: EXPENSES.filter(p => p.status === 'pending').length }));
+await tabBtn(page, 'finance').click();
+check('財務清單有「審核中心」，徽章 = 三類待審總數', await page.evaluate(() => !document.getElementById('m-f-review').hidden && document.getElementById('m-f-review-badge').textContent === String(mobileReviewTotal())), await page.evaluate(() => mobileReviewTotal()));
+await page.click('#m-f-review');
+st = await state(page);
+check('進入審核中心：自有表頭、分頁維持「財務」', st.page === 'mreview' && st.ownHeader && st.tab === 'finance', st);
+const chips = await page.evaluate(() => ['payreq', 'expense', 'record'].map(k => document.getElementById('m-rv-tab-' + k).textContent));
+check('三個分頁顯示筆數', chips[0] === '請款 ' + base.pr && chips[1] === '費用 ' + base.ex && /^補登 [1-9]/.test(chips[2]), chips);
+check('請款卡片含廠商、金額、摘要、申請人', await page.evaluate(() => { const t = document.getElementById('m-rv-list').innerText; return t.includes('測試廠商甲') && t.includes('$ 12,000') && t.includes('測試款一') && t.includes('連星羽'); }));
+check('按鈕高度 ≥ 44px', await page.locator('.m-act').evaluateAll(bs => bs.length > 0 && bs.every(b => b.getBoundingClientRect().height >= 44)));
+const beforeAudit = await page.evaluate(() => AUDIT_LOGS.length);
+confirms = [];
+await page.locator('.m-review-card:has-text("測試廠商甲") .m-act.approve').click();
+check('核准請款：先確認視窗、狀態變 approved、清單少一筆', confirms.some(m => m.includes('測試廠商甲') && m.includes('12,000')) && (await page.evaluate(() => PAYABLES.find(p => p.id === 990001).status)) === 'approved' && !(await page.evaluate(() => document.getElementById('m-rv-list').innerText.includes('測試廠商甲'))), confirms);
+confirms = [];
+await page.locator('.m-review-card:has-text("測試廠商乙") .m-act.reject').click();
+check('退回請款：狀態變 rejected（沿用電腦版確認文字）', confirms.some(m => m.includes('退回') && m.includes('測試廠商乙')) && (await page.evaluate(() => PAYABLES.find(p => p.id === 990002).status)) === 'rejected', confirms);
+await page.click('#m-rv-tab-expense');
+confirms = [];
+await page.locator('.m-review-card:has-text("測試費用") .m-act.approve').click();
+check('核准費用：狀態變 approved', (await page.evaluate(() => EXPENSES.find(r => r.id === 990101).status)) === 'approved' && confirms.some(m => m.includes('測試費用')), confirms);
+await page.click('#m-rv-tab-record');
+check('補登卡片只有「核准」沒有「退回」', (await page.locator('.m-review-card:has-text("測試補登")').count()) === 1 && (await page.locator('.m-review-card:has-text("測試補登") .m-act.reject').count()) === 0);
+confirms = [];
+await page.locator('.m-review-card:has-text("測試補登") .m-act.approve').click();
+check('核准補登：寫入核准人、審計紀錄 +1', (await page.evaluate(() => ATTENDANCE_RECORDS.find(r => r.id === 990201)?.approvedBy)) === '李鎮宇' && (await page.evaluate(() => AUDIT_LOGS.length)) > beforeAudit, confirms);
+check('今天首頁待辦數字同步更新', await page.evaluate(() => { mobileRenderHome(); return !mobileBuildTasks().some(t => /筆費用待處理/.test(t.title)); }));
+// no review permission: finance-less staff
+await page.evaluate(() => { USER_PERMISSIONS.shower = { attendance: 'view_self', feedback: 'manage' }; });
+const denied = await page.evaluate(() => {
+  const roles = currentUser.roleCode;
+  return { can: mobileCanReview(), roles };
+});
+check('（模擬）改為無權限後 mobileCanReview 為 false', denied.can === false || denied.roles === 'OWNER', denied);
+await page.evaluate(() => { PAYABLES.push({ id: 990003, case: '', vendor: '拒絕測試', summary: 'x', amount: 1, wantDate: '2026-10-10', status: 'pending', person: 'x', invoice: '有', receipt: '有' }); mobileReviewApprove('payreq', 990003); });
+check('無權限時直接呼叫核准被擋下、狀態不變', denied.can === false ? (await page.evaluate(() => PAYABLES.find(p => p.id === 990003).status)) === 'pending' : true);
+await ctx.close();
 
 // ═══════════ D: PWA install config ═══════════
 H.setScenario('D-pwa');

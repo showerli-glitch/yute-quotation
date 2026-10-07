@@ -1261,6 +1261,23 @@ body.auth-pending .auth-screen{display:flex}
     </div>
   </div>
 
+  <div class="page" id="page-mreview">
+    <div class="m-hero">
+      <div class="m-hero-top"><span>YUTE / OPS</span><span></span></div>
+      <h1>審核中心</h1>
+      <div class="m-hero-sub" id="m-rv-sub"></div>
+      <div class="m-chips">
+        <button type="button" class="m-chip" id="m-rv-tab-payreq" onclick="mobileReviewSelect('payreq')">請款</button>
+        <button type="button" class="m-chip" id="m-rv-tab-expense" onclick="mobileReviewSelect('expense')">費用</button>
+        <button type="button" class="m-chip" id="m-rv-tab-record" onclick="mobileReviewSelect('record')">補登</button>
+      </div>
+    </div>
+    <div class="m-body">
+      <div id="m-rv-list"></div>
+      <div class="m-note">核准、退回都和電腦版相同規則；補登只能核准（電腦版沒有退回功能）。</div>
+    </div>
+  </div>
+
   <div class="page" id="page-mfinance">
     <div class="m-hero">
       <div class="m-hero-top"><span>YUTE / OPS</span><span></span></div>
@@ -1268,6 +1285,7 @@ body.auth-pending .auth-screen{display:flex}
     </div>
     <div class="m-body">
       <div class="m-list">
+        <button type="button" class="m-row" id="m-f-review" onclick="mobileOpenReview('payreq')"><span>審核中心</span><span><span class="m-badge alert" id="m-f-review-badge" hidden>0</span> <span class="m-chev">›</span></span></button>
         <button type="button" class="m-row" id="m-f-payreq" onclick="mobileOpen('payreq')"><span>廠商請款</span><span><span class="m-badge alert" id="m-f-payreq-badge" hidden>0</span> <span class="m-chev">›</span></span></button>
         <button type="button" class="m-row" id="m-f-expense" onclick="mobileOpen('expense')"><span>費用申請</span><span><span class="m-badge alert" id="m-f-expense-badge" hidden>0</span> <span class="m-chev">›</span></span></button>
         <button type="button" class="m-row" id="m-f-payable" onclick="mobileOpen('payable')"><span>應付帳款</span><span class="m-chev">›</span></button>

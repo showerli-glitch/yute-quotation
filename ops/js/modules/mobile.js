@@ -3,12 +3,12 @@
 // existing pages. It only reads data and calls existing functions; it never writes data.
 // Loaded last, after profitshare.js.
 
-const MOBILE_OWN_PAGES = ['mhome', 'mfinance', 'mme'];
+const MOBILE_OWN_PAGES = ['mhome', 'mfinance', 'mme', 'mreview'];
 const MOBILE_FINANCE_PAGES = ['payable', 'receivable', 'profit', 'profitshare', 'overhead', 'tax'];
 const MOBILE_TAB_OF_PAGE = {
   mhome: 'today', attendance: 'today',
   dashboard: 'cases', clients: 'cases', vendors: 'cases',
-  mfinance: 'finance', payreq: 'finance', payable: 'finance', receivable: 'finance', expense: 'finance',
+  mfinance: 'finance', mreview: 'finance', payreq: 'finance', payable: 'finance', receivable: 'finance', expense: 'finance',
   profit: 'finance', profitshare: 'finance', overhead: 'finance', tax: 'finance',
   mme: 'me',
 };
@@ -19,7 +19,7 @@ function mobileIsActive() {
 
 function mobileHasFinanceTab() {
   if (!currentUser) return false;
-  return MOBILE_FINANCE_PAGES.some(canAccess) || canManage('payreq') || canManage('expense');
+  return MOBILE_FINANCE_PAGES.some(canAccess) || canManage('payreq') || canManage('expense') || mobileCanReview();
 }
 
 function mobileTabOf(page) {
@@ -100,10 +100,10 @@ function mobileBuildTasks() {
   }
   if (canAccess('payreq')) {
     const n = payreqPendingCount();
-    if (n > 0) tasks.push({ urgent: true, pill: '待審核', pillCls: 'warn', src: '廠商請款', title: n + ' 筆請款待處理', detail: '', page: 'payreq' });
+    if (n > 0) tasks.push({ urgent: true, pill: '待審核', pillCls: 'warn', src: '廠商請款', title: n + ' 筆請款待處理', detail: '', page: 'payreq', review: 'payreq' });
   }
   const en = mobileExpensePendingCount();
-  if (en > 0) tasks.push({ urgent: true, pill: '待審核', pillCls: 'warn', src: '費用申請', title: en + ' 筆費用待處理', detail: '', page: 'expense' });
+  if (en > 0) tasks.push({ urgent: true, pill: '待審核', pillCls: 'warn', src: '費用申請', title: en + ' 筆費用待處理', detail: '', page: 'expense', review: 'expense' });
   return tasks;
 }
 
@@ -144,12 +144,19 @@ function mobileRenderHome() {
     card.appendChild(top);
     card.appendChild(mobileEl('div', 'm-card-title', t.title));
     if (t.detail) card.appendChild(mobileEl('div', 'm-card-detail', t.detail));
-    card.addEventListener('click', () => mobileOpen(t.page));
+    card.addEventListener('click', () => (t.review && mobileReviewItems(t.review).length ? mobileOpenReview(t.review) : mobileOpen(t.page)));
     box.appendChild(card);
   });
 }
 
 function mobileRenderFinance() {
+  const rvRow = document.getElementById('m-f-review');
+  if (rvRow) {
+    const total = mobileReviewTotal();
+    rvRow.hidden = !mobileCanReview();
+    const b = document.getElementById('m-f-review-badge');
+    if (b) { b.hidden = total === 0; b.textContent = String(total); }
+  }
   const rows = {
     'm-f-payable': 'payable', 'm-f-receivable': 'receivable', 'm-f-payreq': 'payreq',
     'm-f-expense': 'expense', 'm-f-profit': 'profit', 'm-f-profitshare': 'profitshare',
@@ -187,7 +194,8 @@ function mobileRenderMe() {
 }
 
 function mobileRenderOwnPage(id) {
-  if (id === 'mhome') mobileRenderHome();
+  if (id === 'mreview') mobileRenderReview();
+  else if (id === 'mhome') mobileRenderHome();
   else if (id === 'mfinance') mobileRenderFinance();
   else if (id === 'mme') mobileRenderMe();
 }
@@ -235,3 +243,133 @@ function mobileRegisterServiceWorker() {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 window.addEventListener('load', mobileRegisterServiceWorker);
+
+// ── 審核中心: approve / reject on the phone through the existing functions (same permissions, same side effects) ──
+let mobileReviewTab = 'payreq';
+const MOBILE_REVIEW_KINDS = ['payreq', 'expense', 'record'];
+
+function mobileReviewAllowed(kind) {
+  if (!currentUser) return false;
+  if (kind === 'payreq') return canManage('payreq');
+  if (kind === 'expense') return canAccess('expense') && expCanManageAll();
+  if (kind === 'record') return canAccess('attendance') && attCanManage();
+  return false;
+}
+
+function mobileCanReview() {
+  return MOBILE_REVIEW_KINDS.some(mobileReviewAllowed);
+}
+
+function mobileReviewItems(kind) {
+  if (!mobileReviewAllowed(kind)) return [];
+  if (kind === 'payreq') return PAYABLES.filter(p => p.status === 'pending' && userCanViewCaseScopedRow(p.case, 'payreq', p.person));
+  if (kind === 'expense') return EXPENSES.filter(r => r.status === 'pending');
+  return ATTENDANCE_RECORDS.filter(r => r.source === 'manual' && !r.approvedBy);
+}
+
+function mobileReviewTotal() {
+  return MOBILE_REVIEW_KINDS.reduce((n, k) => n + mobileReviewItems(k).length, 0);
+}
+
+function mobileMoney(v) {
+  return '$ ' + Math.round(Number(v) || 0).toLocaleString('zh-TW');
+}
+
+function mobileOpenReview(kind) {
+  if (!mobileCanReview()) { showToast('您沒有審核的權限', 'error'); return; }
+  if (MOBILE_REVIEW_KINDS.includes(kind) && mobileReviewAllowed(kind)) mobileReviewTab = kind;
+  mobileShowOwnPage('mreview');
+}
+
+function mobileReviewSelect(kind) {
+  mobileReviewTab = kind;
+  mobileRenderReview();
+}
+
+function mobileReviewApprove(kind, id) {
+  if (!mobileReviewAllowed(kind)) { showToast('您沒有核准的權限', 'error'); return; }
+  if (kind === 'payreq') {
+    const p = PAYABLES.find(x => x.id === id);
+    if (!p || !confirm(`確定核准「${p.vendor || '未填廠商'}／${p.summary || '未填摘要'}」${mobileMoney(p.amount)}？`)) return;
+    approveReq(id);
+  } else if (kind === 'expense') {
+    const r = EXPENSES.find(x => x.id === id);
+    if (!r || !confirm(`確定核准「${r.item || '未填項目'}」${mobileMoney(r.amount)}？`)) return;
+    approveExpense(id);
+  } else if (kind === 'record') {
+    attApproveRecord(id); // has its own confirm
+  }
+  mobileRenderReview();
+}
+
+function mobileReviewReject(kind, id) {
+  if (!mobileReviewAllowed(kind)) { showToast('您沒有退回的權限', 'error'); return; }
+  if (kind === 'payreq') rejectPayreq(id); // has its own confirm
+  else if (kind === 'expense') {
+    const r = EXPENSES.find(x => x.id === id);
+    if (!r || !confirm(`確定退回「${r.item || '未填項目'}」${mobileMoney(r.amount)}？`)) return;
+    rejectExpense(id);
+  }
+  mobileRenderReview();
+}
+
+function mobileReviewCard(kind, row) {
+  const card = mobileEl('div', 'm-card m-review-card');
+  const top = mobileEl('div', 'm-card-top');
+  const pill = kind === 'payreq' ? '廠商請款' : kind === 'expense' ? '費用申請' : '補登打卡';
+  top.appendChild(mobileEl('span', 'm-pill warn', pill));
+  let title = '', amount = null, meta = [];
+  if (kind === 'payreq') {
+    title = row.vendor || '未填廠商';
+    amount = row.amount;
+    meta = [row.summary || '未填摘要', row.caseName || '不指定個案', '申請人 ' + (row.person || '—'), row.wantDate ? '付款日 ' + row.wantDate : ''];
+    if (row.invoice && row.invoice !== '有') meta.push('發票' + row.invoice);
+    top.appendChild(mobileEl('span', 'm-card-src', row.code || ''));
+  } else if (kind === 'expense') {
+    title = row.item || '未填項目';
+    amount = row.amount;
+    meta = [row.caseName || '不指定個案', '申請人 ' + (employeeById(row.person)?.name || row.person || '—'), row.date || ''];
+  } else {
+    title = (employeeById(row.person)?.name || row.person || '—') + '　' + (row.date || '');
+    meta = [(row.inTime || '--:--') + ' – ' + (row.outTime || '--:--'), row.note || ''];
+  }
+  card.appendChild(top);
+  card.appendChild(mobileEl('div', 'm-card-title', title));
+  if (amount !== null) card.appendChild(mobileEl('div', 'm-card-amount', mobileMoney(amount)));
+  const metaEl = mobileEl('div', 'm-card-detail', meta.filter(Boolean).join('・'));
+  card.appendChild(metaEl);
+  const actions = mobileEl('div', 'm-actions');
+  if (kind !== 'record') {
+    const rej = mobileEl('button', 'm-act reject', '退回');
+    rej.type = 'button';
+    rej.addEventListener('click', () => mobileReviewReject(kind, row.id));
+    actions.appendChild(rej);
+  }
+  const ok = mobileEl('button', 'm-act approve', '核准');
+  ok.type = 'button';
+  ok.addEventListener('click', () => mobileReviewApprove(kind, row.id));
+  actions.appendChild(ok);
+  card.appendChild(actions);
+  return card;
+}
+
+function mobileRenderReview() {
+  const allowed = MOBILE_REVIEW_KINDS.filter(mobileReviewAllowed);
+  if (!allowed.includes(mobileReviewTab)) mobileReviewTab = allowed[0] || 'payreq';
+  MOBILE_REVIEW_KINDS.forEach(kind => {
+    const btn = document.getElementById('m-rv-tab-' + kind);
+    if (!btn) return;
+    btn.hidden = !allowed.includes(kind);
+    btn.classList.toggle('active', kind === mobileReviewTab);
+    const n = mobileReviewItems(kind).length;
+    btn.textContent = ({ payreq: '請款', expense: '費用', record: '補登' })[kind] + ' ' + n;
+  });
+  const sub = document.getElementById('m-rv-sub');
+  if (sub) sub.textContent = allowed.length ? '共 ' + mobileReviewTotal() + ' 筆待處理' : '您沒有審核的權限';
+  const box = document.getElementById('m-rv-list');
+  if (!box) return;
+  box.textContent = '';
+  const rows = mobileReviewItems(mobileReviewTab);
+  if (!rows.length) box.appendChild(mobileEl('div', 'm-empty', allowed.length ? '目前沒有待審核項目' : ''));
+  rows.forEach(row => box.appendChild(mobileReviewCard(mobileReviewTab, row)));
+}
