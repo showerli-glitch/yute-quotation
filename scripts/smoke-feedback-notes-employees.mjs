@@ -1,5 +1,6 @@
 // Feedback (問題回報) / system notes (系統規則筆記) / employees (員工管理) smoke test.
-// Login checks labelled 「修正後」 assert the cloud employee lookup added on claude/fix-known-issues.
+// The cloud employee lookup tried on claude/fix-known-issues was withdrawn after the Codex review (P1), so a new
+// employee's first login on a fresh browser is still refused (known issue #1). 「修正後」 checks the login button state.
 // Mock cloud only; never touches production.
 //
 // Setup (outside the repo):  mkdir /tmp/ops-smoke && cd /tmp/ops-smoke && npm i playwright-core
