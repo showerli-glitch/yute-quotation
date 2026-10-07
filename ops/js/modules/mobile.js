@@ -3,12 +3,12 @@
 // existing pages. It only reads data and calls existing functions; it never writes data.
 // Loaded last, after profitshare.js.
 
-const MOBILE_OWN_PAGES = ['mhome', 'mfinance', 'mme', 'mreview', 'mapply'];
+const MOBILE_OWN_PAGES = ['mhome', 'mfinance', 'mme', 'mreview', 'mapply', 'minvoice'];
 const MOBILE_FINANCE_PAGES = ['payable', 'receivable', 'profit', 'profitshare', 'overhead', 'tax'];
 const MOBILE_TAB_OF_PAGE = {
   mhome: 'today', mapply: 'today', attendance: 'today',
   dashboard: 'cases', clients: 'cases', vendors: 'cases',
-  mfinance: 'finance', mreview: 'finance', payreq: 'finance', payable: 'finance', receivable: 'finance', expense: 'finance',
+  mfinance: 'finance', mreview: 'finance', minvoice: 'finance', payreq: 'finance', payable: 'finance', receivable: 'finance', expense: 'finance',
   profit: 'finance', profitshare: 'finance', overhead: 'finance', tax: 'finance',
   mme: 'me',
 };
@@ -131,6 +131,8 @@ function mobileBuildTasks() {
     const n = payreqPendingCount();
     if (n > 0) tasks.push({ urgent: true, pill: '待審核', pillCls: 'warn', src: '廠商請款', title: n + ' 筆請款待處理', detail: '', page: 'payreq', review: 'payreq' });
   }
+  const ir = irPendingCount();
+  if (ir > 0) tasks.push({ urgent: true, pill: '待開立', pillCls: 'warn', src: '開發票', title: ir + ' 筆開票申請待處理', detail: '', page: 'receivable', invoice: true });
   const en = mobileExpensePendingCount();
   if (en > 0) tasks.push({ urgent: true, pill: '待審核', pillCls: 'warn', src: '費用申請', title: en + ' 筆費用待處理', detail: '', page: 'expense', review: 'expense' });
   return tasks;
@@ -173,12 +175,18 @@ function mobileRenderHome() {
     card.appendChild(top);
     card.appendChild(mobileEl('div', 'm-card-title', t.title));
     if (t.detail) card.appendChild(mobileEl('div', 'm-card-detail', t.detail));
-    card.addEventListener('click', () => (t.review && mobileReviewItems(t.review).length ? mobileOpenReview(t.review) : mobileOpen(t.page)));
+    card.addEventListener('click', () => (t.invoice ? mobileShowOwnPage('minvoice') : t.review && mobileReviewItems(t.review).length ? mobileOpenReview(t.review) : mobileOpen(t.page)));
     box.appendChild(card);
   });
 }
 
 function mobileRenderFinance() {
+  const ivRow = document.getElementById('m-f-invoice');
+  if (ivRow) {
+    ivRow.hidden = !irCanIssue();
+    const b = document.getElementById('m-f-invoice-badge');
+    if (b) { b.hidden = irPendingCount() === 0; b.textContent = String(irPendingCount()); }
+  }
   const applyRow = document.getElementById('m-f-apply');
   if (applyRow) applyRow.hidden = !(canApplySelf('expense') || canApplySelf('payreq'));
   const rvRow = document.getElementById('m-f-review');
@@ -225,7 +233,8 @@ function mobileRenderMe() {
 }
 
 function mobileRenderOwnPage(id) {
-  if (id === 'mapply') mobileRenderApply();
+  if (id === 'minvoice') mobileRenderInvoiceQueue();
+  else if (id === 'mapply') mobileRenderApply();
   else if (id === 'mreview') mobileRenderReview();
   else if (id === 'mhome') mobileRenderHome();
   else if (id === 'mfinance') mobileRenderFinance();
@@ -419,6 +428,7 @@ let mobilePrEditId = null;
 
 function mobileApplyAllowed(kind) {
   if (!currentUser) return false;
+  if (kind === 'invoice') return irCanApply();
   return kind === 'expense' ? canApplySelf('expense') : canApplySelf('payreq');
 }
 
@@ -468,15 +478,17 @@ function mobileSetOptions(selectEl, options, keep) {
 }
 
 function mobileRenderApply() {
-  const allowed = ['expense', 'payreq'].filter(mobileApplyAllowed);
+  const allowed = ['expense', 'payreq', 'invoice'].filter(mobileApplyAllowed);
   if (!allowed.includes(mobileApplyTab)) mobileApplyTab = allowed[0] || 'expense';
-  ['expense', 'payreq'].forEach(kind => {
+  ['expense', 'payreq', 'invoice'].forEach(kind => {
     const tab = document.getElementById('m-ap-tab-' + kind);
     if (tab) { tab.hidden = !allowed.includes(kind); tab.classList.toggle('active', kind === mobileApplyTab); }
     const form = document.getElementById('m-ap-' + kind);
     if (form) form.hidden = kind !== mobileApplyTab;
   });
-  if (mobileApplyTab === 'expense') mobileRenderExpenseForm(); else mobileRenderPayreqForm();
+  if (mobileApplyTab === 'expense') mobileRenderExpenseForm();
+  else if (mobileApplyTab === 'invoice') mobileRenderInvoiceTab();
+  else mobileRenderPayreqForm();
 }
 
 // ---- expense ----
@@ -727,3 +739,20 @@ function mobileNewCaseFromForm() {
     return result;
   };
 })();
+
+// ── 開發票: phone pages (logic lives in invoicerequest.js) ──
+function mobileRenderInvoiceTab() {
+  const sub = document.getElementById('m-ap-invoice-sub');
+  const mine = INVOICE_REQUESTS.filter(r => r.requestedBy === currentUser?.id);
+  if (sub) sub.textContent = '待開立 ' + mine.filter(r => r.status === 'requested').length + '・已開立 ' + mine.filter(r => r.status === 'issued').length;
+  const box = document.getElementById('m-ap-invoice-list');
+  box.textContent = '';
+  if (!mine.length) box.appendChild(mobileEl('div', 'm-empty', '還沒有開票申請'));
+  mine.slice().sort((a, b) => String(b.requestedAt || '').localeCompare(String(a.requestedAt || ''))).slice(0, 10).forEach(r => box.appendChild(irRequestCard(r, false)));
+}
+
+function mobileRenderInvoiceQueue() {
+  const sub = document.getElementById('m-iv-sub');
+  if (sub) sub.textContent = irCanIssue() ? irPendingCount() + ' 筆待開立' : '您沒有登錄發票的權限';
+  irRenderQueue(document.getElementById('m-iv-list'), { full: true });
+}

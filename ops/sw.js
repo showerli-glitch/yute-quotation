@@ -15,6 +15,7 @@ const SHELL = [
   'index.html',
   'manifest.webmanifest',
   'styles/mobile.css',
+  'styles/invoicerequest.css',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
@@ -23,6 +24,7 @@ const SHELL = [
   'js/modules/cases.js', 'js/modules/clients.js', 'js/modules/vendors.js', 'js/modules/attendance.js',
   'js/modules/payreq.js', 'js/modules/feedback.js', 'js/modules/systemnotes.js', 'js/modules/employees.js',
   'js/modules/payroll.js', 'js/modules/overhead.js', 'js/modules/tax.js', 'js/modules/profitshare.js',
+  'js/modules/invoicerequest.js',
   'js/modules/mobile.js',
 ];
 

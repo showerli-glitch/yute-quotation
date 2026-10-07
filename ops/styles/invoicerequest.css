@@ -1,0 +1,28 @@
+/* Invoice request (開票申請): shared by the desktop 應收 panel, the request/issue modals and the phone pages. */
+.ir-panel{margin-bottom:18px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+.ir-panel[hidden]{display:none}
+.ir-panel-head{font-size:14px;font-weight:700;color:var(--text)}
+.ir-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.ir-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.ir-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ir-pill{font-size:12px;font-weight:700;border-radius:8px;padding:3px 8px}
+.ir-pill.requested{color:#7A5A00;background:#FBF0CF}
+.ir-pill.issued{color:#1F5C46;background:#DCEFE5}
+.ir-pill.cancelled{color:#5C655F;background:#E4E2D6}
+.ir-meta{font-size:12px;color:var(--text3)}
+.ir-row{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding:6px 0}
+.ir-label{flex:none;width:72px;font-size:12px;color:var(--text3)}
+.ir-value{flex:1;min-width:0;font-size:14px;color:var(--text);word-break:break-all}
+.ir-copy{flex:none;border:1px solid var(--border2);background:transparent;color:var(--text);border-radius:8px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer;min-height:32px}
+.ir-title{font-size:15px;font-weight:700;color:var(--text)}
+.ir-amount{font-family:'DM Mono',monospace;font-size:16px;color:var(--text)}
+.ir-actions{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}
+.ir-btn{border:1px solid var(--border2);background:transparent;color:var(--text);border-radius:10px;padding:0 14px;font:inherit;font-size:13px;cursor:pointer;min-height:36px}
+.ir-btn.primary{background:#123D33;border-color:#123D33;color:#fff;font-weight:700}
+.ir-empty{font-size:13px;color:var(--text3);padding:6px 2px}
+.ir-sub{font-size:13px;font-weight:700;color:var(--text);margin-top:8px}
+@media(max-width:767px){
+  .ir-copy{min-height:44px;min-width:56px}
+  .ir-btn{min-height:44px;flex:1;font-size:14px}
+  .ir-label{width:64px}
+}

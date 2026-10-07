@@ -594,8 +594,8 @@ verifyExactFile('ops/js/modules/profitshare.js', expectedProfitshare, 'profitsha
 const expectedProfitshareFunctionCount = extractFunctions(expectedProfitshare).length;
 if (expectedProfitshareFunctionCount !== 28) fail(`profitshare.js 預期 28 個函式，實際基準 ${expectedProfitshareFunctionCount}`);
 if (!profitshareBlock.includes('// PROFIT SHARE DATA') || !profitshareBlock.includes('function psComputeData() {') || !profitshareBlock.includes('function renderProfitShare() {')) fail('分潤基準區塊起訖行不正確');
-// mobile.js (PWA phase 1, new code) is appended after profitshare.js; profitshare.js must still follow tax.js directly.
-if (scripts[scripts.length - 1] !== 'js/modules/mobile.js' || scripts[scripts.length - 2] !== 'js/modules/profitshare.js' || scripts[scripts.length - 3] !== 'js/modules/tax.js') fail(`mobile.js 應為最後一個本機 script，前面依序是 profitshare.js、tax.js：${scripts.slice(-4).join(' ')}`);
+// invoicerequest.js and mobile.js (new code) are appended after profitshare.js; profitshare.js must still follow tax.js directly.
+if (scripts[scripts.length - 1] !== 'js/modules/mobile.js' || scripts[scripts.length - 2] !== 'js/modules/invoicerequest.js' || scripts[scripts.length - 3] !== 'js/modules/profitshare.js' || scripts[scripts.length - 4] !== 'js/modules/tax.js') fail(`mobile.js 應為最後一個本機 script，前面依序是 invoicerequest.js、profitshare.js、tax.js：${scripts.slice(-5).join(' ')}`);
 const profitshareBaselineAllFunctions = new Map(extractFunctions(profitshareBaselineHtml).map(item => [item.name, item.source]));
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'applyDefaultPeriodForPage']) {
   const current = protectedCurrentFunctions.get(name);
