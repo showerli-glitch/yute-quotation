@@ -195,10 +195,6 @@ const POST_SPLIT_CHANGES = {
     changed: ['openVendorModal'],
     appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
   },
-  'ops/js/modules/payables.js': {
-    reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort)',
-    changed: ['openAddPayableModal', 'openEditPayableModal'],
-  },
   'ops/js/core/data.js': {
     reason: 'pay-request applicant stored as name also counts as own row (claude/payreq-applicant-fix); login button enabled after load, payroll tombstone migration (snapshot + cloud merge) and prNextId derivation (claude/fix-known-issues)',
     changed: ['userCanViewCaseScopedRow', 'opsInitGoogleAuth', 'applyDataSnapshot', 'ensureCodexSeedData', 'opsCloudMergePayrollExtras'],
@@ -207,6 +203,15 @@ const POST_SPLIT_CHANGES = {
   'ops/js/modules/payroll.js': {
     reason: 'deleted payroll month no longer re-added; last month cannot be deleted; re-adding a deleted month clears its tombstone; month deletion audited (claude/fix-known-issues)',
     changed: ['prDeleteMonth', 'prRenderMonthOptions', 'submitPayrollMonth'],
+  },
+  'ops/js/core/config.js': {
+    reason: 'login session lasts 8 hours instead of 4 (user decision 2026-10-07)',
+    changed: [],
+    literalChanges: [['const OPS_AUTH_SESSION_HOURS = 4;', 'const OPS_AUTH_SESSION_HOURS = 8;']],
+  },
+  'ops/js/modules/payables.js': {
+    reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort); payable attachments button (claude/pwa-polish)',
+    changed: ['openAddPayableModal', 'openEditPayableModal', 'renderPayable'],
   },
   'ops/js/modules/expenses.js': {
     reason: 'expense row action shows a 單據 (attachments) button (claude/pwa-nodes)',
@@ -260,6 +265,10 @@ function verifyExactFile(relativePath, expected, label) {
       if (marker < 0) fail(`${label} 找不到拆檔後新增區塊標記`);
       else actual = actual.slice(0, marker).trimEnd();
     }
+    (change.literalChanges || []).forEach(([from, to]) => {
+      if (!reference.includes(from)) fail(`${label} 基準找不到要替換的內容：${from}`);
+      reference = reference.replace(from, to);
+    });
     actual = maskChangedFunctions(actual, change.changed);
     reference = maskChangedFunctions(reference, change.changed);
   }
@@ -663,5 +672,5 @@ for (const [index, match] of inlineScripts.entries()) {
   if (unstamped.length || stale.length) fail(`index.html 的版本戳記不是最新（應為 ?v=${expectedStamp}）：請執行 node scripts/stamp-ops-version.mjs`);
 }
 if (!process.exitCode) {
-  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；20 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；overhead.js 含 ${overheadExpectedList.length} 個開銷函式宣告（依序比對，已移除重複宣告）；profit.js 含 ${expectedProfitFunctionCount} 個儀表板函式、載入位置不變；tax.js 含 ${expectedTaxFunctionCount} 個稅務函式；profitshare.js 含 ${expectedProfitshareFunctionCount} 個分潤函式、後面只接新增的 mobile.js；index.html 只剩 ${SHELL_INLINE_FUNCTIONS.length} 個系統骨架函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${c.changed.join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
+  console.log(`PASS: ${scripts.length} 個本機 script 語法正確；20 個搬出模組／區塊與 ${compared} 個函式均和各自核准基準逐字一致；cases.js 含 ${expectedCaseFunctionCount} 個案件函式；clients.js 含 ${expectedClientsFunctionCount} 個函式；vendors.js 含 ${expectedVendorsFunctionCount} 個函式（含排序狀態）；attendance.js 含 ${expectedAttendanceFunctionCount} 個出勤函式；payreq.js 含 ${expectedPayreqFunctionCount} 個請款函式；feedback／systemnotes／employees 含 ${fneFunctionCounts.feedback}／${fneFunctionCounts.systemnotes}／${fneFunctionCounts.employees} 個函式；payroll.js 含 ${expectedPayrollFunctionCount} 個薪資函式；overhead.js 含 ${overheadExpectedList.length} 個開銷函式宣告（依序比對，已移除重複宣告）；profit.js 含 ${expectedProfitFunctionCount} 個儀表板函式、載入位置不變；tax.js 含 ${expectedTaxFunctionCount} 個稅務函式；profitshare.js 含 ${expectedProfitshareFunctionCount} 個分潤函式、後面只接新增的 mobile.js；index.html 只剩 ${SHELL_INLINE_FUNCTIONS.length} 個系統骨架函式；三個橋接／picker函式確認仍在 index.html。` + (postSplitChanged ? `另有 ${postSplitChanged} 個函式為拆檔後已記錄的刻意修改（${Object.entries(POST_SPLIT_CHANGES).map(([file, c]) => `${file}: ${[...c.changed, ...(c.literalChanges || []).map(([, to]) => to)].join('、')}`).join('；')}），其餘內容仍逐字一致。` : ''));
 }

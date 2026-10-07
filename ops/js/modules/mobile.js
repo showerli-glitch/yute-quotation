@@ -1179,3 +1179,36 @@ function mobileHandleOAuthReturn() {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(mobileHandleOAuthReturn, 0));
   else setTimeout(mobileHandleOAuthReturn, 0);
 })();
+
+// ── New version notice: compares the cache-busting stamp of this page with the one on the server ──
+// (the existing check only compares the "Codex v1.3.37" label, which these deployments do not change).
+// Runs 15 s after load, every 5 minutes, and whenever the app comes back to the foreground.
+let mobileVersionNoticeShown = false;
+
+function mobileCurrentStamp() {
+  const src = document.querySelector('script[src*="js/modules/mobile.js"]')?.getAttribute('src') || '';
+  return (src.match(/\?v=([0-9a-f]{8})/) || [])[1] || '';
+}
+
+async function mobileCheckNewVersion() {
+  if (mobileVersionNoticeShown || !OPS_AUTH_ENFORCED) return false;
+  const current = mobileCurrentStamp();
+  if (!current) return false;
+  try {
+    const res = await fetch(location.pathname, { cache: 'no-store' });
+    if (!res.ok) return false;
+    const remote = ((await res.text()).match(/js\/modules\/mobile\.js\?v=([0-9a-f]{8})/) || [])[1] || '';
+    if (remote && remote !== current) {
+      mobileVersionNoticeShown = true;
+      opsShowNewVersionBanner(remote);
+      return true;
+    }
+  } catch (e) { /* offline: try again later */ }
+  return false;
+}
+
+(function mobileVersionWatch() {
+  setTimeout(mobileCheckNewVersion, 15000);
+  setInterval(mobileCheckNewVersion, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') mobileCheckNewVersion(); });
+})();

@@ -360,4 +360,6 @@
   #page-profit .sticky-table-wrap{overflow-x:auto!important;height:auto!important;max-width:100%}
   #page-profit > div{max-width:100%;min-width:0}
   #case-tbody > tr > td button, #case-tbody > tr > td select, #dash-rv-tbody > tr > td button, #dash-rv-tbody > tr > td select, #cl-tbody > tr > td button, #cl-tbody > tr > td select, #vd-tbody > tr > td button, #vd-tbody > tr > td select, #py-tbody > tr > td button, #py-tbody > tr > td select, #rv-tbody > tr > td button, #rv-tbody > tr > td select, #payreq-pending-tbody > tr > td button, #payreq-pending-tbody > tr > td select, #payreq-rejected-tbody > tr > td button, #payreq-rejected-tbody > tr > td select, #payreq-approved-tbody > tr > td button, #payreq-approved-tbody > tr > td select, #exp-tbody > tr > td button, #exp-tbody > tr > td select, #att-record-tbody > tr > td button, #att-record-tbody > tr > td select, #att-leave-tbody > tr > td button, #att-leave-tbody > tr > td select{min-height:40px!important;padding:0 12px!important;font-size:13px!important}
+  #ops-new-version-banner{padding-top:calc(10px + env(safe-area-inset-top,0px))!important;font-size:14px!important}
+  #ops-new-version-banner button{min-height:40px}
 }

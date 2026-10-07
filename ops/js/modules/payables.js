@@ -133,6 +133,7 @@ function renderPayable() {
           ${p.invoiceLink ? `<a href="${p.invoiceLink}" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none;margin-right:4px" title="開啟請款單">📄</a>` : '<span style="color:var(--text3);font-size:11px">無</span>'}
           ${p.receiptLink ? `<a href="${p.receiptLink}" target="_blank" style="color:var(--accent);font-size:12px;text-decoration:none" title="開啟發票">🧾</a>` : ''}
           ${manage ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 5px;margin-left:4px" onclick="openLinks(${p.id})" title="設定附件連結">⋯</button>` : ''}
+          ${Array.isArray(p.attachments) && p.attachments.length ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:1px 6px;margin-left:4px" onclick="receiptOpenAttachModal('PAYABLES',${p.id})" title="單據">單據（${p.attachments.length}）</button>` : ''}
         </td>
         <td class="person-col" style="padding:10px 14px;text-align:center;font-size:12px">${p.person}</td>
         <td style="padding:10px 14px;text-align:center"><span class="tag ${statusClass[p.status]||'tag-pending'}">${statusLabel[p.status]||'未設定'}</span></td>

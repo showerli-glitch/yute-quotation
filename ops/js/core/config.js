@@ -8,7 +8,7 @@ const OPS_ALLOWED_USERS = {
   'nc@yutesign.com': 'nc',
 };
 const OPS_AUTH_SESSION_KEY = 'yutesign_ops_auth_session';
-const OPS_AUTH_SESSION_HOURS = 4;
+const OPS_AUTH_SESSION_HOURS = 8;
 const OPS_AUTH_ENFORCED = location.protocol === 'http:' || location.protocol === 'https:';
 const OPS_CLOUD_PATH = 'ops/yutesign/snapshot';
 const OPS_FIREBASE_CONFIG = {

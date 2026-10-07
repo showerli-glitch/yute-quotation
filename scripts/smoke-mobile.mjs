@@ -752,6 +752,45 @@ check('整頁轉址登入的後續步驟（查帳號、Firebase 登入、解鎖�
 check('已安裝 app：雲端硬碟授權也改為整頁轉址（不跳彈窗）', await page.evaluate(async () => { window.__forceStandalone = true; let target = ''; const orig = mobileOAuthRedirect; window.mobileOAuthRedirect = (p, s) => { target = p + '|' + s; }; receiptToken = ''; receiptConnect(); await new Promise(r => setTimeout(r, 900)); window.mobileOAuthRedirect = orig; window.__forceStandalone = false; return target === 'drive|https://www.googleapis.com/auth/drive'; }));
 await ctx.close();
 
+// ═══════════ O: 登入 8 小時、新版提示、電腦版應付單據按鈕 ═══════════
+H.setScenario('O-polish');
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW });
+page = await openPhone(ctx);
+const sess = await page.evaluate(() => {
+  const key = OPS_AUTH_SESSION_KEY; const keep = localStorage.getItem(key);
+  const at = h => { localStorage.setItem(key, JSON.stringify({ email: 'shower.li@yutesign.com', loginTime: Date.now() - h * 3600 * 1000 })); return !!opsReadAuthSession(); };
+  const r = { h7: at(7), h79: at(7.9), h81: at(8.1), hours: OPS_AUTH_SESSION_HOURS };
+  localStorage.setItem(key, keep);
+  return r;
+});
+check('登入有效時間 8 小時：7 小時仍有效、超過 8 小時需重新登入', sess.hours === 8 && sess.h7 && sess.h79 && !sess.h81, sess);
+const ver = await page.evaluate(async () => {
+  const cur = mobileCurrentStamp();
+  const realFetch = window.fetch;
+  const html = await (await realFetch(location.pathname, { cache: 'no-store' })).text();
+  window.fetch = async () => new Response(html);
+  const same = await mobileCheckNewVersion();
+  const sameBanner = !!document.getElementById('ops-new-version-banner');
+  window.fetch = async () => new Response(html.replaceAll('?v=' + cur, '?v=deadbeef'));
+  const diff = await mobileCheckNewVersion();
+  const banner = document.getElementById('ops-new-version-banner');
+  window.fetch = realFetch;
+  return { cur, same, sameBanner, diff, bannerText: banner ? banner.textContent : '', bannerTop: banner ? getComputedStyle(banner).paddingTop : '' };
+});
+check('新版提示：版本相同不提示；伺服器版本戳記不同時顯示「重新整理」提示', /^[0-9a-f]{8}$/.test(ver.cur) && ver.same === false && !ver.sameBanner && ver.diff === true && ver.bannerText.includes('deadbeef') && ver.bannerText.includes('重新整理'), ver);
+await page.setViewportSize({ width: 1440, height: 900 });
+const pyBtn = await page.evaluate(() => {
+  const row = PAYABLES.find(p => p.status === 'paid') || PAYABLES[0];
+  row.attachments = [{ id: 'x1', name: 'a.jpg', url: 'https://drive.google.com/file/d/x1/view' }, { id: 'x2', name: 'b.jpg', url: 'https://drive.google.com/file/d/x2/view' }];
+  navTo('payable', document.getElementById('nav-payable'));
+  const btn = [...document.querySelectorAll('#py-tbody button')].find(b => (b.getAttribute('onclick') || '').includes("receiptOpenAttachModal('PAYABLES'," + row.id + ')'));
+  if (!btn) return { found: false };
+  btn.click();
+  return { found: true, text: btn.textContent, links: document.querySelectorAll('#rc-modal-list a').length };
+});
+check('電腦版應付：有單據的列顯示「單據（2）」並可開啟列表', pyBtn.found && pyBtn.text === '單據（2）' && pyBtn.links === 2, pyBtn);
+await ctx.close();
+
 // ═══════════ D: PWA install config ═══════════
 H.setScenario('D-pwa');
 ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW, serviceWorkers: 'allow' });
