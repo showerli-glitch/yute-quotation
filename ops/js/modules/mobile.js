@@ -1071,3 +1071,111 @@ function mobileRenderProfitShare() {
     box.appendChild(card);
   });
 }
+
+// ── Google sign-in inside the installed app ──
+// The Google popup (Identity Services token client) cannot report back to an installed iOS web app: Google
+// shows "400 malformed request" after sign-in. In the installed app OPS uses the same OAuth client with a
+// full-page redirect instead and finishes the normal login steps when Google sends the person back.
+// Needs the OPS page URL listed under "Authorized redirect URIs" of the OAuth client in Google Cloud.
+const MOBILE_OAUTH_KEY = 'yutesign_ops_oauth_pending';
+
+function mobileIsStandalone() {
+  return !!(window.__forceStandalone || window.matchMedia('(display-mode: standalone)').matches || navigator.standalone);
+}
+
+function mobileOAuthRedirectUri() {
+  return location.origin + location.pathname;
+}
+
+function mobileOAuthRedirect(purpose, scope) {
+  const state = purpose + '.' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  try { localStorage.setItem(MOBILE_OAUTH_KEY, JSON.stringify({ state, purpose, at: Date.now() })); } catch (e) { showToast('這支手機無法暫存登入狀態，請改用 Safari 開啟', 'error'); return; }
+  const params = new URLSearchParams({
+    client_id: OPS_GOOGLE_CLIENT_ID,
+    redirect_uri: mobileOAuthRedirectUri(),
+    response_type: 'token',
+    scope,
+    include_granted_scopes: 'true',
+    prompt: 'select_account',
+    state,
+  });
+  location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + params.toString());
+}
+
+async function mobileCompleteLogin(accessToken) {
+  opsAuthSetLoading(true);
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: 'Bearer ' + accessToken } });
+    const profile = await res.json();
+    const email = String(profile.email || '').toLowerCase();
+    const user = opsAuthUserByEmail(email);
+    if (!user) {
+      opsAuthSetLoading(false);
+      opsAuthSetError(`此帳號尚未開通 OPS：${email || '未知帳號'}`);
+      if (window.google?.accounts?.oauth2?.revoke) google.accounts.oauth2.revoke(accessToken);
+      return;
+    }
+    await opsFirebaseSignIn(accessToken, email);
+    localStorage.setItem(OPS_AUTH_SESSION_KEY, JSON.stringify({ email, loginTime: Date.now() }));
+    opsAuthSetLoading(false);
+    opsAuthSetError('');
+    opsUnlockForUser(user, email, { render: false });
+    await opsCloudStart();
+    renderAfterDataSettles('login-cloud-ready');
+    showToast(`已登入：${user.name}`, 'success');
+  } catch (e) {
+    console.warn('OPS redirect login failed:', e);
+    opsAuthSetLoading(false);
+    opsAuthSetError('登入驗證失敗，請確認網路與 Google 帳號狀態。');
+  }
+}
+
+function mobileHandleOAuthReturn() {
+  const hash = String(location.hash || '');
+  if (!/[#&](access_token|error)=/.test(hash)) return;
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  let pending = null;
+  try { pending = JSON.parse(localStorage.getItem(MOBILE_OAUTH_KEY) || 'null'); localStorage.removeItem(MOBILE_OAUTH_KEY); } catch (e) { pending = null; }
+  history.replaceState(null, '', location.pathname + location.search);
+  if (!pending || pending.state !== params.get('state') || Date.now() - pending.at > 10 * 60 * 1000) {
+    if (typeof opsAuthSetError === 'function') opsAuthSetError('登入逾時或狀態不符，請再按一次登入。');
+    return;
+  }
+  if (params.get('error') || !params.get('access_token')) {
+    if (pending.purpose === 'login') opsAuthSetError('Google 授權失敗，請再試一次。');
+    else setTimeout(() => showToast('雲端硬碟授權失敗或已取消', 'error'), 1500);
+    return;
+  }
+  const token = params.get('access_token');
+  if (pending.purpose === 'login') {
+    mobileCompleteLogin(token);
+  } else if (pending.purpose === 'drive') {
+    receiptToken = token;
+    receiptTokenAt = Date.now();
+    setTimeout(() => showToast('雲端硬碟已連線，請再按一次拍照或選檔案', 'success'), 1500);
+  }
+}
+
+(function mobileHookLogin() {
+  const originalStart = window.opsStartGoogleLogin;
+  window.opsStartGoogleLogin = function () {
+    if (OPS_AUTH_ENFORCED && mobileIsStandalone()) {
+      opsAuthSetError('');
+      opsAuthSetLoading(true);
+      mobileOAuthRedirect('login', 'https://www.googleapis.com/auth/userinfo.email');
+      return;
+    }
+    return originalStart.apply(this, arguments);
+  };
+  const originalConnect = window.receiptConnect;
+  window.receiptConnect = function () {
+    if (mobileIsStandalone()) {
+      showToast('即將前往 Google 授權雲端硬碟，完成後會回到 OPS');
+      setTimeout(() => mobileOAuthRedirect('drive', RECEIPT_DRIVE_SCOPE), 600);
+      return;
+    }
+    return originalConnect.apply(this, arguments);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(mobileHandleOAuthReturn, 0));
+  else setTimeout(mobileHandleOAuthReturn, 0);
+})();

@@ -718,6 +718,40 @@ const pengPs = await page.evaluate(() => { if (!canAccess('profitshare')) return
 check('淨利潤摘要（非業主）：看不到合計、只看到自己', !pengPs.access || (pengPs.total === true && pengPs.names.every(n => n === '彭俞豪')), pengPs);
 await ctx.close();
 
+// ═══════════ N: 已安裝 app 的 Google 登入改用整頁轉址；登入畫面說明 ═══════════
+H.setScenario('N-standalone-login');
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW });
+page = await openPhone(ctx);
+check('登入畫面不再列出寫死的開通名單與 file:// 開發說明', await page.evaluate(() => { const t = document.querySelector('.auth-card').innerText; return !t.includes('李鎮宇、Ning') && !t.includes('file://') && t.includes('員工管理開通'); }));
+const navs = [];
+page.on('request', r => { if (r.url().startsWith('https://accounts.google.com/o/oauth2/v2/auth')) navs.push(r.url()); });
+await page.evaluate(() => { window.__forceStandalone = true; opsStartGoogleLogin(); });
+await page.waitForTimeout(800);
+const authUrl = navs[0] ? new URL(navs[0]) : null;
+const pend = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem('yutesign_ops_oauth_pending')); } catch (e) { return null; } }).catch(() => null);
+check('已安裝 app：按登入改為整頁前往 Google（帶 client_id、回到 /ops/、token 模式、state）', !!authUrl && authUrl.searchParams.get('client_id') === '239869421522-cqs68t3pnahjbmv9ld1k08b4p79s34k4.apps.googleusercontent.com' && /\/ops\/$/.test(authUrl.searchParams.get('redirect_uri')) && authUrl.searchParams.get('response_type') === 'token' && /^login\./.test(authUrl.searchParams.get('state') || ''), navs[0] || 'no navigation');
+await ctx.close();
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW });
+page = await openPhone(ctx);
+const ret = await page.evaluate(async () => {
+  localStorage.setItem('yutesign_ops_oauth_pending', JSON.stringify({ state: 'drive.xyz', purpose: 'drive', at: Date.now() }));
+  history.replaceState(null, '', location.pathname + '#access_token=tok-ok&state=drive.xyz');
+  receiptToken = '';
+  mobileHandleOAuthReturn();
+  const ok = { token: receiptToken, hash: location.hash, pendingLeft: localStorage.getItem('yutesign_ops_oauth_pending') };
+  localStorage.setItem('yutesign_ops_oauth_pending', JSON.stringify({ state: 'drive.real', purpose: 'drive', at: Date.now() }));
+  history.replaceState(null, '', location.pathname + '#access_token=tok-forged&state=drive.other');
+  receiptToken = '';
+  mobileHandleOAuthReturn();
+  return { ok, forged: receiptToken, hash2: location.hash };
+});
+check('回傳 state 相符：存下雲端硬碟授權、清掉網址 token 與暫存', ret.ok.token === 'tok-ok' && ret.ok.hash === '' && ret.ok.pendingLeft === null, ret);
+check('回傳 state 不符：不採用該 token', ret.forged === '' && ret.hash2 === '', ret);
+const login = await page.evaluate(async () => { window.__toasts = []; await mobileCompleteLogin('mock-access-token'); return { toast: window.__toasts.join('|'), pending: document.body.classList.contains('auth-pending'), user: currentUser && currentUser.name }; });
+check('整頁轉址登入的後續步驟（查帳號、Firebase 登入、解鎖、同步）可完成', login.toast.includes('已登入：李鎮宇') && !login.pending && login.user === '李鎮宇', login);
+check('已安裝 app：雲端硬碟授權也改為整頁轉址（不跳彈窗）', await page.evaluate(async () => { window.__forceStandalone = true; let target = ''; const orig = mobileOAuthRedirect; window.mobileOAuthRedirect = (p, s) => { target = p + '|' + s; }; receiptToken = ''; receiptConnect(); await new Promise(r => setTimeout(r, 900)); window.mobileOAuthRedirect = orig; window.__forceStandalone = false; return target === 'drive|https://www.googleapis.com/auth/drive'; }));
+await ctx.close();
+
 // ═══════════ D: PWA install config ═══════════
 H.setScenario('D-pwa');
 ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW, serviceWorkers: 'allow' });
