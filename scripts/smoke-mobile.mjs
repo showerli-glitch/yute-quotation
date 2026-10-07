@@ -46,6 +46,7 @@ check('mobile.js 是最後載入的 script、mobile.css 有載入', scriptsLoade
 let st = await state(page);
 check('手機登入後落在「今天」、隱藏舊上方列、顯示底部分頁', st.page === 'mhome' && st.ownHeader && !st.topbar && st.navShown && st.active.join() === 'page-mhome', st);
 check('底部分頁四個、「今天」為選取', (await page.locator('.m-nav-btn').count()) === 4 && st.tab === 'today');
+check('首頁表頭：純色、無圓角、高度不超過 150px', await page.evaluate(() => { const e = document.querySelector('#page-mhome .m-hero'); const cs = getComputedStyle(e); return cs.backgroundImage === 'none' && cs.backgroundColor === 'rgb(18, 61, 51)' && cs.borderBottomLeftRadius === '0px' && e.getBoundingClientRect().height <= 150; }));
 check('底部分頁按鈕高度 ≥ 44px', (await page.locator('.m-nav-btn').evaluateAll(bs => bs.every(b => b.getBoundingClientRect().height >= 44))));
 const heroText = await page.locator('#page-mhome .m-hero').innerText();
 check('首頁表頭：YUTE / OPS、已同步、日期、「今天」', /YUTE \/ OPS/.test(heroText) && /已同步/.test(heroText) && /今天/.test(heroText) && /\d+\/\d+/.test(heroText), heroText.replace(/\s+/g, ' '));
@@ -71,7 +72,7 @@ check('待審核請款數與系統徽章數一致', pr.n === 0 ? pr.card === '' 
 await page.click('#m-q-attendance');
 st = await state(page);
 check('點「打卡」進入出勤頁；顯示舊上方列、分頁維持「今天」', st.page === 'attendance' && !st.ownHeader && st.topbar && st.tab === 'today', st);
-check('舊上方列改為深綠表頭、標題白字', await page.evaluate(() => { const t = document.querySelector('.topbar'); return getComputedStyle(t).backgroundImage.includes('gradient') && getComputedStyle(document.getElementById('topbar-title')).color === 'rgb(255, 255, 255)'; }));
+check('舊上方列改為純深綠表頭（無漸層、無圓角）、標題白字', await page.evaluate(() => { const t = document.querySelector('.topbar'); const cs = getComputedStyle(t); return cs.backgroundImage === 'none' && cs.backgroundColor === 'rgb(18, 61, 51)' && cs.borderBottomLeftRadius === '0px' && getComputedStyle(document.getElementById('topbar-title')).color === 'rgb(255, 255, 255)'; }));
 await tabBtn(page, 'today').click();
 st = await state(page);
 check('按「今天」回到首頁', st.page === 'mhome' && st.ownHeader && st.tab === 'today', st);
