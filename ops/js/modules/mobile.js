@@ -3,14 +3,14 @@
 // existing pages. It only reads data and calls existing functions; it never writes data.
 // Loaded last, after profitshare.js.
 
-const MOBILE_OWN_PAGES = ['mhome', 'mfinance', 'mme', 'mreview', 'mapply', 'minvoice'];
+const MOBILE_OWN_PAGES = ['mhome', 'mfinance', 'mme', 'mreview', 'mapply', 'minvoice', 'minbox'];
 const MOBILE_FINANCE_PAGES = ['payable', 'receivable', 'profit', 'profitshare', 'overhead', 'tax'];
 const MOBILE_TAB_OF_PAGE = {
   mhome: 'today', mapply: 'today', attendance: 'today',
   dashboard: 'cases', clients: 'cases', vendors: 'cases',
   mfinance: 'finance', mreview: 'finance', minvoice: 'finance', payreq: 'finance', payable: 'finance', receivable: 'finance', expense: 'finance',
   profit: 'finance', profitshare: 'finance', overhead: 'finance', tax: 'finance',
-  mme: 'me',
+  mme: 'me', minbox: 'me',
 };
 
 function mobileIsActive() {
@@ -233,7 +233,8 @@ function mobileRenderMe() {
 }
 
 function mobileRenderOwnPage(id) {
-  if (id === 'minvoice') mobileRenderInvoiceQueue();
+  if (id === 'minbox') mobileRenderInbox();
+  else if (id === 'minvoice') mobileRenderInvoiceQueue();
   else if (id === 'mapply') mobileRenderApply();
   else if (id === 'mreview') mobileRenderReview();
   else if (id === 'mhome') mobileRenderHome();
@@ -379,6 +380,10 @@ function mobileReviewCard(kind, row) {
   if (amount !== null) card.appendChild(mobileEl('div', 'm-card-amount', mobileMoney(amount)));
   const metaEl = mobileEl('div', 'm-card-detail', meta.filter(Boolean).join('・'));
   card.appendChild(metaEl);
+  if (kind !== 'record') {
+    const links = receiptAttachmentEls(row);
+    if (links.children.length) card.appendChild(links);
+  }
   const actions = mobileEl('div', 'm-actions');
   if (kind !== 'record') {
     const rej = mobileEl('button', 'm-act reject', '退回');
@@ -432,11 +437,12 @@ function mobileApplyAllowed(kind) {
   return kind === 'expense' ? canApplySelf('expense') : canApplySelf('payreq');
 }
 
-function mobileOpenApply(kind) {
+function mobileOpenApply(kind, options = {}) {
   if (!mobileApplyAllowed(kind)) { showToast(kind === 'expense' ? '您沒有新增費用的權限' : '您沒有新增請款的權限', 'error'); return; }
   mobileApplyTab = kind;
   mobileResetExpenseForm();
   mobileResetPayreqForm();
+  if (options.keep) receiptPending[kind] = options.keep;
   mobileShowOwnPage('mapply');
 }
 
@@ -508,6 +514,7 @@ function mobileRenderExpenseForm() {
   mobilePills('m-ex-cats', EXP_CATS, mobileExpCat, v => { mobileExpCat = v; mobileRenderExpenseForm(); });
   mobilePills('m-ex-receipts', EXP_RECEIPTS, mobileExpReceipt, v => { mobileExpReceipt = v; mobileRenderExpenseForm(); });
   mobileExpenseCaseChanged();
+  mobileRenderAttachChips();
   const mine = EXPENSES.filter(r => r.person === currentUser.id && ['pending', 'rejected'].includes(r.status))
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 8);
   const box = document.getElementById('m-ex-mine');
@@ -523,6 +530,7 @@ function mobileRenderExpenseForm() {
     card.appendChild(top);
     card.appendChild(mobileEl('div', 'm-card-title', r.item || '未填項目'));
     card.appendChild(mobileEl('div', 'm-card-detail', (r.caseName || '固定開銷') + '・' + mobileMoney(r.amount)));
+    mobileAddReceiptBits(card, 'EXPENSES', r);
     box.appendChild(card);
   });
 }
@@ -545,6 +553,7 @@ function mobileResetExpenseForm() {
   mobileExpReceipt = EXP_RECEIPTS[0];
   const treat = document.getElementById('m-ex-treat');
   if (treat) treat.value = 'post_close_cost';
+  receiptPending.expense = [];
 }
 
 function mobileSubmitExpense() {
@@ -575,6 +584,8 @@ function mobileSubmitExpense() {
   submitBatchExpense();
   closeModal('modal-add-expense');
   if (EXPENSES.length > before) {
+    const created = EXPENSES[EXPENSES.length - 1];
+    if (receiptPending.expense.length) { receiptApplyTo(created, receiptPending.expense); saveData(); }
     mobileResetExpenseForm();
   }
   mobileRenderExpenseForm();
@@ -605,6 +616,7 @@ function mobileRenderPayreqForm() {
   }
   mobileSeg('m-pr-invoice', ['有', '無', '待補'], mobilePrInvoice, v => { mobilePrInvoice = v; mobileRenderPayreqForm(); });
   mobileSeg('m-pr-receipt', ['有', '無', '待補'], mobilePrReceipt, v => { mobilePrReceipt = v; mobileRenderPayreqForm(); });
+  mobileRenderAttachChips();
   const editing = mobilePrEditId !== null;
   document.getElementById('m-pr-editing').hidden = !editing;
   document.getElementById('m-pr-submit').textContent = editing ? '儲存修改，重新送出審核' : '送出請款，等待財務審核';
@@ -621,6 +633,7 @@ function mobileRenderPayreqForm() {
     card.appendChild(top);
     card.appendChild(mobileEl('div', 'm-card-title', (p.vendor || '未填廠商') + '・' + (p.summary || '')));
     card.appendChild(mobileEl('div', 'm-card-detail', mobileMoney(p.amount)));
+    mobileAddReceiptBits(card, 'PAYABLES', p);
     if (p.status === 'rejected') {
       const b = mobileEl('button', 'm-mini-btn', '修改後重送');
       b.type = 'button';
@@ -640,6 +653,7 @@ function mobileResetPayreqForm() {
   mobilePrInvoice = '有';
   mobilePrReceipt = '有';
   mobilePrEditId = null;
+  receiptPending.payreq = [];
 }
 
 function mobilePayreqEdit(id) {
@@ -697,8 +711,11 @@ function mobileSubmitPayreq() {
   submitPayReq();
   const done = editId !== null ? payreqEditId === null && PAYABLES.some(p => Number(p.id) === Number(editId) && p.status === 'pending') : PAYABLES.length > before;
   closeModal('modal-payreq');
-  if (done) mobileResetPayreqForm();
-  else payreqEditId = null;
+  if (done) {
+    const created = editId !== null ? PAYABLES.find(p => Number(p.id) === Number(editId)) : PAYABLES[PAYABLES.length - 1];
+    if (created && receiptPending.payreq.length) { receiptApplyTo(created, receiptPending.payreq); saveData(); }
+    mobileResetPayreqForm();
+  } else payreqEditId = null;
   mobileRenderPayreqForm();
 }
 
@@ -755,4 +772,110 @@ function mobileRenderInvoiceQueue() {
   const sub = document.getElementById('m-iv-sub');
   if (sub) sub.textContent = irCanIssue() ? irPendingCount() + ' 筆待開立' : '您沒有登錄發票的權限';
   irRenderQueue(document.getElementById('m-iv-list'), { full: true });
+}
+
+// ── 單據 on the phone ──
+function mobileAddReceiptBits(card, collection, row) {
+  const links = receiptAttachmentEls(row);
+  if (links.children.length) card.appendChild(links);
+  if (receiptCanAttach(collection, row)) {
+    const b = mobileEl('button', 'm-mini-btn', links.children.length ? '單據（' + links.children.length + '）' : '＋ 單據');
+    b.type = 'button';
+    b.addEventListener('click', () => receiptOpenAttachModal(collection, row.id));
+    card.appendChild(b);
+  }
+}
+
+function mobileAttachPick(form, mode) {
+  if (mode === 'link') receiptAddLink({ kind: 'form', form });
+  else if (mode === 'inbox') mobileOpenInbox(form);
+  else receiptPick({ kind: 'form', form }, mode);
+}
+
+function mobileRenderAttachChips() {
+  [['expense', 'm-ex-atts'], ['payreq', 'm-pr-atts']].forEach(([form, id]) => {
+    const box = document.getElementById(id);
+    if (!box) return;
+    box.textContent = '';
+    receiptPending[form].forEach((a, i) => {
+      const row = mobileEl('div', 'm-att');
+      const link = document.createElement('a');
+      link.href = a.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = '📎 ' + (a.name || '單據');
+      const rm = mobileEl('button', '', '✕');
+      rm.type = 'button'; rm.setAttribute('aria-label', '移除單據');
+      rm.addEventListener('click', () => { receiptPending[form].splice(i, 1); mobileRenderAttachChips(); });
+      row.appendChild(link); row.appendChild(rm);
+      box.appendChild(row);
+    });
+  });
+}
+
+// ── 單據匣: the files in the signed-in person's own Drive folder ──
+let mobileInboxFor = '';
+let mobileInboxItems = [];
+
+function mobileOpenInbox(forForm) {
+  mobileInboxFor = forForm || '';
+  mobileShowOwnPage('minbox');
+}
+
+function mobileInboxAdd(mode) {
+  receiptPick({ kind: 'inbox' }, mode);
+}
+
+async function mobileLoadInbox() {
+  if (!receiptTokenValid() || !receiptFolderId()) { mobileInboxItems = []; mobileRenderInbox(true); return; }
+  try {
+    const q = encodeURIComponent(`'${receiptFolderId()}' in parents and trashed = false`);
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=createdTime%20desc&pageSize=30&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,mimeType,createdTime,webViewLink)`, { headers: { Authorization: 'Bearer ' + receiptToken } });
+    if (res.status === 401) { receiptToken = ''; mobileInboxItems = []; mobileRenderInbox(true); return; }
+    if (!res.ok) throw new Error('讀取單據匣失敗（' + res.status + '）');
+    mobileInboxItems = (await res.json()).files || [];
+  } catch (e) {
+    showToast(String(e && e.message || e), 'error');
+    mobileInboxItems = [];
+  }
+  mobileRenderInbox(true);
+}
+
+function mobileInboxUsed(id) {
+  return [...EXPENSES, ...PAYABLES].some(r => Array.isArray(r.attachments) && r.attachments.some(a => a.id === id));
+}
+
+function mobileRenderInbox(loaded) {
+  const connected = receiptTokenValid();
+  const note = document.getElementById('m-ib-connect');
+  if (note) note.hidden = connected;
+  const sub = document.getElementById('m-ib-sub');
+  if (sub) sub.textContent = mobileInboxFor ? '選一張單據帶進' + (mobileInboxFor === 'expense' ? '費用申請' : '廠商請款') : (connected ? '最近 ' + mobileInboxItems.length + ' 個檔案' : '尚未連線雲端硬碟');
+  if (connected && !loaded) { mobileLoadInbox(); }
+  const box = document.getElementById('m-ib-list');
+  if (!box) return;
+  box.textContent = '';
+  if (connected && loaded && !mobileInboxItems.length) box.appendChild(mobileEl('div', 'm-empty', '單據匣是空的'));
+  mobileInboxItems.forEach(f => {
+    const card = mobileEl('div', 'm-card');
+    const top = mobileEl('div', 'm-card-top');
+    top.appendChild(mobileEl('span', 'm-pill ' + (mobileInboxUsed(f.id) ? 'ok' : 'warn'), mobileInboxUsed(f.id) ? '已使用' : '未使用'));
+    top.appendChild(mobileEl('span', 'm-card-src', f.createdTime ? new Date(f.createdTime).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : ''));
+    card.appendChild(top);
+    const link = document.createElement('a');
+    link.className = 'm-card-title'; link.href = f.webViewLink || '#'; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = f.name;
+    link.style.color = 'inherit';
+    card.appendChild(link);
+    const att = { id: f.id, name: f.name, url: f.webViewLink, at: new Date().toISOString(), by: currentUser?.name || '' };
+    const actions = mobileEl('div', 'm-actions');
+    if (!mobileInboxFor || mobileInboxFor === 'expense') if (mobileApplyAllowed('expense')) {
+      const b = mobileEl('button', 'm-act approve', '用於費用'); b.type = 'button';
+      b.addEventListener('click', () => mobileOpenApply('expense', { keep: [...receiptPending.expense, att] }));
+      actions.appendChild(b);
+    }
+    if (!mobileInboxFor || mobileInboxFor === 'payreq') if (mobileApplyAllowed('payreq')) {
+      const b = mobileEl('button', 'm-act approve', '用於請款'); b.type = 'button';
+      b.addEventListener('click', () => mobileOpenApply('payreq', { keep: [...receiptPending.payreq, att] }));
+      actions.appendChild(b);
+    }
+    if (actions.children.length) card.appendChild(actions);
+    box.appendChild(card);
+  });
 }

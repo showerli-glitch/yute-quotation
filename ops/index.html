@@ -14,9 +14,9 @@
 <link rel="icon" type="image/svg+xml" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.svg?v=202606221952">
 <link rel="icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.ico?v=202606221952" sizes="any">
 <link rel="icon" type="image/png" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221952">
-<link rel="stylesheet" href="styles/invoicerequest.css?v=3189c767">
-<link rel="stylesheet" href="styles/mobile.css?v=3189c767">
-<link rel="manifest" href="manifest.webmanifest?v=3189c767">
+<link rel="stylesheet" href="styles/invoicerequest.css?v=f991dc2f">
+<link rel="stylesheet" href="styles/mobile.css?v=f991dc2f">
+<link rel="manifest" href="manifest.webmanifest?v=f991dc2f">
 <meta name="theme-color" content="#123D33">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1292,6 +1292,15 @@ body.auth-pending .auth-screen{display:flex}
           <div class="m-field"><label>收據</label><div class="m-pills" id="m-ex-receipts"></div></div>
         </div>
         <div class="m-field"><label for="m-ex-note">備註（選填）</label><input id="m-ex-note" class="m-input" autocomplete="off"></div>
+        <div class="m-field"><label>單據（拍照、選檔案、貼連結）</label>
+          <div class="m-attach-row">
+            <button type="button" class="m-attach" data-receipt-busy onclick="mobileAttachPick('expense','camera')">拍照</button>
+            <button type="button" class="m-attach" data-receipt-busy onclick="mobileAttachPick('expense','any')">選檔案</button>
+            <button type="button" class="m-attach" onclick="mobileAttachPick('expense','link')">貼連結</button>
+            <button type="button" class="m-attach" onclick="mobileAttachPick('expense','inbox')">單據匣</button>
+          </div>
+          <div class="m-atts" id="m-ex-atts"></div>
+        </div>
         <button type="button" class="m-submit" id="m-ex-submit" onclick="mobileSubmitExpense()">送出申請</button>
         <div class="m-sec" style="margin-top:6px">我的費用<small id="m-ex-mine-sub"></small></div>
         <div id="m-ex-mine" class="m-mine"></div>
@@ -1316,6 +1325,15 @@ body.auth-pending .auth-screen{display:flex}
           <div class="m-field"><label>收據</label><div class="m-seg" id="m-pr-receipt"></div></div>
         </div>
         <div class="m-field"><label for="m-pr-note">備註（選填）</label><input id="m-pr-note" class="m-input" autocomplete="off"></div>
+        <div class="m-field"><label>單據（拍照、選檔案、貼連結）</label>
+          <div class="m-attach-row">
+            <button type="button" class="m-attach" data-receipt-busy onclick="mobileAttachPick('payreq','camera')">拍照</button>
+            <button type="button" class="m-attach" data-receipt-busy onclick="mobileAttachPick('payreq','any')">選檔案</button>
+            <button type="button" class="m-attach" onclick="mobileAttachPick('payreq','link')">貼連結</button>
+            <button type="button" class="m-attach" onclick="mobileAttachPick('payreq','inbox')">單據匣</button>
+          </div>
+          <div class="m-atts" id="m-pr-atts"></div>
+        </div>
         <button type="button" class="m-submit" id="m-pr-submit" onclick="mobileSubmitPayreq()">送出請款，等待財務審核</button>
         <div class="m-sec" style="margin-top:6px">我的請款<small id="m-pr-mine-sub"></small></div>
         <div id="m-pr-mine" class="m-mine"></div>
@@ -1332,6 +1350,23 @@ body.auth-pending .auth-screen{display:flex}
     <div class="m-body">
       <div id="m-iv-list" class="ir-list"></div>
       <div class="m-note">照上面的資料到電腦的 ezPay 開立，再按「填入發票號碼」。</div>
+    </div>
+  </div>
+
+  <div class="page" id="page-minbox">
+    <div class="m-hero">
+      <div class="m-hero-top"><button type="button" class="m-back" onclick="mobileGo('me')">← 我的</button><span></span></div>
+      <div class="m-hero-title"><h1>單據匣</h1></div>
+      <div class="m-hero-sub" id="m-ib-sub"></div>
+    </div>
+    <div class="m-body">
+      <div class="m-field-row">
+        <button type="button" class="m-submit" data-receipt-busy onclick="mobileInboxAdd('camera')">拍照（可連拍）</button>
+        <button type="button" class="m-submit alt" data-receipt-busy onclick="mobileInboxAdd('any')">從 Line／檔案加入</button>
+      </div>
+      <div id="m-ib-connect" class="m-note" hidden>需要先連線雲端硬碟：按上面任一顆按鈕，同意授權後再按一次。</div>
+      <div id="m-ib-list" class="m-mine"></div>
+      <div class="m-note">單據存放在您個人的雲端硬碟資料夾；系統只記連結。「用於費用／請款」會把這張單據帶進新增申請表單。</div>
     </div>
   </div>
 
@@ -1381,6 +1416,7 @@ body.auth-pending .auth-screen{display:flex}
     <div class="m-body">
       <div class="m-list">
         <button type="button" class="m-row" id="m-me-attendance" onclick="mobileOpen('attendance')"><span>打卡與請假</span><span class="m-chev">›</span></button>
+        <button type="button" class="m-row" id="m-me-inbox" onclick="mobileOpenInbox()"><span>單據匣</span><span class="m-chev">›</span></button>
         <button type="button" class="m-row" onclick="toggleMobileSidebar(true)"><span>所有功能</span><span class="m-chev">›</span></button>
         <button type="button" class="m-row" onclick="openTestGuide()"><span>使用說明</span><span class="m-chev">›</span></button>
         <button type="button" class="m-row" onclick="toggleTheme()"><span>切換亮色／深色</span><span class="m-chev">›</span></button>
@@ -3548,6 +3584,31 @@ body.auth-pending .auth-screen{display:flex}
   </div>
 </div>
 
+<!-- ════════ RECEIPTS (單據): hidden pickers and the attachments modal ════════ -->
+<input type="file" id="receipt-file-camera" accept="image/*" capture="environment" hidden onchange="receiptFilesChosen(this)">
+<input type="file" id="receipt-file-any" accept="image/*,application/pdf" multiple hidden onchange="receiptFilesChosen(this)">
+<div class="modal-overlay" id="modal-attachments" onclick="if(event.target===this)closeModal('modal-attachments')">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-hd">
+      <div class="modal-title">單據</div>
+      <button class="modal-close" onclick="closeModal('modal-attachments')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="rc-modal-summary" style="margin-bottom:10px;font-weight:700"></div>
+      <div id="rc-modal-list"></div>
+      <div id="rc-modal-actions" class="rc-actions">
+        <button type="button" class="btn btn-ghost" data-receipt-busy onclick="receiptModalPick('camera')">拍照</button>
+        <button type="button" class="btn btn-ghost" data-receipt-busy onclick="receiptModalPick('any')">選檔案</button>
+        <button type="button" class="btn btn-ghost" onclick="receiptModalPick('link')">貼連結</button>
+      </div>
+      <div class="rc-note">檔案會存到您個人的單據資料夾，系統只記連結。</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('modal-attachments')">完成</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════════ MODAL: INVOICE REQUEST (開票申請) ════════ -->
 <div class="modal-overlay" id="modal-invoice-request" onclick="if(event.target===this)closeModal('modal-invoice-request')">
   <div class="modal" style="max-width:520px">
@@ -4173,11 +4234,11 @@ body.auth-pending .auth-screen{display:flex}
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<script src="js/core/types.js?v=3189c767"></script>
-<script src="js/core/config.js?v=3189c767"></script>
-<script src="js/core/data.js?v=3189c767"></script>
-<script src="js/core/accounting.js?v=3189c767"></script>
-<script src="js/core/ui.js?v=3189c767"></script>
+<script src="js/core/types.js?v=f991dc2f"></script>
+<script src="js/core/config.js?v=f991dc2f"></script>
+<script src="js/core/data.js?v=f991dc2f"></script>
+<script src="js/core/accounting.js?v=f991dc2f"></script>
+<script src="js/core/ui.js?v=f991dc2f"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   loadData(); // 從 localStorage 還原資料
@@ -4656,26 +4717,27 @@ function payreqVendorPickerMouseDown(input) {
 
 
 </script>
-<script src="js/modules/payables.js?v=3189c767"></script>
+<script src="js/modules/payables.js?v=f991dc2f"></script>
 <script>
 
 </script>
-<script src="js/modules/receivables.js?v=3189c767"></script>
-<script src="js/modules/profit.js?v=3189c767"></script>
-<script src="js/modules/expenses.js?v=3189c767"></script>
-<script src="js/modules/cases.js?v=3189c767"></script>
-<script src="js/modules/clients.js?v=3189c767"></script>
-<script src="js/modules/vendors.js?v=3189c767"></script>
-<script src="js/modules/attendance.js?v=3189c767"></script>
-<script src="js/modules/payreq.js?v=3189c767"></script>
-<script src="js/modules/feedback.js?v=3189c767"></script>
-<script src="js/modules/systemnotes.js?v=3189c767"></script>
-<script src="js/modules/employees.js?v=3189c767"></script>
-<script src="js/modules/payroll.js?v=3189c767"></script>
-<script src="js/modules/overhead.js?v=3189c767"></script>
-<script src="js/modules/tax.js?v=3189c767"></script>
-<script src="js/modules/profitshare.js?v=3189c767"></script>
-<script src="js/modules/invoicerequest.js?v=3189c767"></script>
-<script src="js/modules/mobile.js?v=3189c767"></script>
+<script src="js/modules/receivables.js?v=f991dc2f"></script>
+<script src="js/modules/profit.js?v=f991dc2f"></script>
+<script src="js/modules/expenses.js?v=f991dc2f"></script>
+<script src="js/modules/cases.js?v=f991dc2f"></script>
+<script src="js/modules/clients.js?v=f991dc2f"></script>
+<script src="js/modules/vendors.js?v=f991dc2f"></script>
+<script src="js/modules/attendance.js?v=f991dc2f"></script>
+<script src="js/modules/payreq.js?v=f991dc2f"></script>
+<script src="js/modules/feedback.js?v=f991dc2f"></script>
+<script src="js/modules/systemnotes.js?v=f991dc2f"></script>
+<script src="js/modules/employees.js?v=f991dc2f"></script>
+<script src="js/modules/payroll.js?v=f991dc2f"></script>
+<script src="js/modules/overhead.js?v=f991dc2f"></script>
+<script src="js/modules/tax.js?v=f991dc2f"></script>
+<script src="js/modules/profitshare.js?v=f991dc2f"></script>
+<script src="js/modules/invoicerequest.js?v=f991dc2f"></script>
+<script src="js/modules/receipts.js?v=f991dc2f"></script>
+<script src="js/modules/mobile.js?v=f991dc2f"></script>
 </body>
 </html>

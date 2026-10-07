@@ -314,8 +314,8 @@ const dprow = await page.evaluate(() => PAYABLES[PAYABLES.length - 1]);
 check('請款：手機表單與電腦版送出的資料列欄位完全相同（除編號與摘要）', JSON.stringify(Object.keys(strip(prow)).sort()) === JSON.stringify(Object.keys(strip(dprow)).sort()) && Object.keys(strip(prow)).filter(k => k !== 'summary').every(k => JSON.stringify(prow[k]) === JSON.stringify(dprow[k])), { m: strip(prow), d: strip(dprow) });
 // edit a rejected request
 await page.evaluate(() => { PAYABLES.push({ id: 990010, case: '', caseName: '', vendor: '退回測試廠商', summary: '退回測試', amount: 777, wantDate: '2026-10-15', status: 'rejected', person: '李鎮宇', invoice: '有', receipt: '有', bank: '', transferDate: '', doneDate: '' }); mobileOpenApply('payreq'); });
-check('被退回的請款顯示「修改後重送」', (await page.locator('#m-pr-mine .m-card:has-text("退回測試廠商") .m-mini-btn').count()) === 1);
-await page.click('#m-pr-mine .m-card:has-text("退回測試廠商") .m-mini-btn');
+check('被退回的請款顯示「修改後重送」', (await page.locator('#m-pr-mine .m-card:has-text("退回測試廠商") .m-mini-btn:has-text("修改後重送")').count()) === 1);
+await page.click('#m-pr-mine .m-card:has-text("退回測試廠商") .m-mini-btn:has-text("修改後重送")');
 check('點修改：表單帶入原資料、顯示修改中提示', await page.evaluate(() => document.getElementById('m-pr-vendor').value === '退回測試廠商' && document.getElementById('m-pr-amount').value === '777' && !document.getElementById('m-pr-editing').hidden));
 const prLen = await page.evaluate(() => PAYABLES.length);
 await page.fill('#m-pr-amount', '888');
@@ -541,6 +541,93 @@ page = await openApp(ctx);
 const persisted = await page.evaluate(() => ({ n: INVOICE_REQUESTS.length, issued: INVOICE_REQUESTS.filter(r => r.status === 'issued').length, next: irNextId, hasKey: 'INVOICE_REQUESTS' in createDataSnapshot() }));
 check('全新瀏覽器重新載入：開票申請與編號仍在', persisted.n >= 3 && persisted.issued >= 2 && persisted.next > persisted.n && persisted.hasKey, persisted);
 check('其他人的申請對開票人（業主）可見、已取消的不列為待辦', await page.evaluate(() => irRows('requested').every(r => r.status === 'requested')));
+await ctx.close();
+
+// ═══════════ K: 單據（拍照／檔案／連結、單據匣、雲端硬碟） ═══════════
+H.setScenario('K-receipts(shower)');
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+const SHOWER_FOLDER = '1DqA3iYqYfR2fH69RTLm6IolCSD_ZESMu';
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW });
+page = await openPhone(ctx);
+let dialogText = 'https://drive.google.com/file/d/abc123/view';
+page.on('dialog', d => { if (d.type() === 'prompt') d.accept(dialogText); else d.accept(); });
+const pickFiles = async (selector, files) => { const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click(selector)]); await chooser.setFiles(files); await page.waitForFunction(() => !receiptBusy, null, { timeout: 15000 }); await page.waitForTimeout(200); };
+check('單據資料夾對照：五位員工的資料夾與雲端硬碟一致、無空值', await page.evaluate(() => Object.keys(RECEIPT_FOLDERS).sort().join() === 'lien,lu_yanchen,nc,peng,shower' && Object.values(RECEIPT_FOLDERS).every(v => /^[\w-]{20,}$/.test(v)) && RECEIPT_FOLDERS.shower === '1DqA3iYqYfR2fH69RTLm6IolCSD_ZESMu'));
+await page.evaluate(() => mobileOpenApply('expense'));
+await clearToasts(page);
+await page.click('#m-ap-expense .m-attach:has-text("選檔案")');
+await page.waitForTimeout(300);
+check('第一次按：先連線雲端硬碟，提示再按一次（不開檔案視窗）', (await page.evaluate(() => window.__toasts.join('|'))).includes('雲端硬碟已連線，請再按一次') && (await page.evaluate(() => receiptTokenValid())));
+await pickFiles('#m-ap-expense .m-attach:has-text("選檔案")', [{ name: 'a.png', mimeType: 'image/png', buffer: PNG }, { name: 'b.png', mimeType: 'image/png', buffer: PNG }]);
+const up = H.state.driveFiles;
+check('上傳 2 張：存進本人資料夾、檔名帶時間戳、圖片轉為 jpg', up.length === 2 && up.every(f => f.parents.join() === SHOWER_FOLDER && /^20261006_\d{6}_[ab]\.jpg$/.test(f.name)), up.map(f => f.name + '→' + f.parents));
+check('表單列出 2 個單據、可移除一個', await (async () => { const n = await page.locator('#m-ex-atts .m-att').count(); await page.locator('#m-ex-atts .m-att button').first().click(); return n === 2 && (await page.locator('#m-ex-atts .m-att').count()) === 1; })());
+await page.click('#m-ap-expense .m-attach:has-text("貼連結")');
+check('貼連結：加入雲端硬碟連結', (await page.evaluate(() => receiptPending.expense.map(a => a.url))).includes('https://drive.google.com/file/d/abc123/view'));
+dialogText = 'not a link';
+await clearToasts(page);
+await page.click('#m-ap-expense .m-attach:has-text("貼連結")');
+check('貼連結：不是網址被拒絕、數量不變', (await page.evaluate(() => window.__toasts.at(-1))).includes('http') && (await page.evaluate(() => receiptPending.expense.length)) === 2);
+await page.fill('#m-ex-amount', '860'); await page.fill('#m-ex-item', '單據測試費用');
+const kExpBefore = await page.evaluate(() => EXPENSES.length);
+await page.click('#m-ex-submit');
+const kExp = await page.evaluate(() => EXPENSES[EXPENSES.length - 1]);
+check('費用送出：單據連結寫入該筆 attachments，並清空表單的待附單據', (await page.evaluate(() => EXPENSES.length)) === kExpBefore + 1 && kExp.attachments.length === 2 && kExp.attachments.every(a => /^https:\/\//.test(a.url) && a.by === '李鎮宇') && (await page.evaluate(() => receiptPending.expense.length)) === 0, kExp.attachments);
+// payreq with attachment
+await page.evaluate(() => mobileOpenApply('payreq'));
+await page.click('#m-ap-payreq .m-attach:has-text("選檔案")');
+await pickFiles('#m-ap-payreq .m-attach:has-text("選檔案")', [{ name: 'bill.png', mimeType: 'image/png', buffer: PNG }]);
+const kv = await page.evaluate(() => VENDORS[0]);
+await page.fill('#m-pr-vendor', kv.name); await page.fill('#m-pr-amount', '4500'); await page.fill('#m-pr-date', '2026-10-25'); await page.fill('#m-pr-summary', '單據請款測試');
+await page.click('#m-pr-submit');
+const kPr = await page.evaluate(() => PAYABLES[PAYABLES.length - 1]);
+check('請款送出：attachments 寫入，舊欄位 invoiceLink 同步填第一個連結（應付頁既有顯示）', kPr.summary === '單據請款測試' && kPr.attachments.length === 1 && kPr.invoiceLink === kPr.attachments[0].url && /bill\.jpg$/.test(kPr.attachments[0].name), kPr);
+// my lists show links + add button
+await page.evaluate(() => mobileOpenApply('expense'));
+check('「我的費用」顯示單據連結與「單據（2）」按鈕', await page.evaluate(() => { const c = [...document.querySelectorAll('#m-ex-mine .m-card')].find(x => x.textContent.includes('單據測試費用')); return c && c.querySelectorAll('.rc-links a').length === 2 && c.textContent.includes('單據（2）'); }));
+await page.locator('#m-ex-mine .m-card:has-text("單據測試費用") .m-mini-btn').click();
+await page.waitForTimeout(400);
+check('點「單據」開啟單據視窗（全螢幕）並列出連結', await page.evaluate(() => { const r = document.querySelector('#modal-attachments .modal').getBoundingClientRect(); return document.getElementById('modal-attachments').classList.contains('open') && Math.round(r.width) === innerWidth && document.querySelectorAll('#rc-modal-list a').length === 2; }));
+await pickFiles('#rc-modal-actions .btn:has-text("選檔案")', [{ name: 'c.png', mimeType: 'image/png', buffer: PNG }]);
+check('在既有費用上再加一張：attachments 變 3 張並存檔', (await page.evaluate(() => EXPENSES[EXPENSES.length - 1].attachments.length)) === 3 && (await page.locator('#rc-modal-list a').count()) === 3);
+await page.evaluate(() => closeModal('modal-attachments'));
+// inbox
+await page.evaluate(() => mobileGo('me'));
+await page.click('#m-me-inbox');
+await page.waitForTimeout(500);
+const inbox = await page.evaluate(() => ({ n: document.querySelectorAll('#m-ib-list .m-card').length, text: document.getElementById('m-ib-list').innerText, files: mobileInboxItems.length }));
+check('單據匣列出本人資料夾的檔案（4 個），已附在費用／請款上的標示「已使用」', inbox.n === 4 && inbox.text.includes('已使用') && inbox.text.includes('c.jpg'), inbox);
+await pickFiles('#page-minbox .m-submit:has-text("拍照")', [{ name: 'camera.png', mimeType: 'image/png', buffer: PNG }]);
+await page.waitForTimeout(400);
+check('單據匣拍照（連拍）：新檔出現在最上面、標示「未使用」', await page.evaluate(() => { const first = document.querySelector('#m-ib-list .m-card'); return first.textContent.includes('camera.jpg') && first.textContent.includes('未使用'); }));
+await page.locator('#m-ib-list .m-card:has-text("camera.jpg") .m-act:has-text("用於請款")').click();
+check('「用於請款」：帶著這張單據回到請款表單', await page.evaluate(() => currentPage === 'mapply' && !document.getElementById('m-ap-payreq').hidden && receiptPending.payreq.length === 1 && /camera\.jpg$/.test(receiptPending.payreq[0].name) && document.querySelectorAll('#m-pr-atts .m-att').length === 1));
+// desktop expense list button
+await page.setViewportSize({ width: 1440, height: 900 });
+await page.evaluate(() => navTo('expense', document.getElementById('nav-expense')));
+await page.waitForTimeout(300);
+check('電腦版費用列表：有單據的列顯示「單據（N）」按鈕並可開啟', await (async () => { const b = page.locator('button.btn:has-text("單據（3）")').first(); if (!(await b.count())) return false; await b.click(); await page.waitForTimeout(300); return (await page.locator('#rc-modal-list a').count()) === 3; })());
+await page.evaluate(() => closeModal('modal-attachments'));
+// no folder configured
+check('沒有設定單據資料夾的人：被擋下並提示', await (async () => { await page.evaluate(() => { window.__saved = RECEIPT_FOLDERS.shower; delete RECEIPT_FOLDERS.shower; window.__toasts = []; receiptPick({ kind: 'form', form: 'expense' }, 'any'); }); const msg = await page.evaluate(() => window.__toasts.at(-1)); await page.evaluate(() => { RECEIPT_FOLDERS.shower = window.__saved; }); return msg.includes('尚未設定'); })());
+// compression
+const comp = await page.evaluate(async () => { const c = document.createElement('canvas'); c.width = 3200; c.height = 2400; const g = c.getContext('2d'); for (let i = 0; i < 60; i++) { g.fillStyle = `hsl(${i * 6},70%,50%)`; g.fillRect(i * 50, (i * 37) % 2400, 120, 200); } const blob = await new Promise(r => c.toBlob(r, 'image/png')); const file = new File([blob], 'big.png', { type: 'image/png' }); const out = await receiptCompress(file); const bmp = await createImageBitmap(out.blob); return { orig: file.size, outSize: out.blob.size, w: bmp.width, h: bmp.height, type: out.blob.type }; });
+check('大圖上傳前縮小：最長邊 ≤ 2000px、轉 JPEG、檔案變小', comp.type === 'image/jpeg' && Math.max(comp.w, comp.h) === 2000 && comp.outSize < comp.orig, comp);
+await page.waitForTimeout(1300); await waitSynced(page);
+await ctx.close();
+
+H.setScenario('K-receipts(lu)');
+ctx = await newContext('lu@yutesign.com', { fixedTime: NOW });
+page = await openPhone(ctx);
+page.on('dialog', d => d.accept());
+await page.evaluate(() => mobileOpenApply('expense'));
+const others = await page.evaluate(() => { const r = EXPENSES.find(x => x.person === 'shower' && x.attachments); return { can: receiptCanAttach('EXPENSES', r), canView: r.attachments.length }; });
+check('員工不能替別人的費用加單據', others.can === false && others.canView === 3, others);
+await clearToasts(page);
+await page.evaluate(() => { receiptToken = ''; });
+await page.click('#m-ap-expense .m-attach:has-text("拍照")');
+await page.waitForTimeout(300);
+check('員工用自己的資料夾：第一次按要求連線', (await page.evaluate(() => window.__toasts.join('|'))).includes('雲端硬碟已連線'));
 await ctx.close();
 
 // ═══════════ D: PWA install config ═══════════

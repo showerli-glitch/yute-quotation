@@ -1,0 +1,10 @@
+/* Receipts (單據): attachments modal and link lists, shared by desktop and phone. */
+.rc-links{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.rc-links a{color:var(--text);font-size:13px;text-decoration:underline;word-break:break-all}
+.rc-empty{font-size:13px;color:var(--text3);padding:6px 0}
+.rc-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.rc-actions[hidden]{display:none}
+.rc-note{font-size:12px;color:var(--text3);margin-top:10px;line-height:1.6}
+@media(max-width:767px){
+  .rc-links a{min-height:44px;display:flex;align-items:center}
+}

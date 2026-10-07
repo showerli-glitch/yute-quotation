@@ -76,7 +76,7 @@ export async function createHarness({ label, rootDir, port }) {
   });
   await new Promise(r => server.listen(port, '127.0.0.1', r));
 
-  const state = { cloud: null, scenario: '' };
+  const state = { cloud: null, scenario: '', driveFiles: [] };
   const results = [];
   const consoleLog = [];
   const blocked = [];
@@ -120,6 +120,23 @@ export async function createHarness({ label, rootDir, port }) {
       if (url.startsWith('https://www.gstatic.com/firebasejs/10.12.0/')) { mocked.add(url); return route.fulfill({ status: 200, contentType: 'text/javascript', body: '/* mocked */' }); }
       if (url.startsWith('https://accounts.google.com/gsi/client')) { mocked.add(url); return route.fulfill({ status: 200, contentType: 'text/javascript', body: MOCK_GSI }); }
       if (url.startsWith('https://www.googleapis.com/oauth2/v2/userinfo')) { mocked.add(url); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ email }) }); }
+      if (url.startsWith('https://www.googleapis.com/upload/drive/v3/files')) {
+        mocked.add(url);
+        const raw = route.request().postDataBuffer()?.toString('latin1') || '';
+        const jsonPart = raw.match(/\{[^\r]*\}/);
+        let meta = {}; try { meta = JSON.parse(jsonPart ? Buffer.from(jsonPart[0], 'latin1').toString('utf8') : '{}'); } catch (e) {}
+        const file = { id: 'drv' + (state.driveFiles.length + 1), name: meta.name || 'file', parents: meta.parents || [], size: raw.length, createdTime: new Date().toISOString(), mimeType: 'image/jpeg' };
+        file.webViewLink = 'https://drive.google.com/file/d/' + file.id + '/view';
+        state.driveFiles.push(file);
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(file) });
+      }
+      if (url.startsWith('https://www.googleapis.com/drive/v3/files?')) {
+        mocked.add(url);
+        const q = decodeURIComponent(new URL(url).searchParams.get('q') || '');
+        const parent = (q.match(/'([^']+)' in parents/) || [])[1];
+        const files = state.driveFiles.filter(f => !parent || f.parents.includes(parent)).slice().reverse();
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ files }) });
+      }
       blocked.push(url);
       return route.abort('blockedbyclient');
     });

@@ -208,6 +208,10 @@ const POST_SPLIT_CHANGES = {
     reason: 'deleted payroll month no longer re-added; last month cannot be deleted; re-adding a deleted month clears its tombstone; month deletion audited (claude/fix-known-issues)',
     changed: ['prDeleteMonth', 'prRenderMonthOptions', 'submitPayrollMonth'],
   },
+  'ops/js/modules/expenses.js': {
+    reason: 'expense row action shows a 單據 (attachments) button (claude/pwa-nodes)',
+    changed: ['expenseRowActions'],
+  },
   'ops/js/modules/payreq.js': {
     reason: 'own rejected pay request editable by name; edit modal re-enables save (claude/payreq-applicant-fix)',
     changed: ['openEditPayreqModal', 'renderPayreq'],
@@ -595,7 +599,7 @@ const expectedProfitshareFunctionCount = extractFunctions(expectedProfitshare).l
 if (expectedProfitshareFunctionCount !== 28) fail(`profitshare.js 預期 28 個函式，實際基準 ${expectedProfitshareFunctionCount}`);
 if (!profitshareBlock.includes('// PROFIT SHARE DATA') || !profitshareBlock.includes('function psComputeData() {') || !profitshareBlock.includes('function renderProfitShare() {')) fail('分潤基準區塊起訖行不正確');
 // invoicerequest.js and mobile.js (new code) are appended after profitshare.js; profitshare.js must still follow tax.js directly.
-if (scripts[scripts.length - 1] !== 'js/modules/mobile.js' || scripts[scripts.length - 2] !== 'js/modules/invoicerequest.js' || scripts[scripts.length - 3] !== 'js/modules/profitshare.js' || scripts[scripts.length - 4] !== 'js/modules/tax.js') fail(`mobile.js 應為最後一個本機 script，前面依序是 invoicerequest.js、profitshare.js、tax.js：${scripts.slice(-5).join(' ')}`);
+if (scripts[scripts.length - 1] !== 'js/modules/mobile.js' || scripts[scripts.length - 2] !== 'js/modules/receipts.js' || scripts[scripts.length - 3] !== 'js/modules/invoicerequest.js' || scripts[scripts.length - 4] !== 'js/modules/profitshare.js' || scripts[scripts.length - 5] !== 'js/modules/tax.js') fail(`mobile.js 應為最後一個本機 script，前面依序是 receipts.js、invoicerequest.js、profitshare.js、tax.js：${scripts.slice(-6).join(' ')}`);
 const profitshareBaselineAllFunctions = new Map(extractFunctions(profitshareBaselineHtml).map(item => [item.name, item.source]));
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'applyDefaultPeriodForPage']) {
   const current = protectedCurrentFunctions.get(name);
