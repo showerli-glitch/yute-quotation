@@ -1251,12 +1251,60 @@ body.auth-pending .auth-screen{display:flex}
     <div class="m-body">
       <div class="m-quick">
         <button type="button" class="m-quick-btn primary" id="m-q-attendance" onclick="mobileOpen('attendance')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>打卡</button>
-        <button type="button" class="m-quick-btn" id="m-q-expense" onclick="mobileOpen('expense')"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>費用</button>
-        <button type="button" class="m-quick-btn" id="m-q-payreq" onclick="mobileQuickPayreq()"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>請款</button>
+        <button type="button" class="m-quick-btn" id="m-q-expense" onclick="mobileOpenApply('expense')"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>費用</button>
+        <button type="button" class="m-quick-btn" id="m-q-payreq" onclick="mobileOpenApply('payreq')"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>請款</button>
         <button type="button" class="m-quick-btn" id="m-q-newcase" onclick="mobileQuickNewCase()"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 9v6M9 12h6"/></svg>新增案件</button>
       </div>
       <div class="m-sec">待處理<small>快速動作依權限顯示</small></div>
       <div id="m-tasks"></div>
+    </div>
+  </div>
+
+  <div class="page" id="page-mapply">
+    <div class="m-hero">
+      <div class="m-hero-top"><button type="button" class="m-back" onclick="mobileGo('today')">← 今天</button><span></span></div>
+      <div class="m-hero-title"><h1>新增申請</h1></div>
+      <div class="m-chips">
+        <button type="button" class="m-chip" id="m-ap-tab-expense" onclick="mobileApplySelect('expense')">費用申請</button>
+        <button type="button" class="m-chip" id="m-ap-tab-payreq" onclick="mobileApplySelect('payreq')">廠商請款</button>
+      </div>
+    </div>
+    <div class="m-body">
+      <div id="m-ap-expense" class="m-form">
+        <div class="m-field"><label for="m-ex-amount">金額</label><div class="m-money"><span>$</span><input id="m-ex-amount" class="m-input" inputmode="numeric" placeholder="0" autocomplete="off"></div></div>
+        <div class="m-field" id="m-ex-person-wrap" hidden><label for="m-ex-person">申請人</label><select id="m-ex-person" class="m-input"></select></div>
+        <div class="m-field"><label for="m-ex-case">歸屬</label><select id="m-ex-case" class="m-input" onchange="mobileExpenseCaseChanged()"></select></div>
+        <div class="m-field" id="m-ex-treat-wrap" hidden><label for="m-ex-treat">結案後處理方式（此個案已結案）</label><select id="m-ex-treat" class="m-input"><option value="post_close_cost">結案後補成本</option><option value="company_absorb">公司吸收</option></select></div>
+        <div class="m-field"><label>類別</label><div class="m-pills" id="m-ex-cats"></div></div>
+        <div class="m-field"><label for="m-ex-item">付款項目</label><input id="m-ex-item" class="m-input" placeholder="例如：[品項]" autocomplete="off"></div>
+        <div class="m-field-row">
+          <div class="m-field"><label for="m-ex-date">日期</label><input id="m-ex-date" class="m-input" type="date"></div>
+          <div class="m-field"><label>收據</label><div class="m-pills" id="m-ex-receipts"></div></div>
+        </div>
+        <div class="m-field"><label for="m-ex-note">備註（選填）</label><input id="m-ex-note" class="m-input" autocomplete="off"></div>
+        <button type="button" class="m-submit" id="m-ex-submit" onclick="mobileSubmitExpense()">送出申請</button>
+        <div class="m-sec" style="margin-top:6px">我的費用<small id="m-ex-mine-sub"></small></div>
+        <div id="m-ex-mine" class="m-mine"></div>
+      </div>
+      <div id="m-ap-payreq" class="m-form" hidden>
+        <div class="m-editing" id="m-pr-editing" hidden><span id="m-pr-editing-text"></span><button type="button" onclick="mobilePayreqCancelEdit()">取消修改</button></div>
+        <div class="m-field"><label for="m-pr-vendor">受款廠商</label><input id="m-pr-vendor" class="m-input" list="m-dl-vendors" placeholder="輸入廠商名稱或代碼（依代碼排序）" autocomplete="off"><datalist id="m-dl-vendors"></datalist></div>
+        <div class="m-field-row">
+          <div class="m-field"><label for="m-pr-amount">金額</label><div class="m-money"><span>$</span><input id="m-pr-amount" class="m-input" inputmode="numeric" placeholder="0" autocomplete="off"></div></div>
+          <div class="m-field"><label for="m-pr-date">希望付款日</label><input id="m-pr-date" class="m-input" type="date"></div>
+        </div>
+        <div class="m-field" id="m-pr-applicant-wrap" hidden><label for="m-pr-applicant">申請人</label><select id="m-pr-applicant" class="m-input"></select></div>
+        <div class="m-field"><label for="m-pr-case">個案（選填）</label><select id="m-pr-case" class="m-input"></select></div>
+        <div class="m-field"><label for="m-pr-summary">摘要</label><input id="m-pr-summary" class="m-input" placeholder="例如：[工程項目] 第一期" autocomplete="off"></div>
+        <div class="m-field-row">
+          <div class="m-field"><label>發票</label><div class="m-seg" id="m-pr-invoice"></div></div>
+          <div class="m-field"><label>收據</label><div class="m-seg" id="m-pr-receipt"></div></div>
+        </div>
+        <div class="m-field"><label for="m-pr-note">備註（選填）</label><input id="m-pr-note" class="m-input" autocomplete="off"></div>
+        <button type="button" class="m-submit" id="m-pr-submit" onclick="mobileSubmitPayreq()">送出請款，等待財務審核</button>
+        <div class="m-sec" style="margin-top:6px">我的請款<small id="m-pr-mine-sub"></small></div>
+        <div id="m-pr-mine" class="m-mine"></div>
+      </div>
     </div>
   </div>
 
@@ -1284,6 +1332,7 @@ body.auth-pending .auth-screen{display:flex}
     </div>
     <div class="m-body">
       <div class="m-list">
+        <button type="button" class="m-row" id="m-f-apply" onclick="mobileOpenApply('payreq')"><span>＋ 新增申請（費用／請款）</span><span class="m-chev">›</span></button>
         <button type="button" class="m-row" id="m-f-review" onclick="mobileOpenReview('payreq')"><span>審核中心</span><span><span class="m-badge alert" id="m-f-review-badge" hidden>0</span> <span class="m-chev">›</span></span></button>
         <button type="button" class="m-row" id="m-f-payreq" onclick="mobileOpen('payreq')"><span>廠商請款</span><span><span class="m-badge alert" id="m-f-payreq-badge" hidden>0</span> <span class="m-chev">›</span></span></button>
         <button type="button" class="m-row" id="m-f-expense" onclick="mobileOpen('expense')"><span>費用申請</span><span><span class="m-badge alert" id="m-f-expense-badge" hidden>0</span> <span class="m-chev">›</span></span></button>

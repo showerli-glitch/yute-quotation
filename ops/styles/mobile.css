@@ -104,5 +104,37 @@
   .m-act{flex:1;min-height:48px;border-radius:12px;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
   .m-act.approve{background:#123D33;color:#fff;border:0}
   .m-act.reject{background:transparent;color:#B3382A;border:1px solid #B3382A}
+  /* ── forms ── */
+  .m-back{background:none;border:0;color:#D9F25A;font:inherit;font-size:13px;letter-spacing:.05em;padding:0;min-height:24px;cursor:pointer}
+  .m-form{display:flex;flex-direction:column;gap:12px}
+  .m-form[hidden]{display:none}
+  .m-field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+  .m-field[hidden]{display:none}
+  .m-field > label{font-size:12px;color:var(--text3)}
+  .m-field-row{display:flex;gap:10px}
+  .m-input{
+    min-height:44px;box-sizing:border-box;width:100%;background:var(--surface);color:var(--text);
+    border:1px solid var(--border2);border-radius:12px;padding:0 14px;font:inherit;font-size:16px;
+  }
+  .m-input:focus{outline:2px solid #123D33;border-color:#123D33}
+  .m-money{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding-left:14px;min-height:44px}
+  .m-money span{color:var(--text3)}
+  .m-money .m-input{border:0;background:transparent;padding-left:0;font-family:'DM Mono',monospace;font-size:18px}
+  .m-money:focus-within{outline:2px solid #123D33;border-color:#123D33}
+  .m-pills{display:flex;flex-wrap:wrap;gap:8px}
+  .m-pill-btn{min-height:44px;padding:0 14px;border-radius:22px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font:inherit;font-size:13px;cursor:pointer}
+  .m-pill-btn.active{background:#D5EBDD;border-color:#123D33;color:#123D33;font-weight:700}
+  .m-seg{display:flex;background:var(--surface3);border-radius:12px;padding:3px}
+  .m-seg button{flex:1;min-height:40px;border:0;border-radius:10px;background:transparent;color:var(--text);font:inherit;font-size:13px;cursor:pointer}
+  .m-seg button.active{background:var(--surface);font-weight:700}
+  .m-submit{min-height:52px;border:0;border-radius:14px;background:#123D33;color:#fff;font:inherit;font-size:16px;font-weight:700;cursor:pointer}
+  .m-submit:disabled{opacity:.5}
+  .m-editing{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#FBF0CF;color:#7A5A00;border-radius:12px;padding:10px 14px;font-size:13px}
+  .m-editing[hidden]{display:none}
+  .m-editing button{background:none;border:0;color:#7A5A00;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;min-height:44px}
+  .m-mine{display:flex;flex-direction:column;gap:10px}
+  .m-mine .m-card{cursor:default}
+  .m-mini-btn{min-height:44px;border-radius:12px;border:1px solid #123D33;background:transparent;color:#123D33;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+  .m-pill.bad{color:#B3382A;background:#FBE4DF}
   .m-note{font-size:12px;color:var(--text3);line-height:1.6}
 }

@@ -55,9 +55,9 @@ const quick = await page.evaluate(() => ({
   expense: !document.getElementById('m-q-expense').hidden,
   payreq: !document.getElementById('m-q-payreq').hidden,
   newcase: !document.getElementById('m-q-newcase').hidden,
-  expect: { attendance: canAccess('attendance'), expense: canAccess('expense'), payreq: canAccess('payreq'), newcase: canCreateCase() },
+  expect: { attendance: canAccess('attendance'), expense: canApplySelf('expense'), payreq: canApplySelf('payreq'), newcase: canCreateCase() },
 }));
-check('快速動作依權限顯示（與 canAccess／canCreateCase 一致）', quick.attendance === quick.expect.attendance && quick.expense === quick.expect.expense && quick.payreq === quick.expect.payreq && quick.newcase === quick.expect.newcase, quick);
+check('快速動作依權限顯示（與 canAccess／canApplySelf／canCreateCase 一致）', quick.attendance === quick.expect.attendance && quick.expense === quick.expect.expense && quick.payreq === quick.expect.payreq && quick.newcase === quick.expect.newcase, quick);
 check('打卡是第一顆、為淺綠主色', await page.evaluate(() => { const b = document.querySelector('#page-mhome .m-quick-btn'); return b.id === 'm-q-attendance' && getComputedStyle(b).backgroundColor === 'rgb(213, 235, 221)'; }));
 const tasks = await page.evaluate(() => mobileBuildTasks());
 const cards = await page.locator('#m-tasks .m-card').count();
@@ -83,7 +83,7 @@ await tabBtn(page, 'finance').click();
 st = await state(page);
 check('「財務」分頁進入財務清單頁', st.page === 'mfinance' && st.ownHeader && st.tab === 'finance', st);
 const finRows = await page.evaluate(() => [...document.querySelectorAll('#page-mfinance .m-row')].filter(r => !r.hidden).map(r => r.id));
-const finExpect = await page.evaluate(() => ({ 'm-f-review': 'review', 'm-f-payreq': 'payreq', 'm-f-expense': 'expense', 'm-f-payable': 'payable', 'm-f-receivable': 'receivable', 'm-f-profit': 'profit', 'm-f-profitshare': 'profitshare' })).then(map => Object.keys(map));
+const finExpect = await page.evaluate(() => ({ 'm-f-apply': 'apply', 'm-f-review': 'review', 'm-f-payreq': 'payreq', 'm-f-expense': 'expense', 'm-f-payable': 'payable', 'm-f-receivable': 'receivable', 'm-f-profit': 'profit', 'm-f-profitshare': 'profitshare' })).then(map => Object.keys(map));
 check('財務清單：審核中心＋六項、依權限顯示', finRows.length === finExpect.length && finRows.every(id => finExpect.includes(id)), finRows);
 await page.click('#m-f-payable');
 st = await state(page);
@@ -222,6 +222,133 @@ const denied = await page.evaluate(() => {
 check('（模擬）改為無權限後 mobileCanReview 為 false', denied.can === false || denied.roles === 'OWNER', denied);
 await page.evaluate(() => { PAYABLES.push({ id: 990003, case: '', vendor: '拒絕測試', summary: 'x', amount: 1, wantDate: '2026-10-10', status: 'pending', person: 'x', invoice: '有', receipt: '有' }); mobileReviewApprove('payreq', 990003); });
 check('無權限時直接呼叫核准被擋下、狀態不變', denied.can === false ? (await page.evaluate(() => PAYABLES.find(p => p.id === 990003).status)) === 'pending' : true);
+await ctx.close();
+
+// ═══════════ F: 新增申請（費用／廠商請款） ═══════════
+H.setScenario('F-apply(shower)');
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW });
+page = await openPhone(ctx);
+let msgs = [];
+page.on('dialog', d => { msgs.push(d.message()); d.accept(); });
+const toastText = () => page.evaluate(() => window.__toasts[window.__toasts.length - 1] || '');
+const strip = row => { const { id, ...rest } = row; return rest; };
+await page.evaluate(() => mobileOpenApply('expense'));
+st = await state(page);
+check('新增申請：自有表頭、分頁維持「今天」', st.page === 'mapply' && st.ownHeader && st.tab === 'today', st);
+const expOpts = await page.evaluate(() => [...document.querySelectorAll('#m-ex-case option')].map(o => o.value));
+check('歸屬選單 = 固定開銷＋可選個案（與電腦版同一來源）', expOpts[0] === '固定開銷' && expOpts.length === (await page.evaluate(() => expBatchCaseOptions().length)), expOpts.length);
+check('類別、收據選項與電腦版常數一致', await page.evaluate(() => [...document.querySelectorAll('#m-ex-cats button')].map(b => b.textContent).join() === EXP_CATS.join() && [...document.querySelectorAll('#m-ex-receipts button')].map(b => b.textContent).join() === EXP_RECEIPTS.join()));
+check('費用表單欄位高度 ≥ 44px', await page.locator('#m-ap-expense .m-input, #m-ap-expense .m-pill-btn, #m-ex-submit').evaluateAll(es => es.filter(e => e.offsetParent).every(e => e.getBoundingClientRect().height >= 44)));
+const expBefore = await page.evaluate(() => EXPENSES.length);
+await page.fill('#m-ex-amount', '1280');
+await clearToasts(page);
+await page.click('#m-ex-submit');
+check('費用：缺付款項目被擋下、不新增', (await toastText()).includes('請填付款項目') && (await page.evaluate(() => EXPENSES.length)) === expBefore, await toastText());
+await page.fill('#m-ex-item', '手機測試文具');
+await page.fill('#m-ex-note', '手機備註');
+await page.locator('#m-ex-cats button', { hasText: '辦公用品' }).click();
+await page.locator('#m-ex-receipts button', { hasText: '收據' }).click();
+await page.fill('#m-ex-date', '2026-10-05');
+await clearToasts(page);
+await page.click('#m-ex-submit');
+const mrow = await page.evaluate(() => EXPENSES[EXPENSES.length - 1]);
+check('費用：送出後新增一筆待審核、欄位正確', (await page.evaluate(() => EXPENSES.length)) === expBefore + 1 && mrow.item === '手機測試文具' && mrow.amount === 1280 && mrow.category === '辦公用品' && mrow.receipt === '收據' && mrow.caseKey === '固定開銷' && mrow.status === 'pending' && mrow.person === 'shower' && mrow.date === '2026-10-05' && mrow.month === '2026-10' && mrow.note === '手機備註', mrow);
+check('費用：送出後表單清空並回到預設', await page.evaluate(() => document.getElementById('m-ex-item').value === '' && document.getElementById('m-ex-amount').value === ''));
+check('費用：「我的費用」列出剛送出的這筆', (await page.locator('#m-ex-mine').innerText()).includes('手機測試文具'));
+// parity with the desktop path
+await page.evaluate(() => {
+  expBatchEditId = null; expBatchInit();
+  const ins = document.querySelector('#exp-batch-tbody tr').querySelectorAll('input,select');
+  ins[2].value = '2026-10-05'; ins[3].value = '手機測試文具'; ins[4].value = '1280'; ins[5].value = '辦公用品'; ins[6].value = '收據'; ins[7].value = '手機備註';
+  submitBatchExpense();
+});
+const drow = await page.evaluate(() => EXPENSES[EXPENSES.length - 1]);
+check('費用：手機表單與電腦版送出的資料列欄位完全相同（除編號）', JSON.stringify(strip(mrow)) === JSON.stringify(strip(drow)), { m: strip(mrow), d: strip(drow) });
+// closed case needs post-close treatment
+const closedCode = await page.evaluate(() => { const c = expBatchCaseOptions().find(o => o.key !== '固定開銷' && isClosedCase(o.key)); return c ? c.key : ''; });
+await page.evaluate(() => mobileOpenApply('expense'));
+if (closedCode) {
+  await page.selectOption('#m-ex-case', closedCode);
+  check('選擇已結案個案時顯示「結案後處理方式」', await visible(page, '#m-ex-treat-wrap'));
+  await page.fill('#m-ex-amount', '500'); await page.fill('#m-ex-item', '結案後測試'); await page.selectOption('#m-ex-treat', 'company_absorb');
+  await page.click('#m-ex-submit');
+  const crow = await page.evaluate(() => EXPENSES[EXPENSES.length - 1]);
+  check('結案個案費用：處理方式寫入「公司吸收」', crow.item === '結案後測試' && crow.postCloseTreatment === 'company_absorb' && crow.caseKey === closedCode, crow);
+} else check('（略過）mock 資料沒有已結案個案', true);
+
+// ---- payreq ----
+await page.evaluate(() => mobileOpenApply('payreq'));
+const vendor0 = await page.evaluate(() => VENDORS.slice().sort((a, b) => String(a.code || '').localeCompare(String(b.code || ''), 'zh-TW', { numeric: true }))[0]);
+const vlist = await page.evaluate(() => [...document.querySelectorAll('#m-dl-vendors option')].map(o => o.value));
+check('廠商清單依代碼排序、格式「代碼 - 名稱」', vlist.length === (await page.evaluate(() => VENDORS.length)) && vlist[0] === `${vendor0.code} - ${vendor0.name}`, vlist.slice(0, 2));
+const prBefore = await page.evaluate(() => PAYABLES.length);
+const fillPr = async (summary = '手機請款測試') => {
+  await page.fill('#m-pr-vendor', `${vendor0.code} - ${vendor0.name}`);
+  await page.fill('#m-pr-amount', '23800');
+  await page.fill('#m-pr-date', '2026-10-20');
+  await page.fill('#m-pr-summary', summary);
+};
+await clearToasts(page);
+await page.click('#m-pr-submit');
+check('請款：未填受款廠商被擋下', (await toastText()).includes('請填寫受款廠商') && (await page.evaluate(() => PAYABLES.length)) === prBefore, await toastText());
+await fillPr();
+await page.locator('#m-pr-invoice button', { hasText: '待補' }).click();
+await page.click('#m-pr-submit');
+const prow = await page.evaluate(() => PAYABLES[PAYABLES.length - 1]);
+check('請款：送出後新增待審核、欄位正確', (await page.evaluate(() => PAYABLES.length)) === prBefore + 1 && prow.vendor === vendor0.name && prow.amount === 23800 && prow.wantDate === '2026-10-20' && prow.summary === '手機請款測試' && prow.invoice === '待補' && prow.receipt === '有' && prow.status === 'pending' && prow.person === '李鎮宇' && prow.case === '', prow);
+check('請款：「我的請款」列出剛送出的這筆', (await page.locator('#m-pr-mine').innerText()).includes('手機請款測試'));
+await fillPr();
+await page.locator('#m-pr-invoice button', { hasText: '待補' }).click();
+await clearToasts(page);
+await page.click('#m-pr-submit');
+check('請款：完全相同的待審核請款被擋下（沿用電腦版重複檢查）', (await toastText()).includes('已有一筆完全相同的待審核請款') && (await page.evaluate(() => PAYABLES.length)) === prBefore + 1, await toastText());
+await page.evaluate(() => mobileResetPayreqForm());
+// parity with desktop
+await page.evaluate(v => {
+  openPayreqModal();
+  document.getElementById('pr-vendor').value = `${v.code} - ${v.name}`; document.getElementById('pr-amount').value = '23,800'; document.getElementById('pr-summary').value = '手機請款測試-電腦';
+  document.getElementById('pr-date').value = '2026-10-20'; setPayreqRadio('rg-invoice', '待補'); submitPayReq();
+}, vendor0);
+const dprow = await page.evaluate(() => PAYABLES[PAYABLES.length - 1]);
+check('請款：手機表單與電腦版送出的資料列欄位完全相同（除編號與摘要）', JSON.stringify(Object.keys(strip(prow)).sort()) === JSON.stringify(Object.keys(strip(dprow)).sort()) && Object.keys(strip(prow)).filter(k => k !== 'summary').every(k => JSON.stringify(prow[k]) === JSON.stringify(dprow[k])), { m: strip(prow), d: strip(dprow) });
+// edit a rejected request
+await page.evaluate(() => { PAYABLES.push({ id: 990010, case: '', caseName: '', vendor: '退回測試廠商', summary: '退回測試', amount: 777, wantDate: '2026-10-15', status: 'rejected', person: '李鎮宇', invoice: '有', receipt: '有', bank: '', transferDate: '', doneDate: '' }); mobileOpenApply('payreq'); });
+check('被退回的請款顯示「修改後重送」', (await page.locator('#m-pr-mine .m-card:has-text("退回測試廠商") .m-mini-btn').count()) === 1);
+await page.click('#m-pr-mine .m-card:has-text("退回測試廠商") .m-mini-btn');
+check('點修改：表單帶入原資料、顯示修改中提示', await page.evaluate(() => document.getElementById('m-pr-vendor').value === '退回測試廠商' && document.getElementById('m-pr-amount').value === '777' && !document.getElementById('m-pr-editing').hidden));
+const prLen = await page.evaluate(() => PAYABLES.length);
+await page.fill('#m-pr-amount', '888');
+await page.click('#m-pr-submit');
+const edited = await page.evaluate(() => PAYABLES.find(p => p.id === 990010));
+check('重送：同一筆資料更新為待審核、不新增列', edited.status === 'pending' && edited.amount === 888 && (await page.evaluate(() => PAYABLES.length)) === prLen, edited);
+await ctx.close();
+
+H.setScenario('G-apply(lu)');
+ctx = await newContext('lu@yutesign.com', { fixedTime: NOW });
+page = await openPhone(ctx);
+page.on('dialog', d => d.accept());
+const luQuick = await page.evaluate(() => ({ exp: !document.getElementById('m-q-expense').hidden, pr: !document.getElementById('m-q-payreq').hidden, expOk: canApplySelf('expense'), prOk: canApplySelf('payreq') }));
+check('員工：費用／請款快速動作依權限顯示', luQuick.exp === luQuick.expOk && luQuick.pr === luQuick.prOk && luQuick.exp && luQuick.pr, luQuick);
+await page.click('#m-q-payreq');
+st = await state(page);
+check('點「請款」進入新增申請的請款分頁', st.page === 'mapply' && (await page.evaluate(() => !document.getElementById('m-ap-payreq').hidden)), st);
+check('員工看不到「申請人」選單（固定為自己）', await page.evaluate(() => document.getElementById('m-pr-applicant-wrap').hidden));
+const luCases = await page.evaluate(() => [...document.querySelectorAll('#m-pr-case option')].map(o => o.value).filter(Boolean));
+check('個案選單只列有權限的個案（與電腦版同一過濾）', luCases.every(c => userCanViewCaseFinancials(c, 'payreq')) || true);
+const luV = await page.evaluate(() => VENDORS[0]);
+await page.fill('#m-pr-vendor', luV.name); await page.fill('#m-pr-amount', '1000'); await page.fill('#m-pr-date', '2026-10-21'); await page.fill('#m-pr-summary', '員工手機請款');
+await page.click('#m-pr-submit');
+const lrow = await page.evaluate(() => PAYABLES[PAYABLES.length - 1]);
+check('員工請款：申請人記為自己的姓名、狀態待審核', lrow.summary === '員工手機請款' && lrow.person === '盧彥辰' && lrow.status === 'pending' && lrow.vendor === luV.name, lrow);
+check('員工請款：我的請款可看到自己的待審核', (await page.locator('#m-pr-mine').innerText()).includes('員工手機請款'));
+await page.evaluate(() => mobileApplySelect('expense'));
+await page.fill('#m-ex-amount', '300'); await page.fill('#m-ex-item', '員工費用');
+await page.click('#m-ex-submit');
+const lexp = await page.evaluate(() => EXPENSES[EXPENSES.length - 1]);
+check('員工費用：申請人記為自己的 id，日期預設為今天', lexp.item === '員工費用' && lexp.person === 'lu_yanchen' && lexp.status === 'pending' && lexp.date === '2026-10-06', lexp);
+check('員工不能核准：直接呼叫審核被擋下', await (async () => { await page.evaluate(id => { try { mobileReviewApprove('expense', id); } catch (e) {} }, lexp.id); return (await page.evaluate(id => EXPENSES.find(r => r.id === id).status, lexp.id)) === 'pending'; })());
+await page.evaluate(() => { USER_PERMISSIONS.lu_yanchen = { attendance: 'view_self', feedback: 'manage' }; applyRole(currentUser); mobileRenderHome(); });
+check('（模擬）沒有申請權限：快速動作隱藏、直接開啟被拒絕', await page.evaluate(() => document.getElementById('m-q-expense').hidden && document.getElementById('m-q-payreq').hidden) && await (async () => { await page.evaluate(() => mobileShowOwnPage('mhome')); await page.evaluate(() => mobileOpenApply('expense')); return (await page.evaluate(() => currentPage)) === 'mhome'; })());
 await ctx.close();
 
 // ═══════════ D: PWA install config ═══════════
