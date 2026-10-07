@@ -14,9 +14,9 @@
 <link rel="icon" type="image/svg+xml" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.svg?v=202606221952">
 <link rel="icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.ico?v=202606221952" sizes="any">
 <link rel="icon" type="image/png" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221952">
-<link rel="stylesheet" href="styles/invoicerequest.css?v=06f1633c">
-<link rel="stylesheet" href="styles/mobile.css?v=06f1633c">
-<link rel="manifest" href="manifest.webmanifest?v=06f1633c">
+<link rel="stylesheet" href="styles/invoicerequest.css?v=d7b5d664">
+<link rel="stylesheet" href="styles/mobile.css?v=d7b5d664">
+<link rel="manifest" href="manifest.webmanifest?v=d7b5d664">
 <meta name="theme-color" content="#123D33">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1258,13 +1258,9 @@ body.auth-pending .auth-screen{display:flex}
       <div class="m-hero-sub" id="m-sub"></div>
     </div>
     <div class="m-body">
-      <div class="m-quick">
-        <button type="button" class="m-quick-btn primary" id="m-q-attendance" onclick="mobileOpen('attendance')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>打卡</button>
-        <button type="button" class="m-quick-btn" id="m-q-expense" onclick="mobileOpenApply('expense')"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>費用</button>
-        <button type="button" class="m-quick-btn" id="m-q-payreq" onclick="mobileOpenApply('payreq')"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>請款</button>
-        <button type="button" class="m-quick-btn" id="m-q-newcase" onclick="mobileQuickNewCase()"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 9v6M9 12h6"/></svg>新增案件</button>
-      </div>
-      <div class="m-sec">待處理<small>快速動作依權限顯示</small></div>
+      <div class="m-sec">快速動作<button type="button" class="m-link" onclick="mobileShortcutsEdit()">編輯</button></div>
+      <div class="m-quick" id="m-quick"></div>
+      <div class="m-sec">待處理</div>
       <div id="m-tasks"></div>
     </div>
   </div>
@@ -3584,6 +3580,24 @@ body.auth-pending .auth-screen{display:flex}
   </div>
 </div>
 
+<!-- ════════ MODAL: PHONE SHORTCUTS (今天 → 快速動作 → 編輯) ════════ -->
+<div class="modal-overlay" id="modal-shortcuts" onclick="if(event.target===this)closeModal('modal-shortcuts')">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-hd">
+      <div class="modal-title">編輯快速動作</div>
+      <button class="modal-close" onclick="closeModal('modal-shortcuts')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="rc-note" style="margin:0 0 10px">勾選要放在「今天」的功能，最多 8 個；用上下鍵調整順序。只列出您有權限的功能，設定只存在這支手機。</div>
+      <div id="m-sc-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="mobileShortcutsReset()">還原預設</button>
+      <button class="btn btn-primary" onclick="closeModal('modal-shortcuts')">完成</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════════ RECEIPTS (單據): hidden pickers and the attachments modal ════════ -->
 <input type="file" id="receipt-file-camera" accept="image/*" capture="environment" hidden onchange="receiptFilesChosen(this)">
 <input type="file" id="receipt-file-any" accept="image/*,application/pdf" multiple hidden onchange="receiptFilesChosen(this)">
@@ -4234,11 +4248,11 @@ body.auth-pending .auth-screen{display:flex}
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<script src="js/core/types.js?v=06f1633c"></script>
-<script src="js/core/config.js?v=06f1633c"></script>
-<script src="js/core/data.js?v=06f1633c"></script>
-<script src="js/core/accounting.js?v=06f1633c"></script>
-<script src="js/core/ui.js?v=06f1633c"></script>
+<script src="js/core/types.js?v=d7b5d664"></script>
+<script src="js/core/config.js?v=d7b5d664"></script>
+<script src="js/core/data.js?v=d7b5d664"></script>
+<script src="js/core/accounting.js?v=d7b5d664"></script>
+<script src="js/core/ui.js?v=d7b5d664"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   loadData(); // 從 localStorage 還原資料
@@ -4717,27 +4731,27 @@ function payreqVendorPickerMouseDown(input) {
 
 
 </script>
-<script src="js/modules/payables.js?v=06f1633c"></script>
+<script src="js/modules/payables.js?v=d7b5d664"></script>
 <script>
 
 </script>
-<script src="js/modules/receivables.js?v=06f1633c"></script>
-<script src="js/modules/profit.js?v=06f1633c"></script>
-<script src="js/modules/expenses.js?v=06f1633c"></script>
-<script src="js/modules/cases.js?v=06f1633c"></script>
-<script src="js/modules/clients.js?v=06f1633c"></script>
-<script src="js/modules/vendors.js?v=06f1633c"></script>
-<script src="js/modules/attendance.js?v=06f1633c"></script>
-<script src="js/modules/payreq.js?v=06f1633c"></script>
-<script src="js/modules/feedback.js?v=06f1633c"></script>
-<script src="js/modules/systemnotes.js?v=06f1633c"></script>
-<script src="js/modules/employees.js?v=06f1633c"></script>
-<script src="js/modules/payroll.js?v=06f1633c"></script>
-<script src="js/modules/overhead.js?v=06f1633c"></script>
-<script src="js/modules/tax.js?v=06f1633c"></script>
-<script src="js/modules/profitshare.js?v=06f1633c"></script>
-<script src="js/modules/invoicerequest.js?v=06f1633c"></script>
-<script src="js/modules/receipts.js?v=06f1633c"></script>
-<script src="js/modules/mobile.js?v=06f1633c"></script>
+<script src="js/modules/receivables.js?v=d7b5d664"></script>
+<script src="js/modules/profit.js?v=d7b5d664"></script>
+<script src="js/modules/expenses.js?v=d7b5d664"></script>
+<script src="js/modules/cases.js?v=d7b5d664"></script>
+<script src="js/modules/clients.js?v=d7b5d664"></script>
+<script src="js/modules/vendors.js?v=d7b5d664"></script>
+<script src="js/modules/attendance.js?v=d7b5d664"></script>
+<script src="js/modules/payreq.js?v=d7b5d664"></script>
+<script src="js/modules/feedback.js?v=d7b5d664"></script>
+<script src="js/modules/systemnotes.js?v=d7b5d664"></script>
+<script src="js/modules/employees.js?v=d7b5d664"></script>
+<script src="js/modules/payroll.js?v=d7b5d664"></script>
+<script src="js/modules/overhead.js?v=d7b5d664"></script>
+<script src="js/modules/tax.js?v=d7b5d664"></script>
+<script src="js/modules/profitshare.js?v=d7b5d664"></script>
+<script src="js/modules/invoicerequest.js?v=d7b5d664"></script>
+<script src="js/modules/receipts.js?v=d7b5d664"></script>
+<script src="js/modules/mobile.js?v=d7b5d664"></script>
 </body>
 </html>

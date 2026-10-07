@@ -154,14 +154,7 @@ function mobileRenderHome() {
   const urgent = tasks.filter(t => t.urgent).length;
   const subEl = document.getElementById('m-sub');
   if (subEl) subEl.textContent = urgent ? '優先 ' + urgent + ' 件' : '目前沒有需要優先處理的事';
-  const attBtn = document.getElementById('m-q-attendance');
-  if (attBtn) attBtn.hidden = !canAccess('attendance');
-  const expBtn = document.getElementById('m-q-expense');
-  if (expBtn) expBtn.hidden = !canApplySelf('expense');
-  const prBtn = document.getElementById('m-q-payreq');
-  if (prBtn) prBtn.hidden = !canApplySelf('payreq');
-  const caseBtn = document.getElementById('m-q-newcase');
-  if (caseBtn) caseBtn.hidden = !canCreateCase();
+  mobileRenderShortcuts();
   const box = document.getElementById('m-tasks');
   if (!box) return;
   box.textContent = '';
@@ -878,4 +871,136 @@ function mobileRenderInbox(loaded) {
     if (actions.children.length) card.appendChild(actions);
     box.appendChild(card);
   });
+}
+
+// ── 今天 → 快速動作 (editable, kept on this phone only; no cloud data involved) ──
+const MOBILE_SHORTCUT_MAX = 8;
+const MOBILE_SHORTCUT_DEFAULT = ['attendance', 'expense', 'payreq', 'newcase'];
+const MOBILE_SHORTCUTS = [
+  { id: 'attendance', label: '打卡', icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', allowed: () => canAccess('attendance'), run: () => mobileOpen('attendance') },
+  { id: 'expense', label: '費用', icon: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>', allowed: () => canApplySelf('expense'), run: () => mobileOpenApply('expense') },
+  { id: 'payreq', label: '請款', icon: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>', allowed: () => canApplySelf('payreq'), run: () => mobileOpenApply('payreq') },
+  { id: 'invoice', label: '開發票', icon: '<path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21z"/><path d="M10 8h4M10 12h4"/>', allowed: () => irCanApply(), run: () => mobileOpenApply('invoice') },
+  { id: 'newcase', label: '新增案件', icon: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 9v6M9 12h6"/>', allowed: () => canCreateCase(), run: () => mobileQuickNewCase() },
+  { id: 'review', label: '審核', icon: '<path d="M9 12l2 2 4-4"/><rect x="4" y="4" width="16" height="16" rx="2"/>', allowed: () => mobileCanReview(), run: () => mobileOpenReview('payreq') },
+  { id: 'invoicequeue', label: '開票待辦', icon: '<path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21z"/><path d="M9 11l2 2 3-3"/>', allowed: () => irCanIssue(), run: () => mobileShowOwnPage('minvoice') },
+  { id: 'inbox', label: '單據匣', icon: '<path d="M4 13l2-8h12l2 8v6H4z"/><path d="M4 13h5l1 2h4l1-2h5"/>', allowed: () => !!receiptFolderId(), run: () => mobileOpenInbox() },
+  { id: 'receivable', label: '應收', icon: '<path d="M12 3v14M7 12l5 5 5-5"/><path d="M5 21h14"/>', allowed: () => canAccess('receivable'), run: () => mobileOpen('receivable') },
+  { id: 'payable', label: '應付', icon: '<path d="M12 21V7M7 12l5-5 5 5"/><path d="M5 3h14"/>', allowed: () => canAccess('payable'), run: () => mobileOpen('payable') },
+  { id: 'profit', label: '成本控制', icon: '<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>', allowed: () => canAccess('profit'), run: () => mobileOpen('profit') },
+  { id: 'profitshare', label: '淨利潤', icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.5 1.5 0 010 3h-3a1.5 1.5 0 000 3H15"/>', allowed: () => canAccess('profitshare'), run: () => mobileOpen('profitshare') },
+  { id: 'cases', label: '案件', icon: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/>', allowed: () => ['dashboard', 'clients', 'vendors'].some(canAccess), run: () => mobileGo('cases') },
+  { id: 'clients', label: '客戶', icon: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 15-5 16 0"/>', allowed: () => canAccess('clients'), run: () => mobileOpen('clients') },
+  { id: 'vendors', label: '廠商', icon: '<path d="M3 21V9l9-5 9 5v12"/><path d="M9 21v-6h6v6"/>', allowed: () => canAccess('vendors'), run: () => mobileOpen('vendors') },
+];
+
+function mobileShortcutDef(id) {
+  return MOBILE_SHORTCUTS.find(s => s.id === id);
+}
+
+function mobileShortcutKey() {
+  return 'yutesign_ops_m_shortcuts_' + (currentUser?.id || '');
+}
+
+function mobileShortcutIds() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(mobileShortcutKey()) || 'null');
+    if (Array.isArray(raw)) {
+      const ids = raw.filter((id, i) => mobileShortcutDef(id) && raw.indexOf(id) === i).slice(0, MOBILE_SHORTCUT_MAX);
+      return ids;
+    }
+  } catch (e) { /* storage unavailable or corrupt: use the default */ }
+  return MOBILE_SHORTCUT_DEFAULT.slice();
+}
+
+function mobileSaveShortcutIds(ids) {
+  try { localStorage.setItem(mobileShortcutKey(), JSON.stringify(ids)); } catch (e) { showToast('這支手機無法儲存設定', 'warning'); }
+}
+
+function mobileRenderShortcuts() {
+  const box = document.getElementById('m-quick');
+  if (!box || !currentUser) return;
+  box.textContent = '';
+  mobileShortcutIds().forEach(id => {
+    const def = mobileShortcutDef(id);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'm-q-' + id;
+    b.className = 'm-quick-btn' + (id === 'attendance' ? ' primary' : '');
+    b.hidden = !def.allowed();
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.innerHTML = def.icon;
+    b.appendChild(svg);
+    b.appendChild(document.createTextNode(def.label));
+    b.addEventListener('click', def.run);
+    box.appendChild(b);
+  });
+  if (!box.children.length) box.appendChild(mobileEl('div', 'm-empty', '尚未選擇快速動作，按「編輯」新增'));
+}
+
+function mobileShortcutsEdit() {
+  openModal('modal-shortcuts');
+  mobileRenderShortcutEditor();
+}
+
+function mobileRenderShortcutEditor() {
+  const list = document.getElementById('m-sc-list');
+  if (!list) return;
+  list.textContent = '';
+  const selected = mobileShortcutIds().filter(id => mobileShortcutDef(id).allowed());
+  const others = MOBILE_SHORTCUTS.filter(s => s.allowed() && !selected.includes(s.id)).map(s => s.id);
+  [...selected, ...others].forEach(id => {
+    const def = mobileShortcutDef(id);
+    const on = selected.includes(id);
+    const row = mobileEl('div', 'm-sc-row' + (on ? ' on' : ''));
+    const label = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = on; cb.setAttribute('data-sc', id);
+    cb.addEventListener('change', () => mobileShortcutToggle(id, cb.checked));
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(' ' + def.label));
+    row.appendChild(label);
+    if (on) {
+      const idx = selected.indexOf(id);
+      const up = mobileEl('button', 'm-sc-move', '▲'); up.type = 'button'; up.setAttribute('aria-label', '上移'); up.disabled = idx === 0;
+      up.addEventListener('click', () => mobileShortcutMove(id, -1));
+      const down = mobileEl('button', 'm-sc-move', '▼'); down.type = 'button'; down.setAttribute('aria-label', '下移'); down.disabled = idx === selected.length - 1;
+      down.addEventListener('click', () => mobileShortcutMove(id, 1));
+      row.appendChild(up); row.appendChild(down);
+    }
+    list.appendChild(row);
+  });
+}
+
+function mobileShortcutToggle(id, on) {
+  const ids = mobileShortcutIds().filter(x => mobileShortcutDef(x).allowed());
+  if (on) {
+    if (ids.length >= MOBILE_SHORTCUT_MAX) { showToast('最多 ' + MOBILE_SHORTCUT_MAX + ' 個快速動作', 'warning'); mobileRenderShortcutEditor(); return; }
+    if (!ids.includes(id)) ids.push(id);
+  } else {
+    const i = ids.indexOf(id);
+    if (i >= 0) ids.splice(i, 1);
+  }
+  mobileSaveShortcutIds(ids);
+  mobileRenderShortcutEditor();
+  mobileRenderShortcuts();
+}
+
+function mobileShortcutMove(id, delta) {
+  const ids = mobileShortcutIds().filter(x => mobileShortcutDef(x).allowed());
+  const i = ids.indexOf(id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  mobileSaveShortcutIds(ids);
+  mobileRenderShortcutEditor();
+  mobileRenderShortcuts();
+}
+
+function mobileShortcutsReset() {
+  try { localStorage.removeItem(mobileShortcutKey()); } catch (e) { /* ignore */ }
+  mobileRenderShortcutEditor();
+  mobileRenderShortcuts();
 }

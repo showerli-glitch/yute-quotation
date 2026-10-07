@@ -175,5 +175,14 @@
   .m-att button{min-width:44px;min-height:44px;border:0;background:none;color:var(--text3);font-size:16px;cursor:pointer}
   .m-submit.alt{background:transparent;color:#123D33;border:1px solid #123D33}
   .m-mine .m-card .rc-links{margin:2px 0}
+  .m-sec{display:flex;justify-content:space-between;align-items:center}
+  .m-sec .m-link{min-height:32px;padding:0 2px}
+  .modal-overlay .btn-primary{background:#123D33;border-color:#123D33;color:#fff}
+  .m-sc-row{display:flex;align-items:center;gap:6px;min-height:52px;border-bottom:1px solid var(--border);padding:0 2px}
+  .m-sc-row label{flex:1;display:flex;align-items:center;gap:10px;font-size:16px;color:var(--text);min-height:48px;cursor:pointer}
+  .m-sc-row input[type=checkbox]{width:22px;height:22px;accent-color:#123D33}
+  .m-sc-row:not(.on) label{color:var(--text2)}
+  .m-sc-move{min-width:44px;min-height:44px;border:1px solid var(--border2);border-radius:10px;background:var(--surface);color:var(--text);font-size:14px;cursor:pointer}
+  .m-sc-move:disabled{opacity:.35}
   .m-note{font-size:12px;color:var(--text3);line-height:1.6}
 }
