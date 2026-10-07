@@ -389,3 +389,19 @@ Update this section after every completed slice with the commit, entry files, va
   - Smoke tests: 427/427 (135, 58, 52, 47, 41, 28, 20, 22, 24). The payroll suite adds checks for the migrated cache/base, an old-client tombstone in the three-way merge (the check fails when the merge fix is removed), current-month deletion, re-adding a month, and the last-month guard. The employee suite now expects a fresh-browser new-employee login to be refused and checks the login button state.
   - New known issue #6: the mock cloud, like RTDB, drops empty arrays and nulls. The merge scope check then sees changes outside the collection and shows the conflict dialog instead of merging. This needs a read-only production check before any change.
   - Not merged or deployed.
+- Known-issues fixes merge and deploy (2026-10-07, Asia/Taipei): Codex re-reviewed `adcd8f2` and passed it (only docs/comments changed after `59ddd81`). The user then saved a fresh backup and forwarded the review. `main` fast-forwarded `954bdaf` → `adcd8f2` and was pushed. GitHub Pages served all 22 `ops/` HTML/JS files byte-identical to `adcd8f2` about 30 seconds later. Pre-merge checks on the merged `main`: verifier PASS (529 functions byte-identical, 13 recorded intentional changes), rules JSON valid, `git diff --check` clean, and all nine smoke suites 427/427. `playwright-core` had to be reinstalled in `/tmp/ops-smoke` because the macOS temp cleanup had removed it.
+  - Pre-merge backup: `Yutesign_OPS_backup_20261007_0911.json`, saved by the user from the computer to the shared drive `宇德公用資料/宇德系統/備份` (1,841,983 bytes, SHA-256 prefix `1b218065887c9fdc`). The phone backups from 2026-10-06 were also copied there. The backup matched the live snapshot exactly.
+  - Production baseline before and after deploy (read-only, signed-in Chrome session): snapshot `meta.savedAt` 2026-10-07 08:20 Taipei by `lu@yutesign.com` (an attendance punch, normal use).
+    - CASES 28 / $54,875,291.
+    - PAYABLES 579: paid 576 / $44,476,407.25; approved 2 / $17,296; pending 1 / $23,800.
+    - RECEIVABLES 77 / $54,742,674; EXPENSES 871 / $1,839,286; CLIENTS 20; VENDORS 148.
+    - ATTENDANCE 37/10; PAYROLL 53; TAX 5; PROFIT_SETTLEMENTS 2; OVERHEAD 46 months.
+    - The cloud still holds the `2026-07`/`2026-09` tombstones.
+  - Post-deploy check after a hard reload:
+    - 21 local scripts loaded; zero console errors; cloud ready, nothing pending.
+    - `opsDropRecoveredPayrollTombstones` is live. In memory the tombstones are gone and the merge base and local cache are migrated; the payroll month list has 13 months including 2026-07 and 2026-09.
+    - `prNextId` is 33 (max id 32 + 1).
+    - The last-month guard, the reverted login flow, the vendor status default, and the active (confirming) `ohDeleteFixedItem` are all live. The login button is enabled after load.
+    - Snapshot `meta.savedAt` is unchanged and the cloud tombstones are still present. They will be removed by the next normal save by any user, as approved on 2026-10-06. No production write was performed by this session.
+  - Observation: script URLs carry no version query. A first normal reload served the new `index.html` with cached old scripts, so the login button stayed at 「載入中...」. A hard reload fixed it, and GitHub Pages caching (about 10 minutes) clears the mismatch for everyone. Signed-in users are unaffected, because the session restores without the button. A logged-out user in that window must reload again. Consider versioned script URLs in a later change.
+  - Still open: known issues #1 (rules-level allowlist for new-employee login, needs approval) and #6 (merge scope check versus RTDB empty-value pruning, needs a read-only production check first).
