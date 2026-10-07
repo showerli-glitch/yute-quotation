@@ -777,6 +777,22 @@ const ver = await page.evaluate(async () => {
   window.fetch = realFetch;
   return { cur, same, sameBanner, diff, bannerText: banner ? banner.textContent : '', bannerTop: banner ? getComputedStyle(banner).paddingTop : '' };
 });
+const heroSticky = [];
+for (const tab of ['today', 'finance', 'me']) {
+  await tabBtn(page, tab).click();
+  await page.waitForTimeout(150);
+  heroSticky.push(await page.evaluate(tab => {
+    const hero = document.querySelector('.page.active .m-hero');
+    if (!hero) return { tab, hero: false };
+    const filler = document.createElement('div'); filler.id = 'sticky-filler'; filler.style.height = '3000px';
+    document.querySelector('.page.active').appendChild(filler);
+    window.scrollTo(0, 800); document.querySelectorAll('.main,.content').forEach(el => { el.scrollTop = 800; });
+    const r = { tab, pos: getComputedStyle(hero).position, top: Math.round(hero.getBoundingClientRect().top), bg: getComputedStyle(hero).backgroundColor };
+    filler.remove(); window.scrollTo(0, 0); document.querySelectorAll('.main,.content').forEach(el => { el.scrollTop = 0; });
+    return r;
+  }, tab));
+}
+check('今天／財務／我的：綠色表頭固定在最上方（捲動後仍在頂端，iOS 狀態列才會是綠色）', heroSticky.every(h => h.pos === 'sticky' && h.top === 0 && h.bg === 'rgb(18, 61, 51)'), heroSticky);
 check('新版提示：版本相同不提示；伺服器版本戳記不同時顯示「重新整理」提示', /^[0-9a-f]{8}$/.test(ver.cur) && ver.same === false && !ver.sameBanner && ver.diff === true && ver.bannerText.includes('deadbeef') && ver.bannerText.includes('重新整理'), ver);
 await page.setViewportSize({ width: 1440, height: 900 });
 const pyBtn = await page.evaluate(() => {

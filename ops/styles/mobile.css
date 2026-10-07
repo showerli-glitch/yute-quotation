@@ -42,6 +42,9 @@
     background:#123D33;color:#fff;
     padding:calc(10px + env(safe-area-inset-top,0)) 16px 12px;
     display:flex;flex-direction:column;gap:2px;
+    /* sticky like the legacy .topbar: iOS 26 colours the status-bar area from a sticky/fixed element at the
+       top; a plain in-flow header lets the light page background fade in there (今天／財務／我的). */
+    position:sticky;top:0;z-index:5;
   }
   .m-hero-top{display:flex;justify-content:space-between;font-size:12px;letter-spacing:.1em;color:#D9F25A}
   .m-hero-title{display:flex;align-items:baseline;gap:10px}
