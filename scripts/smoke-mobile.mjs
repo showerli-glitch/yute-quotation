@@ -171,6 +171,55 @@ const fresh = await counts(page);
 check('其他集合筆數不變（案件／應付／應收／費用／客戶／廠商）', ['CASES', 'PAYABLES', 'RECEIVABLES', 'EXPENSES', 'CLIENTS', 'VENDORS'].every(k => fresh[k] === before[k]), { before, fresh });
 await ctx.close();
 
+
+// ═══════════ D: PWA install config ═══════════
+H.setScenario('D-pwa');
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW, serviceWorkers: 'allow' });
+page = await openPhone(ctx);
+const head = await page.evaluate(() => ({
+  manifest: document.querySelector('link[rel="manifest"]')?.getAttribute('href'),
+  theme: document.querySelector('meta[name="theme-color"]')?.content,
+  apple: document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href'),
+}));
+check('頁首有 manifest、theme-color、apple-touch-icon（皆為相對路徑）', head.manifest === 'manifest.webmanifest' && head.theme === '#123D33' && head.apple === 'icons/apple-touch-icon.png', head);
+const manifest = await page.evaluate(async () => (await fetch('manifest.webmanifest')).json());
+check('manifest：standalone、相對 start_url／scope、深綠主題色', manifest.display === 'standalone' && manifest.start_url === './' && manifest.scope === './' && manifest.theme_color === '#123D33' && manifest.lang === 'zh-TW', manifest);
+const iconRes = await page.evaluate(async icons => Promise.all(icons.map(async i => { const r = await fetch(i.src); const b = await r.blob(); return { src: i.src, ok: r.ok, type: b.type, size: b.size, purpose: i.purpose }; })), manifest.icons);
+check('manifest 圖示：192／512／maskable 皆存在且為 PNG', iconRes.length === 3 && iconRes.every(i => i.ok && i.type === 'image/png' && i.size > 500) && iconRes.some(i => i.purpose === 'maskable'), iconRes);
+const imgDims = await page.evaluate(async () => Promise.all(['icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'].map(src => new Promise(res => { const im = new Image(); im.onload = () => res(src + ':' + im.naturalWidth + 'x' + im.naturalHeight); im.onerror = () => res(src + ':error'); im.src = src; }))));
+check('圖示實際尺寸正確', JSON.stringify(imgDims) === JSON.stringify(['icons/icon-192.png:192x192', 'icons/icon-512.png:512x512', 'icons/icon-maskable-512.png:512x512', 'icons/apple-touch-icon.png:180x180']), imgDims);
+const reg = await page.evaluate(async () => {
+  const r = await navigator.serviceWorker.getRegistration();
+  if (!r) return null;
+  const sw = r.active || r.waiting || r.installing;
+  if (sw && sw.state !== 'activated') await new Promise(res => sw.addEventListener('statechange', () => sw.state === 'activated' && res()));
+  return { scope: r.scope.split('/ops/')[1] === '' ? '/ops/' : r.scope, state: (r.active || {}).state };
+});
+check('手機寬度：service worker 已註冊並啟用，範圍是 /ops/', reg && reg.state === 'activated' && reg.scope === '/ops/', reg);
+const cached = await page.evaluate(async () => { const names = await caches.keys(); const c = await caches.open(names.find(n => n.startsWith('ops-shell-'))); return { names, urls: (await c.keys()).map(r => new URL(r.url).pathname) }; });
+check('快取版本名稱帶版號、外殼檔案已存入', cached.names.length === 1 && /^ops-shell-\d{4}-\d{2}-\d{2}\.\d+$/.test(cached.names[0]) && ['/ops/', '/ops/index.html', '/ops/js/modules/mobile.js', '/ops/styles/mobile.css', '/ops/manifest.webmanifest'].every(u => cached.urls.includes(u)), { names: cached.names, count: cached.urls.length });
+const swFiles = await page.evaluate(async () => { const src = await (await fetch('sw.js')).text(); const m = [...src.matchAll(/'((?:js|styles|icons)\/[^']+|index\.html|manifest\.webmanifest)'/g)].map(x => x[1]); return m; });
+const missingShell = await page.evaluate(async files => (await Promise.all(files.map(async f => (await fetch(f, { cache: 'no-store' })).ok ? null : f))).filter(Boolean), swFiles);
+check('sw.js 列的外殼檔案全部存在（沒有 404）', swFiles.length >= 28 && missingShell.length === 0, { count: swFiles.length, missingShell });
+const scriptsInHtml = await page.evaluate(() => [...document.scripts].map(s => s.getAttribute('src')).filter(s => s && !/^https?:/.test(s)));
+check('sw.js 的外殼清單涵蓋 index.html 載入的所有本機 script', scriptsInHtml.every(s => swFiles.includes(s)), scriptsInHtml.filter(s => !swFiles.includes(s)));
+await ctx.setOffline(true);
+const offline = await page.evaluate(async () => {
+  const out = {};
+  for (const f of ['index.html', 'js/modules/mobile.js', 'styles/mobile.css']) { try { const r = await fetch(f); out[f] = r.ok ? (await r.text()).length : 'status ' + r.status; } catch (e) { out[f] = 'error'; } }
+  return out;
+});
+check('離線時外殼檔案由快取提供', Object.values(offline).every(v => typeof v === 'number' && v > 100), offline);
+const cachedHosts = await page.evaluate(async () => { const c = await caches.open((await caches.keys())[0]); return [...new Set((await c.keys()).map(r => new URL(r.url).host))]; });
+check('快取只含本站檔案，沒有 Google 登入／Firebase 資料的請求', cachedHosts.length === 1 && cachedHosts[0].startsWith('127.0.0.1'), cachedHosts);
+await ctx.setOffline(false);
+await ctx.close();
+ctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW, serviceWorkers: 'allow' });
+page = await openApp(ctx);
+await page.waitForTimeout(500);
+check('桌面寬度：不註冊 service worker', (await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)) === 0);
+await ctx.close();
+
 const finalData = JSON.parse(JSON.stringify(H.state.cloud?.data || {}));
 const fails = await H.finish(outJson, { finalCloudData: finalData });
 process.exit(fails ? 1 : 0);

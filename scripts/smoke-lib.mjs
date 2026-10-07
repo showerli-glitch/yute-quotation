@@ -89,8 +89,8 @@ export async function createHarness({ label, rootDir, port }) {
     console.log(`${pass ? 'PASS' : 'FAIL'} [${state.scenario}] ${name}${d ? ' — ' + d : ''}`);
   }
 
-  async function newContext(email, { fixedTime, geolocation } = {}) {
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'zh-TW', timezoneId: 'Asia/Taipei', serviceWorkers: 'block', geolocation, permissions: geolocation ? ['geolocation'] : [] });
+  async function newContext(email, { fixedTime, geolocation, serviceWorkers = 'block' } = {}) {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'zh-TW', timezoneId: 'Asia/Taipei', serviceWorkers, geolocation, permissions: geolocation ? ['geolocation'] : [] });
     if (fixedTime) await ctx.clock.setFixedTime(fixedTime);
     await ctx.exposeFunction('__mockRtdbGet', p => (p === 'ops/yutesign/snapshot' ? state.cloud : null));
     await ctx.exposeFunction('__mockRtdbSet', (p, v) => {

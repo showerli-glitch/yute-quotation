@@ -226,3 +226,12 @@ function mobileRenderOwnPage(id) {
     return result;
   };
 })();
+
+// ── PWA: register the service worker on phones/tablets and in the installed app only ──
+// (desktop browsers keep the plain website behavior). Relative URL: the scope is whatever folder serves this page.
+function mobileRegisterServiceWorker() {
+  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+  if (!window.matchMedia('(max-width: 1279px), (display-mode: standalone)').matches) return;
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+window.addEventListener('load', mobileRegisterServiceWorker);
