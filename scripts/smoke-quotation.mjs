@@ -137,6 +137,135 @@ if (hasPwa) {
   await c3.close();
 }
 
+// ═══════════ PHONE LAYOUT (quotation/js/mobile.js; only when present) ═══════════
+const hasPhone = await (async () => { try { return (await fetch(`${ORIGIN}/quotation/js/mobile.js`)).ok; } catch (e) { return false; } })();
+if (hasPhone) {
+  H.setScenario('Q-phone');
+  const shots = process.env.QUOTE_SHOTS || '';
+  const mctx = await newContext('shower.li@yutesign.com', { fixedTime: NOW });
+  await mctx.addInitScript(() => { try { if (!localStorage.getItem('yutesign_session')) localStorage.setItem('yutesign_session', JSON.stringify({ email: 'shower.li@yutesign.com', loginTime: Date.now() })); } catch (e) {} });
+  const m = await mctx.newPage();
+  const merr = [];
+  m.on('pageerror', e => merr.push(String(e)));
+  m.on('dialog', d => d.accept());
+  await m.setViewportSize({ width: 390, height: 844 });
+  await m.goto(`${ORIGIN}/`, { waitUntil: 'load' });
+  await m.waitForFunction(() => typeof qmRender === 'function' && document.getElementById('qm'), null, { timeout: 15000 });
+  const shot = async name => { if (shots) await m.screenshot({ path: `${shots}/${name}.png` }); };
+  const vis = sel => m.evaluate(s => { const e = document.querySelector(s); return !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().height > 0; }, sel);
+  check('手機寬度：顯示手機版、電腦版畫面隱藏、底部四個分頁', await vis('#qm') && !(await vis('.screen-ui')) && (await m.$$eval('#qm-nav button', b => b.map(x => x.textContent.trim()).join(','))) === '報價單,工項,雲端檔案,更多');
+  await shot('1-quote-empty');
+
+  await m.click('#qm-nav button[data-tab=items]');
+  await m.fill('#qm-item-q', '油漆');
+  const found = await m.$$eval('#qm-item-list .qm-icard', c => c.length);
+  check('工項分頁：搜尋', found > 0, found);
+  await m.fill('#qm-item-q', '');
+  await m.evaluate(() => { qmItemQuery = ''; qmRender(); });
+  for (const i of [0, 7, 30, 61]) await m.evaluate(i => qmAddDb(i), i);
+  await m.evaluate(() => qmAddDb(0));
+  const afterAdd = await m.evaluate(() => ({ n: quoteItems.length, q0: quoteItems[0].qty, badge: document.querySelector('#qm-item-list .qm-in')?.textContent }));
+  check('工項分頁：點＋加入；已在報價單的工項再點一下數量加 1', afterAdd.n === 4 && afterAdd.q0 === 2, afterAdd);
+  await m.click('#qm-head .qm-chips button:nth-child(3)');
+  await shot('2-items');
+
+  await m.click('#qm-nav button[data-tab=quote]');
+  const cards = await m.$$eval('.qm-qcard', c => c.length);
+  check('報價單分頁：每個工項一張卡片', cards === 4, cards);
+  const firstId = await m.evaluate(() => document.querySelector('.qm-qcard').dataset.id);
+  await m.click(`.qm-qcard[data-id="${firstId}"]`);
+  await m.click('.qm-step button:last-child');
+  await m.fill('#qm-i-price', '2950'); await m.press('#qm-i-price', 'Tab');
+  const sheet = await m.evaluate(id => { const it = quoteItems.find(i => String(i.id) === id); return { qty: it.qty, price: it.price, amt: document.getElementById('qm-sheet-amt').textContent }; }, firstId);
+  check('修改工項面板：數量＋1、改單價、小計即時更新', sheet.qty === 3 && sheet.price === 2950 && sheet.amt === '$ 8,850', sheet);
+  await shot('3-item-sheet');
+  await m.click('.qm-sheet-box .qm-primary');
+  const undo1 = await m.evaluate(() => { const p = quoteItems[0].price; undo(); return [p, quoteItems[0].price]; });
+  check('復原鍵可以還原手機上的修改', undo1[0] === 2950 && undo1[1] !== 2950, undo1);
+  await m.evaluate(() => redo());
+
+  const moved = await m.evaluate(() => { const secs = Object.entries(getSections()).find(([, v]) => v.length > 1); if (!secs) return 'no-multi'; const [cat, items] = secs; const ids = items.map(i => i.id); qmMove(ids[1], -1); return JSON.stringify(getSections()[cat].map(i => i.id)) === JSON.stringify([ids[1], ids[0], ...ids.slice(2)]); });
+  check('▲▼ 在同一大項內調整順序', moved === true || moved === 'no-multi', moved);
+  const firstCat = await m.evaluate(() => Object.keys(getSections())[0]);
+  await m.click('.qm-sec');
+  const collapsed = await m.$$eval('.qm-qcard', c => c.length);
+  await m.click('.qm-sec');
+  check('大項可以收合', collapsed < 4 && (await m.$$eval('.qm-qcard', c => c.length)) === 4, { firstCat, collapsed });
+
+  await m.click('.qm-actions .qm-outline');
+  await m.fill('#qm-c-name', '手機自訂工項'); await m.fill('#qm-c-unit', '式'); await m.fill('#qm-c-price', '1234');
+  await m.click('.qm-sheet-box .qm-primary');
+  const custom = await m.evaluate(() => ({ q: quoteItems.find(i => i.name === '手機自訂工項'), db: dbItems.some(d => d['工項名稱'] === '手機自訂工項') }));
+  check('自訂工項加入報價單並存進工項資料庫', custom.q && custom.q.price === 1234 && custom.db, custom);
+
+  await m.click('.qm-title-btn');
+  await m.fill('#qm-f-projName', '手機測試工程'); await m.press('#qm-f-projName', 'Tab');
+  await m.fill('#qm-f-projClient', '王先生'); await m.press('#qm-f-projClient', 'Tab');
+  await m.evaluate(() => { const i = document.querySelector('.qm-prow input'); i.value = '8'; i.dispatchEvent(new Event('change')); });
+  await m.evaluate(() => { const s = [...document.querySelectorAll('.qm-prow select')][0]; s.value = 'fixed'; s.dispatchEvent(new Event('change')); });
+  await m.evaluate(() => { const i = [...document.querySelectorAll('.qm-prow.qm-col')][0].querySelector('input'); i.value = '6000'; i.dispatchEvent(new Event('change')); });
+  await m.evaluate(() => { const s = [...document.querySelectorAll('.qm-prow select')][1]; s.value = 'pct'; s.dispatchEvent(new Event('change')); });
+  await m.evaluate(() => { const i = [...document.querySelectorAll('.qm-prow.qm-col')][1].querySelector('input'); i.value = '10'; i.dispatchEvent(new Event('change')); });
+  await shot('4-info');
+  const fees = await m.evaluate(() => {
+    const v = id => document.getElementById(id).value;
+    const sub = quoteItems.reduce((s, i) => s + i.qty * i.price, 0), clean = 6000, design = Math.round((sub + clean) * 0.1);
+    const mgmt = (sub + clean) * 0.08, before = sub + mgmt + clean + design, total = before * 1.05;
+    return { desk: [v('projName'), v('projClient'), v('mgmtFee'), v('extraCleanMode'), v('extraCleanFixed'), v('extraDesignMode'), v('extraDesignPct')], expect: Math.round(total), calc: Math.round(getCalc().total), phone: document.getElementById('qm-foot').textContent + document.getElementById('qm-body').textContent, deskTotal: document.getElementById('grandTotal').textContent };
+  });
+  check('工程資訊與費用：寫進電腦版同一組欄位', JSON.stringify(fees.desk) === JSON.stringify(['手機測試工程', '王先生', '8', 'fixed', '6000', 'pct', '10']), fees.desk);
+  check('手機算出的總計 = 電腦版總計 = 依公式獨立計算', fees.calc === fees.expect && fees.deskTotal === '$' + fees.expect.toLocaleString() && fees.phone.includes('$ ' + fees.expect.toLocaleString()), { expect: fees.expect, calc: fees.calc, desk: fees.deskTotal });
+  await m.click('.qm-back');
+  await shot('5-quote');
+  const head = await m.textContent('#qm-head');
+  check('報價單表頭顯示工程名稱與業主', head.includes('手機測試工程') && head.includes('王先生'), head);
+
+  await m.click('#qm-nav button[data-tab=more]');
+  await shot('6-more');
+  await m.click('.qm-list button:nth-child(2)');
+  const secBefore = await m.evaluate(() => [...customSectionOrder]);
+  await m.click('.qm-panel .qm-prow:nth-child(2) .qm-move button:first-child');
+  const secAfter = await m.evaluate(() => [...customSectionOrder]);
+  check('大項順序：▲ 調整後寫進同一份大項排序', secBefore.length > 1 && secAfter[0] === secBefore[1] && secAfter[1] === secBefore[0], { secBefore, secAfter });
+  await m.click('.qm-back');
+  await m.click('.qm-list button:nth-child(3)');
+  const rem = await m.evaluate(() => { const t = document.querySelector('.qm-remark textarea'); t.value = '手機改的備註'; t.dispatchEvent(new Event('change')); return [remarksItems[0], JSON.parse(localStorage.getItem('yutesign_quote')).remarksItems[0]]; });
+  check('備註條款：修改後存進報價單', rem[0] === '手機改的備註' && rem[1] === '手機改的備註', rem);
+  await m.click('.qm-back');
+  await m.click('.qm-list:nth-of-type(2) button:first-child').catch(() => {});
+  await m.evaluate(() => qmOpenPage('prices'));
+  await m.fill('#qm-head .qm-search', '粗工');
+  const priceEdit = await m.evaluate(() => { const card = document.querySelector('#qm-price-list .qm-card'); const name = card.querySelector('.qm-name').textContent; const inp = card.querySelectorAll('input')[1]; inp.value = '3333'; inp.dispatchEvent(new Event('change')); return { name, saved: JSON.parse(localStorage.getItem('yutesign_db')).find(d => d['工項名稱'] === name)['參考單價'] }; });
+  check('編輯工項單價：改完立刻存檔', priceEdit.saved === 3333, priceEdit);
+  await m.evaluate(() => qmBack());
+
+  const printDoc = await m.evaluate(() => buildPrintDoc().length);
+  await m.emulateMedia({ media: 'print' });
+  const printVis = { qm: await vis('#qm') };
+  await m.emulateMedia({ media: 'screen' });
+  check('列印（PDF）時手機畫面隱藏，版型用電腦版的 buildPrintDoc', !printVis.qm && printDoc > 1000, { printVis, printDoc });
+
+  await m.evaluate(() => { driveAccessToken = 'mock'; driveFilesCache = [{ id: 'f1', name: '宇德報價_A案_2026-10-01.json', modifiedTime: '2026-10-01T03:00:00Z' }, { id: 'f2', name: '宇德報價_B案_2026-10-02.json', modifiedTime: '2026-10-02T03:00:00Z' }]; });
+  await m.click('#qm-nav button[data-tab=drive]');
+  await m.fill('#qm-drive-q', 'B案');
+  const drive = await m.$$eval('#qm-drive-list .qm-fcard .qm-name', n => n.map(x => x.textContent));
+  check('雲端檔案：列出並可搜尋（不實際連線）', JSON.stringify(drive) === JSON.stringify(['B案_2026-10-02']), drive);
+  await m.fill('#qm-drive-q', '');
+  await m.evaluate(() => { qmDriveQuery = ''; qmRender(); showSyncBanner('lu_yanchen 剛存了「宇德報價_C案.json」'); });
+  check('同事存檔的同步通知也會出現在手機版', (await m.textContent('#qm-sync')).includes('C案') && await vis('#qm-sync'));
+  await shot('7-drive');
+  await m.evaluate(() => syncDismiss());
+
+  await m.setViewportSize({ width: 1180, height: 820 });
+  await m.waitForTimeout(200);
+  check('平板橫放（≥1024px）：回到電腦版畫面', !(await vis('#qm')) && await vis('.screen-ui'));
+  await m.setViewportSize({ width: 820, height: 1180 });
+  await m.waitForTimeout(200);
+  check('平板直放（<1024px）：手機版', await vis('#qm') && !(await vis('.screen-ui')));
+  check('手機版沒有頁面錯誤', merr.length === 0, merr);
+  await mctx.close();
+}
+
 const fails = await H.finish(outJson, { observations: obs, observationsHash: hash(JSON.stringify(obs)) });
 console.log('observations hash', hash(JSON.stringify(obs)));
 process.exit(fails ? 1 : 0);
