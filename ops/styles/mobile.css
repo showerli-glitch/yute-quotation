@@ -192,16 +192,9 @@
   .m-note{font-size:12px;color:var(--text3);line-height:1.6}
 }
 
-/* iOS 26 installed web app (WebKit regression): 100% / 100vh / 100dvh come up short by the top safe-area
-   inset (~59pt), so the page ended above the home indicator and showed a beige band; only 100lvh is the full
-   screen. The top "scroll edge" blur is skipped only when a fixed, full-width, solid box taller than 10px
-   sits at the edge. Standalone only: in a Safari tab lvh and dvh differ for other reasons. */
-@media (display-mode: standalone) and (max-width:1023px){
-  html,body{height:100lvh}
-  body .main{height:100lvh}
-  .m-nav{bottom:calc(100dvh - 100lvh)}
-  .m-statusbar{height:max(env(safe-area-inset-top,0px),12px)}
-}
+/* Installed iPhone app: the status bar style is "default" (opaque, page starts below it). With
+   "black-translucent" iOS 26 drew a blur over the header and left the web view 62px short of the screen
+   bottom (measured on the user's iPhone: innerHeight 812 vs screen 874, safe-area top 62 / bottom 34). */
 
 /* ── Existing list tables become cards on a phone. Same rows, filters, permissions and buttons as the desktop;
       only the layout changes (thead hidden, each row a card: title + amount on top, other cells labelled). ── */
