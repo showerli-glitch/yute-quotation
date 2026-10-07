@@ -1004,3 +1004,28 @@ function mobileShortcutsReset() {
   mobileRenderShortcutEditor();
   mobileRenderShortcuts();
 }
+
+// ── 畫面資訊: numbers to send when the installed app looks wrong on a phone ──
+function mobileScreenInfo() {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;top:0;left:0;width:1px;visibility:hidden;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);height:100lvh;';
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const lvh = probe.getBoundingClientRect().height - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  probe.style.height = '100dvh';
+  const dvh = probe.getBoundingClientRect().height - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const top = parseFloat(cs.paddingTop), bottom = parseFloat(cs.paddingBottom);
+  probe.remove();
+  const at = (x, y) => { const el = document.elementFromPoint(x, y); return el ? (el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + String(el.className || '').split(' ')[0]) : '—'; };
+  const lines = [
+    '版本 ' + ((document.querySelector('script[src*="mobile.js"]')?.getAttribute('src') || '').split('?v=')[1] || '?'),
+    'standalone ' + window.matchMedia('(display-mode: standalone)').matches + (navigator.standalone ? '（iOS）' : ''),
+    'safe 上 ' + top + ' 下 ' + bottom,
+    'innerH ' + innerHeight + ' screenH ' + screen.height + ' lvh ' + Math.round(lvh) + ' dvh ' + Math.round(dvh),
+    'nav 底 ' + Math.round(document.getElementById('m-nav')?.getBoundingClientRect().bottom || 0) + ' 狀態列條 ' + Math.round(document.querySelector('.m-statusbar')?.getBoundingClientRect().height || 0),
+    '上緣元素 ' + at(5, 2) + ' / ' + at(innerWidth / 2, 2),
+    '下緣元素 ' + at(innerWidth / 2, innerHeight - 2),
+    navigator.userAgent.replace(/^.*?\(/, '(').slice(0, 80),
+  ];
+  window.alert(lines.join('\n'));
+}
