@@ -1,0 +1,96 @@
+/* Mobile shell (PWA phase 1). New file, not extracted from the baseline.
+   Everything is scoped to phone width; the desktop and tablet cascade is untouched. */
+.m-only{display:none}
+@media(max-width:767px){
+  .m-only{display:block}
+
+  /* ── bottom tab bar ── */
+  .m-nav{
+    position:fixed;left:0;right:0;bottom:0;height:76px;z-index:95;
+    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+    background:var(--surface);border-top:1px solid var(--border);
+    padding-bottom:env(safe-area-inset-bottom,0);box-sizing:content-box;
+  }
+  .m-nav-btn{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    background:none;border:0;color:var(--text3);font:inherit;font-size:12px;cursor:pointer;min-height:44px;
+  }
+  .m-nav-btn svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .m-nav-btn.active{color:var(--text);font-weight:700}
+  .m-nav-btn.active::after{content:'';width:20px;height:3px;border-radius:2px;background:#123D33}
+  .m-nav-btn[hidden]{display:none}
+  body .content{padding-bottom:calc(100px + env(safe-area-inset-bottom,0))}
+
+  /* ── own-header pages (今天／財務／我的): hide the legacy top bar ── */
+  body.m-own-header .topbar{display:none}
+  body.m-own-header .content{padding-top:0;padding-left:0;padding-right:0}
+
+  /* legacy pages keep their top bar, restyled to the green header */
+  body .topbar{background:linear-gradient(160deg,#17483C,#0E2F27);border-bottom:0;border-radius:0 0 20px 20px}
+  body .topbar-title{color:#fff}
+  body .topbar-sub{color:#D9F25A}
+  body .topbar .mobile-menu-btn{background:rgba(255,255,255,.14);color:#fff;border-color:transparent}
+  body .topbar-actions{display:none!important}
+
+  /* ── hero ── */
+  .m-hero{
+    background:linear-gradient(160deg,#17483C,#0E2F27);color:#fff;
+    padding:calc(20px + env(safe-area-inset-top,0)) 20px 22px;border-radius:0 0 24px 24px;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .m-hero-top{display:flex;justify-content:space-between;font-size:12px;letter-spacing:.1em;color:#D9F25A}
+  .m-hero-date{font-size:13px;opacity:.75}
+  .m-hero h1{margin:0;font-size:28px;font-weight:700;color:#fff}
+  .m-hero-sub{font-size:14px;color:#F2D58B}
+  .m-hero-sub .late{color:#FF9C8A}
+  .m-body{padding:16px;display:flex;flex-direction:column;gap:14px}
+
+  /* ── quick actions ── */
+  .m-quick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .m-quick-btn{
+    background:var(--surface);border:1px solid var(--border);border-radius:16px;min-height:76px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    font:inherit;font-size:13px;font-weight:500;color:var(--text);cursor:pointer;
+  }
+  .m-quick-btn svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .m-quick-btn.primary{background:#D5EBDD;border-color:#D5EBDD;color:#123D33;font-weight:700}
+  .m-quick-btn[hidden]{display:none}
+  .m-sec{font-size:15px;font-weight:700;color:var(--text)}
+  .m-sec small{font-size:12px;font-weight:400;color:var(--text3);margin-left:6px}
+
+  /* ── task cards ── */
+  .m-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 16px;
+    display:flex;flex-direction:column;gap:6px;text-align:left;font:inherit;color:var(--text);cursor:pointer;width:100%;
+  }
+  .m-card-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .m-card-src{font-size:12px;color:var(--text3)}
+  .m-card-title{font-size:16px;font-weight:700}
+  .m-card-detail{font-size:13px;color:var(--text2)}
+  .m-pill{font-size:12px;font-weight:700;border-radius:8px;padding:3px 8px}
+  .m-pill.warn{color:#7A5A00;background:#FBF0CF}
+  .m-pill.ok{color:#1F5C46;background:#DCEFE5}
+  .m-pill.late{color:#B3382A;background:#FBE4DF}
+  .m-empty{font-size:13px;color:var(--text3);padding:6px 2px}
+
+  /* ── list rows (財務／我的) ── */
+  .m-list{background:var(--surface);border:1px solid var(--border);border-radius:16px;display:flex;flex-direction:column;overflow:hidden}
+  .m-row{
+    min-height:52px;padding:0 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;
+    background:none;border:0;border-bottom:1px solid var(--border);font:inherit;font-size:15px;color:var(--text);cursor:pointer;text-align:left;width:100%;
+  }
+  .m-row:last-child{border-bottom:0}
+  .m-row[hidden]{display:none}
+  .m-row .m-badge{font-size:12px;font-weight:700;background:#D5EBDD;color:#123D33;border-radius:10px;padding:2px 8px}
+  .m-row .m-badge.alert{background:#E5533D;color:#fff}
+  .m-row .m-chev{color:var(--text3)}
+  .m-avatar{
+    width:48px;height:48px;border-radius:50%;background:#D5EBDD;color:#123D33;font-size:20px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;flex:none;
+  }
+  .m-hero-user{display:flex;gap:12px;align-items:center}
+  .m-hero-user b{font-size:20px;display:block}
+  .m-hero-user span{font-size:12px;opacity:.8}
+  #m-tasks{display:flex;flex-direction:column;gap:12px}
+  .m-note{font-size:12px;color:var(--text3);line-height:1.6}
+}
