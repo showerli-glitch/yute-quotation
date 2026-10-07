@@ -794,6 +794,22 @@ for (const tab of ['today', 'finance', 'me']) {
 }
 check('今天／財務／我的：綠色表頭固定在最上方（捲動後仍在頂端，iOS 狀態列才會是綠色）', heroSticky.every(h => h.pos === 'sticky' && h.top === 0 && h.bg === 'rgb(18, 61, 51)'), heroSticky);
 check('新版提示：版本相同不提示；伺服器版本戳記不同時顯示「重新整理」提示', /^[0-9a-f]{8}$/.test(ver.cur) && ver.same === false && !ver.sameBanner && ver.diff === true && ver.bannerText.includes('deadbeef') && ver.bannerText.includes('重新整理'), ver);
+const clipped = await page.evaluate(() => {
+  const out = [];
+  for (const p of ['profitshare', 'profit']) {
+    navTo(p, document.getElementById('nav-' + p));
+    document.querySelectorAll('#page-' + p + ' table').forEach(t => {
+      if (!t.offsetParent) return;
+      for (let a = t.parentElement; a && a !== document.body; a = a.parentElement) {
+        const ox = getComputedStyle(a).overflowX;
+        if (ox === 'auto' || ox === 'scroll') break;
+        if (ox === 'hidden' && a.scrollWidth > a.clientWidth + 2) { out.push(p + ':' + t.innerText.slice(0, 12)); break; }
+      }
+    });
+  }
+  return out;
+});
+check('成本控制表／淨利潤儀表：手機上每個表格都能左右滑到最右欄（沒有被外框裁掉）', clipped.length === 0, clipped);
 await page.setViewportSize({ width: 1440, height: 900 });
 const pyBtn = await page.evaluate(() => {
   const row = PAYABLES.find(p => p.status === 'paid') || PAYABLES[0];
