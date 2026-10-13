@@ -463,6 +463,10 @@ function expenseRowActions(r) {
     actions.push(`<button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--success)" onclick="approveExpense(${r.id})">核准</button>`);
     actions.push(`<button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--error)" onclick="rejectExpense(${r.id})">退回</button>`);
   }
+  const attCount = Array.isArray(r.attachments) ? r.attachments.length : 0;
+  if (attCount || expCanEditRow(r)) {
+    actions.push(`<button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="receiptOpenAttachModal('EXPENSES',${r.id})">單據${attCount ? '（' + attCount + '）' : ''}</button>`);
+  }
   if (expCanEditRow(r)) {
     actions.push(`<button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="editExpense(${r.id})">修改</button>`);
     actions.push(`<button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--error)" onclick="deleteExpense(${r.id})">刪除</button>`);
