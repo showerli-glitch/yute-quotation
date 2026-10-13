@@ -3207,7 +3207,7 @@ body.auth-pending .auth-screen{display:flex}
         </div>
         <div class="form-field" id="ap-profit-person-field" style="display:none">
           <label class="form-label">分潤領款人</label>
-          <select class="form-select" id="ap-add-profit-person">
+          <select class="form-select" id="ap-add-profit-person" onchange="apSyncProfitVendor()">
             <option value="shower">李鎮宇</option>
             <option value="peng">彭俞豪</option>
             <option value="lien">連星羽</option>
@@ -3219,7 +3219,7 @@ body.auth-pending .auth-screen{display:flex}
         </div>
         <div class="form-field">
           <label class="form-label">受款廠商</label>
-          <input class="form-input" id="ap-add-vendor" placeholder="輸入廠商名稱或代碼搜尋…" title="再次點擊可清除並重新選擇" list="dl-ap-vendors" autocomplete="off" onmousedown="payreqVendorPickerMouseDown(this)">
+          <input class="form-input" id="ap-add-vendor" placeholder="輸入廠商名稱或代碼搜尋…" title="再次點擊可清除並重新選擇" list="dl-ap-vendors" autocomplete="off" onmousedown="if (!this.readOnly) payreqVendorPickerMouseDown(this)">
           <datalist id="dl-ap-vendors"></datalist>
         </div>
         <div class="form-field">

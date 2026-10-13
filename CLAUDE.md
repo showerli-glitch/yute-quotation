@@ -35,5 +35,5 @@
 ## 驗證
 
 - 每次修改後跑 `node scripts/verify-ops-modularization.mjs`、`python3 -m json.tool firebase-database.rules.json`、`git diff --check`。刻意修改的函式要登記在驗證腳本的 `POST_SPLIT_CHANGES`。
-- 9 套本機模擬測試在 `scripts/smoke-*.mjs`，只用模擬雲端、攔截所有外部請求，不會碰正式資料。需要 `playwright-core`（裝在 repo 外的 `/tmp/ops-smoke`）和 Chrome／Chromium，透過環境變數 `PLAYWRIGHT_CORE` 與 `CHROME_PATH` 指定；用法寫在各腳本開頭。全部通過的基準是 427 項（135、58、52、47、41、28、20、22、24；員工那套有 1 則預期警告）。
+- 9 套本機模擬測試在 `scripts/smoke-*.mjs`，只用模擬雲端、攔截所有外部請求，不會碰正式資料。需要 `playwright-core`（裝在 repo 外的 `/tmp/ops-smoke`）和 Chrome／Chromium，透過環境變數 `PLAYWRIGHT_CORE` 與 `CHROME_PATH` 指定；用法寫在各腳本開頭。全部通過的基準是 431 項（135、58、52、47、41、28、20、22、28；員工那套有 1 則預期警告）。
 - 正式資料唯讀摘要：`scripts/ops-prod-readonly-summary.js`，在已登入的正式 OPS 分頁 console 執行，只做一次 `get()`。雲端環境沒有使用者已登入的 Chrome，這一步改由使用者匯出備份讓你比對，或在有登入 Chrome 的電腦上做。

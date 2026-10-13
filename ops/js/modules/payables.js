@@ -537,6 +537,8 @@ function openAddPayableModal() {
   const typeEl = document.getElementById('ap-add-payment-type'); if (typeEl) typeEl.value = 'vendor';
   const profitPersonEl = document.getElementById('ap-add-profit-person'); if (profitPersonEl) profitPersonEl.value = 'peng';
   fillActiveUserNameSelect('ap-add-person', currentUser.name);
+  // 清掉上一次開窗留下的分潤個案勾選，避免已結算個案被帶進新的分潤款。
+  const profitCaseList = document.getElementById('ap-profit-case-list'); if (profitCaseList) profitCaseList.innerHTML = '';
   apTogglePaymentType([]);
   // 重設 radio
   ['rg-ap-inv','rg-ap-rec'].forEach(gid => {
@@ -668,6 +670,7 @@ function apTogglePaymentType(selectedCodes = null) {
       if (!profitCases.length) list.innerHTML = '<span style="padding:6px;color:var(--text3);font-size:12px">目前沒有可關聯的未結案分潤個案</span>';
     }
   }
+  apSyncProfitVendor();
 }
 
 function apUpdateAmortizationPreview() {
@@ -881,7 +884,7 @@ function submitAddPayable() {
   const caseVal = caseEl.value;
   const vendorRaw = document.getElementById('ap-add-vendor').value.trim();
   // datalist 格式是 "CODE - 廠商名稱"，取後面的名稱；若直接打名字也直接用
-  const vendor  = vendorRaw.includes(' - ') ? vendorRaw.split(' - ').slice(1).join(' - ') : vendorRaw;
+  let vendor    = vendorRaw.includes(' - ') ? vendorRaw.split(' - ').slice(1).join(' - ') : vendorRaw;
   const amount  = document.getElementById('ap-add-amount').value.trim();
   const summary = document.getElementById('ap-add-summary').value.trim();
   const note    = document.getElementById('ap-add-note').value.trim();
@@ -902,6 +905,8 @@ function submitAddPayable() {
   const shouldKeepCase = payableCaseTypes.includes(paymentType);
   const profitPerson = isProfitType ? (document.getElementById('ap-add-profit-person')?.value || '') : '';
   const profitCaseCodes = isProfitType ? [...document.querySelectorAll('#ap-profit-case-list input:checked')].map(x => x.value) : [];
+  // 分潤款的受款人就是分潤領款人，不使用廠商主檔。
+  if (isProfitType && profitPerson) vendor = psPersonName(profitPerson);
   const invoice = document.querySelector('#rg-ap-inv .radio-opt.selected')?.textContent.trim() || '有';
   const receipt = document.querySelector('#rg-ap-rec .radio-opt.selected')?.textContent.trim() || '有';
   const person  = document.getElementById('ap-add-person').value;
@@ -913,6 +918,7 @@ function submitAddPayable() {
   if (paymentType === 'prepaid_expense' && !/^\d{4}-\d{2}$/.test(amortizationStartMonth)) { showToast('請選擇攤提開始月份', 'error'); return; }
   if (paymentType === 'prepaid_expense' && (!Number.isInteger(amortizationMonths) || amortizationMonths < 1 || amortizationMonths > 120)) { showToast('攤提期數請填 1～120 個月', 'error'); return; }
   const editPayable = editId ? PAYABLES.find(x => x.id === parseInt(editId)) : null;
+  if (!apConfirmSettledOnlyProfitCases(paymentType, profitCaseCodes, editPayable)) return;
   if (paymentType === 'overhead_link' && !`${vendor} ${summary}`.includes('房租') && !editPayable?.overheadItem) {
     showToast('「固定開銷付款連結」目前僅限公司房租，摘要請明確填寫房租', 'error'); return;
   }
@@ -981,4 +987,37 @@ function submitAddPayable() {
     saveData();
     showToast('已新增應付帳款 ✓', 'success');
   }
+}
+
+// ── Post-split additions (not part of the verbatim move) ──
+
+// 分潤預領／工程獎金／分潤結清款：受款人一律等於「分潤領款人」，由系統帶入且不可手改。
+// 廠商主檔裡的同名廠商（例如設計製圖）是另一種身分，不和分潤領款人連動。
+function apSyncProfitVendor() {
+  const vendorEl = document.getElementById('ap-add-vendor');
+  if (!vendorEl) return;
+  const type = document.getElementById('ap-add-payment-type')?.value || 'vendor';
+  if (isProfitPaymentType(type)) {
+    const person = document.getElementById('ap-add-profit-person')?.value || '';
+    vendorEl.value = person ? psPersonName(person) : '';
+    vendorEl.readOnly = true;
+    vendorEl.dataset.profitAuto = '1';
+    vendorEl.title = '分潤款的受款人由「分潤領款人」自動帶入';
+  } else if (vendorEl.dataset.profitAuto) {
+    delete vendorEl.dataset.profitAuto;
+    vendorEl.readOnly = false;
+    vendorEl.value = '';
+    vendorEl.title = '再次點擊可清除並重新選擇';
+  }
+}
+
+// 分潤預領／工程獎金只關聯到已結算個案時，淨利潤儀表不會把它從本次未結算分潤扣除，存檔前先提醒。
+function apConfirmSettledOnlyProfitCases(paymentType, codes, editPayable) {
+  if (paymentType !== 'profit_advance' && paymentType !== 'engineering_bonus') return true;
+  if (!codes.length) return true;
+  const key = list => (list || []).slice().sort().join('|');
+  if (editPayable && key(editPayable.profitCaseCodes) === key(codes)) return true;
+  if (!codes.every(code => CASES.find(c => c.code === code)?.psSettled)) return true;
+  const names = codes.map(code => CASES.find(c => c.code === code)?.name || code).join('、');
+  return confirm(`勾選的關聯個案都已完成分潤結算：${names}\n\n這筆款項不會從目前未結算的分潤中扣除。確定要這樣存檔嗎？`);
 }

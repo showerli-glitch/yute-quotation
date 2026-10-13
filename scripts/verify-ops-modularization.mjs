@@ -193,8 +193,9 @@ const POST_SPLIT_CHANGES = {
     appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
   },
   'ops/js/modules/payables.js': {
-    reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort)',
-    changed: ['openAddPayableModal', 'openEditPayableModal'],
+    reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort); profit payee follows 分潤領款人, stale profit-case checkboxes cleared, settled-only profit cases confirmed (claude/case-settings)',
+    changed: ['openAddPayableModal', 'openEditPayableModal', 'apTogglePaymentType', 'submitAddPayable'],
+    appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
   },
   'ops/js/core/data.js': {
     reason: 'pay-request applicant stored as name also counts as own row (claude/payreq-applicant-fix); login button enabled after load, payroll tombstone migration (snapshot + cloud merge) and prNextId derivation (claude/fix-known-issues)',

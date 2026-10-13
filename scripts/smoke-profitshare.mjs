@@ -105,6 +105,45 @@ await page.evaluate(() => psRunSettlement());
 const final = await page.evaluate(() => PROFIT_SETTLEMENTS[PROFIT_SETTLEMENTS.length - 1]);
 check('重新結算成功（供重新載入驗證）', final.cases.some(c => c.code === QA) && (await lastToast(page)).startsWith('結算完成'));
 
+// 手動新增分潤款（claude/case-settings）：受款人跟著分潤領款人、不殘留上一筆的個案勾選、只關聯已結算個案要確認
+const genId = final.generatedPayableIds[0];
+const stale = await page.evaluate(({ genId, QA }) => {
+  openEditPayableModal(genId); closeModal('modal-add-payable');
+  openAddPayableModal();
+  document.getElementById('ap-add-payment-type').value = 'profit_advance'; apTogglePaymentType();
+  const boxes = [...document.querySelectorAll('#ap-profit-case-list input')];
+  return { checked: boxes.filter(b => b.checked).map(b => b.value), listsQA: boxes.some(b => b.value === QA) };
+}, { genId, QA });
+check('新增分潤款不殘留上一筆（已結算）的個案勾選', stale.checked.length === 0 && !stale.listsQA, stale);
+const payee = await page.evaluate(() => {
+  const v = document.getElementById('ap-add-vendor'), pp = document.getElementById('ap-add-profit-person');
+  const out = { first: [pp.value, v.value, v.readOnly, psPersonName(pp.value)] };
+  pp.value = 'lien'; pp.dispatchEvent(new Event('change'));
+  out.changed = [v.value, v.readOnly];
+  v.dispatchEvent(new MouseEvent('mousedown'));
+  out.afterClick = v.value;
+  document.getElementById('ap-add-payment-type').value = 'vendor'; apTogglePaymentType();
+  out.backToVendor = [v.value, v.readOnly];
+  return out;
+});
+check('受款廠商自動帶入分潤領款人、不可手改；改回一般廠商款即清空可輸入', payee.first[0] === 'peng' && payee.first[1] === payee.first[3] && payee.first[1] === '彭俞豪' && payee.first[2] === true && payee.changed[0] === '連星羽' && payee.changed[1] === true && payee.afterClick === '連星羽' && payee.backToVendor[0] === '' && payee.backToVendor[1] === false, payee);
+const nPay = await page.evaluate(() => PAYABLES.length);
+const fillSettledOnly = () => page.evaluate(QA => {
+  document.getElementById('ap-add-payment-type').value = 'profit_advance'; apTogglePaymentType();
+  const pp = document.getElementById('ap-add-profit-person'); pp.value = 'peng'; pp.dispatchEvent(new Event('change'));
+  apTogglePaymentType([QA]);
+  document.getElementById('ap-add-amount').value = '12,345';
+  document.getElementById('ap-add-summary').value = 'QA 分潤預領（只關聯已結算個案）';
+}, QA);
+await fillSettledOnly();
+confirmAnswer = false;
+await page.evaluate(() => submitAddPayable());
+check('只關聯已結算個案的分潤預領：按取消不存檔', (await page.evaluate(() => PAYABLES.length)) === nPay);
+confirmAnswer = true;
+await page.evaluate(() => submitAddPayable());
+const adv = await page.evaluate(() => { const p = PAYABLES[PAYABLES.length - 1]; return { vendor: p.vendor, person: p.profitPerson, type: p.paymentType, codes: p.profitCaseCodes, amount: p.amount, inBatch: psProfitPayoutBelongsToCurrentBatch({ ...p, status: 'paid' }) }; });
+check('確認後才存檔；受款廠商＝領款人姓名、不列入本次未結算扣款', (await page.evaluate(() => PAYABLES.length)) === nPay + 1 && adv.vendor === '彭俞豪' && adv.person === 'peng' && adv.type === 'profit_advance' && JSON.stringify(adv.codes) === JSON.stringify([QA]) && adv.amount === 12345 && adv.inBatch === false, adv);
+
 // collapse preferences
 const c0 = await page.evaluate(() => [psPayoutSettledCollapsed, psOhFutureCollapsed]);
 await page.evaluate(() => { psTogglePayoutSettled(); psToggleOhFuture(); });
@@ -147,7 +186,7 @@ page = await openApp(ctx);
 const fresh = await page.evaluate(code => ({ settled: PROFIT_SETTLEMENTS.some(s => (s.cases || []).some(c => c.code === code)), caseStatus: CASES.find(c => c.code === code)?.status }), QA);
 check('全新瀏覽器（只讀雲端）看得到結算與結案狀態', fresh.settled && fresh.caseStatus === '結案', fresh);
 const after = await counts(page);
-check('集合變化只有測試資料與結算款', after.CASES === before.CASES + 1 && after.RECEIVABLES === before.RECEIVABLES + 1 && after.EXPENSES === before.EXPENSES + 1 && after.PAYABLES === before.PAYABLES + 1 + exGen.length && ['CLIENTS', 'VENDORS', 'PAYROLL'].every(k => after[k] === before[k]), { before, after, generated: exGen.length });
+check('集合變化只有測試資料與結算款', after.CASES === before.CASES + 1 && after.RECEIVABLES === before.RECEIVABLES + 1 && after.EXPENSES === before.EXPENSES + 1 && after.PAYABLES === before.PAYABLES + 2 + exGen.length && ['CLIENTS', 'VENDORS', 'PAYROLL'].every(k => after[k] === before[k]), { before, after, generated: exGen.length, manualAdvance: 1 });
 await ctx.close();
 
 const fails = await H.finish(outJson, { finalCloudData: JSON.parse(JSON.stringify(H.state.cloud?.data || {})) });
