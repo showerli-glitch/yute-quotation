@@ -210,19 +210,49 @@ const POST_SPLIT_CHANGES = {
     literalChanges: [['const OPS_AUTH_SESSION_HOURS = 4;', 'const OPS_AUTH_SESSION_HOURS = 8;']],
   },
   'ops/js/modules/payables.js': {
-    reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort); payable attachments button (claude/pwa-polish); profit payee follows 分潤領款人, stale profit-case checkboxes cleared, settled-only profit cases confirmed (claude/case-settings)',
-    changed: ['openAddPayableModal', 'openEditPayableModal', 'renderPayable', 'apTogglePaymentType', 'submitAddPayable'],
+    reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort); payable attachments button (claude/pwa-polish); profit payee follows 分潤領款人, stale profit-case checkboxes cleared, settled-only profit cases confirmed, duplicate-entry warnings and delete audit (claude/case-settings)',
+    changed: ['openAddPayableModal', 'openEditPayableModal', 'renderPayable', 'apTogglePaymentType', 'submitAddPayable', 'deletePayableConfirm'],
     appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
   },
   'ops/js/modules/expenses.js': {
-    reason: 'expense row action shows a 單據 (attachments) button (claude/pwa-nodes)',
-    changed: ['expenseRowActions'],
+    reason: 'expense row action shows a 單據 (attachments) button (claude/pwa-nodes); duplicate-entry warnings and delete audit (claude/case-settings)',
+    changed: ['expenseRowActions', 'submitBatchExpense', 'deleteExpense'],
   },
   'ops/js/modules/payreq.js': {
-    reason: 'own rejected pay request editable by name; edit modal re-enables save (claude/payreq-applicant-fix)',
-    changed: ['openEditPayreqModal', 'renderPayreq'],
+    reason: 'own rejected pay request editable by name; edit modal re-enables save (claude/payreq-applicant-fix); duplicate-entry warnings and delete audit (claude/case-settings)',
+    changed: ['openEditPayreqModal', 'renderPayreq', 'submitPayReq'],
+  },
+  'ops/js/core/ui.js': {
+    reason: 'shared duplicate-entry warnings and delete-audit helper (claude/case-settings)',
+    changed: [],
+    appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
+  },
+  'ops/js/modules/receivables.js': {
+    reason: 'duplicate-entry warnings and delete audit (claude/case-settings)',
+    changed: ['submitAddReceivable', 'deleteReceivableConfirm'],
+  },
+  'ops/js/modules/tax.js': {
+    reason: 'delete audit (claude/case-settings)',
+    changed: ['taxDeleteLiability'],
+  },
+  'ops/js/modules/overhead.js': {
+    reason: 'delete audit (claude/case-settings)',
+    changed: ['ohDeleteVar'],
+  },
+  'ops/js/modules/attendance.js': {
+    reason: 'delete audit (claude/case-settings)',
+    changed: ['attDeleteLeave'],
+  },
+  'ops/js/modules/profitshare.js': {
+    reason: '淨利率 column in the case net-profit tables (claude/case-settings)',
+    changed: ['psComputeData', 'renderProfitShare'],
+    appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
   },
 };
+
+// A function recorded in POST_SPLIT_CHANGES is checked by verifyExactFile (masked there); the earlier
+// batches' "must not change" guards skip it instead of comparing it to their old baseline.
+const POST_SPLIT_CHANGED_NAMES = new Set(Object.values(POST_SPLIT_CHANGES).flatMap(c => c.changed));
 
 function maskChangedFunctions(source, names) {
   let out = source;
@@ -343,7 +373,8 @@ for (const src of scripts) {
     currentList.forEach((item, index) => {
       const original = overheadExpectedList[index];
       compared += 1;
-      if (!original || item.name !== original.name || item.source !== original.source) fail(`${src} 第 ${index + 1} 個函式 ${item.name} 並非依序逐字搬移`);
+      const sourceChangedOnPurpose = (POST_SPLIT_CHANGES['ops/js/modules/overhead.js']?.changed || []).includes(item.name);
+      if (!original || item.name !== original.name || (item.source !== original.source && !sourceChangedOnPurpose)) fail(`${src} 第 ${index + 1} 個函式 ${item.name} 並非依序逐字搬移`);
     });
     continue;
   }
@@ -531,6 +562,7 @@ if (!fneSlices.feedback[0].startsWith('function tfStatusColor(') || !fneSlices.s
 const fneBaselineAllFunctions = new Map(extractFunctions(fneBaselineHtml).map(item => [item.name, item.source]));
 // prRenderEmployeeTabs moved into payroll.js in the payroll batch; its byte-for-byte check lives there now.
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'psOpenProfitParticipantModal']) {
+  if (POST_SPLIT_CHANGED_NAMES.has(name)) continue;
   const current = currentSourceOf(name);
   if (!current || current !== fneBaselineAllFunctions.get(name)) fail(`回報／筆記／員工批次不應改動 ${name}`);
 }
@@ -546,6 +578,7 @@ if (expectedPayrollFunctionCount !== 35) fail(`payroll.js 預期 35 個函式，
 if (!payrollBlock.includes('// PAYROLL DATA') || !payrollBlock.includes('const PR_CONFIG = {') || !/\nfunction printPayslip\(\) \{/.test(payrollBlock)) fail('薪資基準區塊起訖行不正確');
 const payrollBaselineAllFunctions = new Map(extractFunctions(payrollBaselineHtml).map(item => [item.name, item.source]));
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'applyDefaultPeriodForPage', 'psPayrollBreakdown', 'psPayrollSum']) {
+  if (POST_SPLIT_CHANGED_NAMES.has(name)) continue;
   const current = currentSourceOf(name);
   if (!current || current !== payrollBaselineAllFunctions.get(name)) fail(`薪資批次不應改動 ${name}`);
 }
@@ -561,6 +594,7 @@ if (overheadBaselineList.length !== 24 || overheadBaselineList.filter(item => it
 if (!overheadBlock.includes('// OVERHEAD DATA') || !overheadBlock.includes('const OH_FIXED_ITEMS = [') || !/\nfunction openAddOverheadModal\(\) \{/.test(overheadBlock)) fail('公司開銷基準區塊起訖行不正確');
 const overheadBaselineAllFunctions = new Map(extractFunctions(overheadBaselineHtml).map(item => [item.name, item.source]));
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'applyDefaultPeriodForPage', 'psComputeData', 'psPayrollSum']) {
+  if (POST_SPLIT_CHANGED_NAMES.has(name)) continue;
   const current = currentSourceOf(name);
   if (!current || current !== overheadBaselineAllFunctions.get(name)) fail(`公司開銷批次不應改動 ${name}`);
 }
@@ -580,6 +614,7 @@ if (!profitBaselineHtml.split(/(?<=\n)/)[4409].startsWith('<script>') || !profit
 }
 const profitBaselineAllFunctions = new Map(extractFunctions(profitBaselineHtml).map(item => [item.name, item.source]));
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'psComputeData']) {
+  if (POST_SPLIT_CHANGED_NAMES.has(name)) continue;
   const current = currentSourceOf(name);
   if (!current || current !== profitBaselineAllFunctions.get(name)) fail(`淨利潤批次不應改動 ${name}`);
 }
@@ -595,6 +630,7 @@ if (expectedTaxFunctionCount !== 12) fail(`tax.js 預期 12 個函式，實際�
 if (!taxBlock.includes('// TAX MANAGEMENT') || !/\nfunction renderTaxManagement\(\) \{/.test(taxBlock)) fail('稅務基準區塊起訖行不正確');
 const taxBaselineAllFunctions = new Map(extractFunctions(taxBaselineHtml).map(item => [item.name, item.source]));
 for (const name of ['navTo', 'renderCurrentPage', 'applyRole', 'refreshAccountingLinkedViews', 'psComputeData']) {
+  if (POST_SPLIT_CHANGED_NAMES.has(name)) continue;
   const current = currentSourceOf(name);
   if (!current || current !== taxBaselineAllFunctions.get(name)) fail(`稅務批次不應改動 ${name}`);
 }

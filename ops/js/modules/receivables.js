@@ -438,6 +438,7 @@ function deleteReceivableConfirm(id) {
   const affectedCase = r.case;
   rememberDeletedSourceKey(r.sourceKey);
   RECEIVABLES = RECEIVABLES.filter(x => x.id !== id);
+  auditDeletedRow('receivable', r, `${r.caseName || r.case || ''}／${r.buyer || '付款方未填'}／${r.item || '收款項目未填'}`);
   refreshAccountingLinkedViews(affectedCase);
   saveData();
   showToast('已刪除 ✓', 'warning');
@@ -472,8 +473,11 @@ function submitAddReceivable() {
       const before = auditClone(r);
       affectedCase = caseVal || r.case || '';
       const caseName = caseVal ? (caseEl.selectedOptions[0].text.split(' ').slice(1).join(' ')) : r.caseName;
-      const duplicateAmt = receivableAmt || collectAmt || invoiceAmt || contractAmt;
-      if (!confirmDuplicateReceivable({ caseCode:(caseVal || r.case), amount:duplicateAmt, excludeId:r.id })) return;
+      const dupEntry = { case:(caseVal || r.case), client:(clientCode || r.client || ''), buyer:document.getElementById('rv-add-buyer').value.trim(),
+        receivableAmt, collectAmt, invoiceAmt, invoiceNo:document.getElementById('rv-add-invoice-no').value.trim() };
+      // 編輯時只有個案、客戶、金額或發票號碼有變動才重新檢查，避免每次存檔都跳同一個提醒。
+      const dupKey = e => [e.case, e.client, dupPartyName(e.buyer), ...dupAmounts(e.receivableAmt, e.collectAmt, e.invoiceAmt), String(e.invoiceNo || '').trim()].join('|');
+      if (dupKey(dupEntry) !== dupKey(r) && !confirmDuplicateReceivableEntry(dupEntry, r.id)) return;
       Object.assign(r, {
         case:        caseVal || r.case,
         caseName,
@@ -514,7 +518,8 @@ function submitAddReceivable() {
     // 新增模式
     if (!caseVal) { showToast('請選擇個案名稱', 'error'); return; }
     if (!item)    { showToast('請填寫項目', 'error'); return; }
-    if (!confirmDuplicateReceivable({ caseCode:caseVal, amount:(receivableAmt || collectAmt || invoiceAmt || contractAmt) })) return;
+    if (!confirmDuplicateReceivableEntry({ case:caseVal, client:clientCode, buyer:document.getElementById('rv-add-buyer').value.trim(),
+      receivableAmt, collectAmt, invoiceAmt, invoiceNo:document.getElementById('rv-add-invoice-no').value.trim() })) return;
     const caseName = caseEl.selectedOptions[0].text.split(' ').slice(1).join(' ');
     const row = {
       id: rvNextId++, case: caseVal, caseName,

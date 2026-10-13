@@ -653,7 +653,9 @@ function attDeleteRecord(id) {
 function attDeleteLeave(id) {
   if (!attCanManage()) { showToast('只有出勤管理者可刪除', 'error'); return; }
   if (!confirm('確定刪除此請假紀錄？')) return;
+  const removed = ATTENDANCE_LEAVES.find(r => r.id === id);
   ATTENDANCE_LEAVES = ATTENDANCE_LEAVES.filter(r => r.id !== id);
+  if (removed) auditDeletedRow('attendanceLeave', removed, `${removed.date || removed.startDate || ''} ${removed.person || ''}`);
   if (Number(attLeaveEditId) === Number(id)) attSetLeaveEditMode(null);
   saveData();
   renderAttendance();

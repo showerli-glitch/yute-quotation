@@ -96,6 +96,7 @@ function taxDeleteLiability(id) {
   const row = TAX_LIABILITIES.find(r => String(r.id) === String(id));
   if (!row || !confirm(`確定刪除「${row.taxType} ${row.period} ${taxMoney(row.amount)}」？`)) return;
   TAX_LIABILITIES.splice(TAX_LIABILITIES.indexOf(row), 1);
+  auditDeletedRow('taxLiability', row, `${row.taxType || ''} ${row.period || ''}`);
   TAX_EDIT_ID = null;
   saveData();
   renderTaxManagement();

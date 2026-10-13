@@ -519,6 +519,7 @@ function deleteExpense(id) {
   if (!confirm(`確定刪除這筆費用？\n${r.caseName || ''}｜${r.item || ''}｜$${(r.amount || 0).toLocaleString('zh-TW')}`)) return;
   expRemoveLinkedOverhead(r);
   EXPENSES.splice(idx, 1);
+  auditDeletedRow('expense', r, `${r.personName || r.person || ''}／${r.caseName || r.caseKey || ''}／${r.item || ''}`);
   renderExpense(); renderOverhead(); renderProfit(); renderProfitShare();
   saveData();
   showToast('費用已刪除','success');
@@ -910,6 +911,9 @@ function submitBatchExpense() {
     const r = EXPENSES.find(x => x.id === expBatchEditId);
     if (r) {
       const row = pendingRows[0];
+      // 編輯時只有個案或金額有變動才重新檢查重複。
+      const dupChanged = r.caseKey !== row.caseKey || Math.round(Number(r.amount) || 0) !== Math.round(Number(row.amount) || 0);
+      if (dupChanged && !confirmDuplicateExpenseEntries([{ ...row, person: r.person }], r.id)) return;
       expRemoveLinkedOverhead(r);
       Object.assign(r, {
         month: row.month,
@@ -930,6 +934,7 @@ function submitBatchExpense() {
     showToast('費用已更新 ✓','success');
     return;
   }
+  if (!confirmDuplicateExpenseEntries(pendingRows)) return;
   pendingRows.forEach(row => {
     const saved = { id: expNextId++, ...row };
     EXPENSES.push(saved);

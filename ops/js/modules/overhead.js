@@ -427,7 +427,9 @@ function ohPromptAddMonth() {
 function ohDeleteVar(month, id) {
   if (!requireManage('overhead')) return;
   if (!OVERHEAD[month]) return;
+  const removed = (OVERHEAD[month].variable || []).find(v => v.id === id);
   OVERHEAD[month].variable = OVERHEAD[month].variable.filter(v=>v.id!==id);
+  if (removed) auditDeletedRow('overheadVariable', { month, ...removed }, `${month}／${removed.name || removed.item || ''}`);
   renderOverhead();
   saveData();
   showToast('已刪除','success');

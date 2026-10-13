@@ -163,6 +163,11 @@ function submitPayReq() {
       showToast('已有一筆完全相同的待審核請款，本次未重複新增', 'error');
       return;
     }
+    if (!confirmDuplicatePayableEntry(data, null, '廠商請款')) return;
+  } else {
+    const editing = PAYABLES.find(x => Number(x.id) === Number(payreqEditId));
+    const dupChanged = !editing || (editing.case || '') !== data.case || dupPartyName(editing.vendor) !== dupPartyName(data.vendor) || Math.round(Number(editing.amount) || 0) !== data.amount;
+    if (dupChanged && !confirmDuplicatePayableEntry(data, editing?.id ?? null, '廠商請款')) return;
   }
   payreqSubmitting = true;
   const submitBtn = document.getElementById('pr-submit-btn');

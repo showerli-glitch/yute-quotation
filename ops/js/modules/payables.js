@@ -759,10 +759,14 @@ function deletePayableConfirm(id) {
   if (p.systemLocked) { showToast('系統結算款不可單獨刪除，請由分潤關係表撤銷結算','error'); return; }
   if (!confirm(`確定刪除「${p.vendor}」$${p.amount.toLocaleString('zh-TW')} 這筆應付帳款？`)) return;
   const affectedCase = p.case;
+  const linkedReceivables = RECEIVABLES.filter(r => r.sourcePayableId === id || r.sourceKey === `payable:${id}`);
+  const linkedTax = TAX_LIABILITIES.filter(r => String(r.sourcePayableId) === String(id));
   rememberDeletedSourceKey(p.sourceKey);
   PAYABLES = PAYABLES.filter(x => x.id !== id);
   RECEIVABLES = RECEIVABLES.filter(r => r.sourcePayableId !== id && r.sourceKey !== `payable:${id}`);
   TAX_LIABILITIES = TAX_LIABILITIES.filter(r => String(r.sourcePayableId) !== String(id));
+  auditDeletedRow('payable', p, `${p.caseName || p.case || '未指定個案'}／${p.vendor || '未填廠商'}／${p.summary || ''}`,
+    { reason: linkedReceivables.length || linkedTax.length ? `使用者刪除；連帶移除應收 ${linkedReceivables.length} 筆、稅務 ${linkedTax.length} 筆` : '使用者刪除' });
   pyRebuildRentOverhead();
   refreshAccountingLinkedViews(affectedCase);
   saveData();
@@ -952,7 +956,8 @@ function submitAddPayable() {
         showToast(payResult.partial ? `已記錄分段付款，待付餘額 $${Math.round(payResult.remaining).toLocaleString('zh-TW')}` : '已更新結算款付款資訊 ✓', 'success');
         return;
       } else {
-        if (shouldKeepCase && caseVal && !isNaN(amtNum) && !confirmDuplicatePayable({ caseCode:caseVal, amount:amtNum, excludeId:p.id })) return;
+        const dupChanged = (p.case || '') !== caseVal || dupPartyName(p.vendor) !== dupPartyName(vendor) || Math.round(Number(p.amount) || 0) !== amtNum;
+        if (shouldKeepCase && caseVal && !isNaN(amtNum) && dupChanged && !confirmDuplicatePayableEntry({ case:caseVal, vendor, amount:amtNum }, p.id)) return;
         Object.assign(p, { case:shouldKeepCase?caseVal:'', caseName:shouldKeepCase?caseName:'', vendor, summary, note, paymentType, profitPerson, profitCaseCodes,
           overheadItem, amortizationStartMonth, amortizationMonths,
           amount:isNaN(amtNum)?p.amount:amtNum, wantDate:date, bank, transferDate, doneDate, ticket,
@@ -973,7 +978,7 @@ function submitAddPayable() {
     if (paymentType === 'family_pass_through' && !caseVal) { showToast('親友成本轉付請選擇親友個案', 'error'); return; }
     if (paymentType === 'private_loan' && !caseVal) { showToast('私人借支請選擇「私人借支」個案', 'error'); return; }
     if (paymentType === 'vendor' && isClosedCase(caseVal)) { showToast('已結案個案不可新增應付帳款', 'error'); return; }
-    if (shouldKeepCase && caseVal && !isNaN(amtNum) && !confirmDuplicatePayable({ caseCode:caseVal, amount:amtNum })) return;
+    if (shouldKeepCase && caseVal && !isNaN(amtNum) && !confirmDuplicatePayableEntry({ case:caseVal, vendor, amount:amtNum })) return;
     const row = { id:pyNextId++, case:shouldKeepCase?caseVal:'', caseName:shouldKeepCase?caseName:'', vendor, summary,
       amount:isNaN(amtNum)?0:amtNum, wantDate:date, bank,
       transferDate:transferDate || (status==='paid'?date:''), doneDate:doneDate || (status==='paid'?date:''), ticket, invoice, receipt, person,

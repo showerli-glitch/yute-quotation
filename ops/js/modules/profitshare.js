@@ -439,7 +439,7 @@ function psComputeData() {
     const fixedOverheadShare = isIncrementalRound ? 0 : c.fixedOverheadShare;
     const taxReserveOverride = isIncrementalRound ? undefined : c.taxReserveOverride;
     return {
-      code:c.code, name:c.name, gross, calculatedGross, invoiceTotal, ratios:psGetSplitRatio(c),
+      code:c.code, name:c.name, gross, calculatedGross, invoiceTotal, revenue, ratios:psGetSplitRatio(c),
       fixedOverheadShare, taxReserveOverride, isIncrementalRound,
       reconciliationNote:c.reconciliationNote || ''
     };
@@ -704,7 +704,8 @@ function renderProfitShare() {
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${fmt(c.invoiceTotal)}</td>
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--error)">${fmt(c.taxReserve)}</td>
         <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--success)">${fmt(c.caseNet)}</td>
-      </tr>`).join('') || `<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text3);font-size:12px">本次結算範圍內沒有您參與分潤的個案</td></tr>`;
+        ${psNetMarginCell(c.caseNet, c.revenue)}
+      </tr>`).join('') || `<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text3);font-size:12px">本次結算範圍內沒有您參與分潤的個案</td></tr>`;
     const myCaseTable = `
       <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px">
         <div style="padding:10px 14px;background:var(--surface2);font-size:13px;font-weight:600">個案淨利明細（本次結算範圍）</div>
@@ -719,6 +720,7 @@ function renderProfitShare() {
             <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">總銷售額(發票)</th>
             <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">預留營業所得稅</th>
             <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">稅後個案淨利</th>
+            <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)" title="稅後個案淨利 ÷ 本次收入（已入帳金額）">淨利率</th>
           </tr></thead>
           <tbody>${myCaseRowsHtml}</tbody>
         </table>
@@ -858,7 +860,8 @@ function renderProfitShare() {
       <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${fmt(c.invoiceTotal)}</td>
       <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--error)">${fmt(c.taxReserve)}</td>
       <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--success)">${fmt(c.caseNet)}</td>
-    </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text3);font-size:12px">沒有可顯示的個案</td></tr>`;
+      ${psNetMarginCell(c.caseNet, c.revenue)}
+    </tr>`).join('') || `<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text3);font-size:12px">沒有可顯示的個案</td></tr>`;
 
   const thisMonthKey = localDateKey().slice(0,7);
   const renderOhSideRow = m => `
@@ -910,6 +913,7 @@ function renderProfitShare() {
             <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">總銷售額(發票)</th>
             <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">預留營業所得稅</th>
             <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)">稅後個案淨利</th>
+            <th style="padding:8px 14px;text-align:right;font-size:11px;color:var(--text3)" title="稅後個案淨利 ÷ 本次收入（已入帳金額）">淨利率</th>
           </tr></thead>
           <tbody>${caseRowsHtml}</tbody>
           <tfoot><tr style="border-top:1px solid var(--border2);font-weight:700">
@@ -921,6 +925,7 @@ function renderProfitShare() {
             <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${fmt(grandInvoice)}</td>
             <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--error)">${fmt(grandTax)}</td>
             <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--success)">${fmt(grandNet)}</td>
+            ${psNetMarginCell(grandNet, caseRows.reduce((s,c) => s + (c.revenue || 0), 0))}
           </tr></tfoot>
         </table>
       </div>
@@ -1004,6 +1009,16 @@ function renderProfitShare() {
     ${payoutTable}
     ${historyHtml}
     <div style="margin-top:10px;font-size:11px;color:var(--text3)">
-      ※ 開銷佔比＝正毛利個案毛利／正毛利合計；預留營業所得稅總額＝納入個案總銷售額×稅率，再依正毛利占比分攤；毛利為負的個案不分攤公司開銷與預留稅，金額直接為 0。稅前個案淨利＝毛利＋開銷；稅後個案淨利＝稅前個案淨利－預留營業所得稅；人員分潤／承擔＝Σ(稅後個案淨利×該人於該案的分潤比例)，負數代表該分潤人按比例承擔或由後續分潤抵扣。
+      ※ 開銷佔比＝正毛利個案毛利／正毛利合計；預留營業所得稅總額＝納入個案總銷售額×稅率，再依正毛利占比分攤；毛利為負的個案不分攤公司開銷與預留稅，金額直接為 0。稅前個案淨利＝毛利＋開銷；稅後個案淨利＝稅前個案淨利－預留營業所得稅；淨利率＝稅後個案淨利÷本次收入（本次結算範圍內的已入帳金額，已結算個案只算結算後新入帳的部分）；人員分潤／承擔＝Σ(稅後個案淨利×該人於該案的分潤比例)，負數代表該分潤人按比例承擔或由後續分潤抵扣。
     </div>`;
+}
+
+// ── Post-split additions (not part of the verbatim move) ──
+
+// 淨利率＝稅後個案淨利 ÷ 本次收入（已入帳金額）；沒有收入時顯示「—」。
+function psNetMarginCell(net, revenue) {
+  const rate = revenue > 0 ? net / revenue : null;
+  const text = rate === null ? '—' : (rate * 100).toFixed(1) + '%';
+  const color = rate === null ? 'var(--text3)' : rate < 0 ? 'var(--error)' : 'var(--success)';
+  return `<td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:${color}">${text}</td>`;
 }
