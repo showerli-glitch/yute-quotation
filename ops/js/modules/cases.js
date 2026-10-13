@@ -526,6 +526,8 @@ function openEditCase(caseCode) {
   document.getElementById('edit-case-no-overhead-amt-wrap').style.display = Number.isFinite(c.fixedOverheadShare) ? '' : 'none';
   document.getElementById('edit-case-retention-amt').value = c.retentionAmt ? c.retentionAmt.toLocaleString('zh-TW') : '';
   document.getElementById('edit-case-retention-due').value = c.retentionDue || '';
+  const marginEl = document.getElementById('edit-case-est-margin');
+  if (marginEl) marginEl.value = Number.isFinite(Number(c.estMarginPct)) && c.estMarginPct !== '' && c.estMarginPct != null ? c.estMarginPct : '';
   openModal('modal-edit-case');
 }
 function editCaseNoOverheadChange() {
@@ -545,6 +547,8 @@ function submitEditCase() {
   const person = document.getElementById('edit-case-person').value;
   const status = document.getElementById('edit-case-status').value;
   const pm     = document.getElementById('edit-case-profit-mode').value;
+  const marginRaw = (document.getElementById('edit-case-est-margin')?.value || '').trim();
+  if (marginRaw !== '' && !(Number(marginRaw) >= 0 && Number(marginRaw) < 100)) { showToast('預估毛利率請填 0～99', 'error'); return; }
   editCaseTarget.name   = name;
   editCaseTarget.amount = amount;
   editCaseTarget.person = person;
@@ -579,6 +583,8 @@ function submitEditCase() {
   if (retentionAmt > 0) editCaseTarget.retentionAmt = retentionAmt; else delete editCaseTarget.retentionAmt;
   const retentionDue = document.getElementById('edit-case-retention-due').value;
   if (retentionDue) editCaseTarget.retentionDue = retentionDue; else delete editCaseTarget.retentionDue;
+  if (marginRaw !== '') editCaseTarget.estMarginPct = Math.round(Number(marginRaw) * 10) / 10;
+  else delete editCaseTarget.estMarginPct;
   closeModal('modal-edit-case');
   renderCases();
   renderDashboard();

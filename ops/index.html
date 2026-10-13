@@ -14,9 +14,9 @@
 <link rel="icon" type="image/svg+xml" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.svg?v=202606221952">
 <link rel="icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.ico?v=202606221952" sizes="any">
 <link rel="icon" type="image/png" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221952">
-<link rel="stylesheet" href="styles/invoicerequest.css?v=c79458d8">
-<link rel="stylesheet" href="styles/mobile.css?v=c79458d8">
-<link rel="manifest" href="manifest.webmanifest?v=c79458d8">
+<link rel="stylesheet" href="styles/invoicerequest.css?v=043f2cd6">
+<link rel="stylesheet" href="styles/mobile.css?v=043f2cd6">
+<link rel="manifest" href="manifest.webmanifest?v=043f2cd6">
 <meta name="theme-color" content="#123D33">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1145,6 +1145,9 @@ body.auth-pending .auth-screen{display:flex}
     </div>
     <div class="nav-item" id="nav-tax" onclick="navTo('tax',this)">
       <span class="nav-icon">◇</span>稅務管理
+    </div>
+    <div class="nav-item" id="nav-cash" onclick="navTo('cash',this)" style="display:none">
+      <span class="nav-icon">◆</span>資金試算
     </div>
     <div class="nav-item" id="nav-payroll" onclick="navTo('payroll',this)">
       <span class="nav-icon">◑</span>薪資管理
@@ -2284,6 +2287,9 @@ body.auth-pending .auth-screen{display:flex}
   <div class="page" id="page-tax">
     <div style="padding:20px;overflow-y:auto;height:calc(100vh - 110px)" id="tax-container"></div>
   </div>
+  <div class="page" id="page-cash">
+    <div style="padding:20px;overflow-y:auto;height:calc(100vh - 110px)" id="cash-container"></div>
+  </div>
   <div class="page" id="page-contract">
     <div class="empty"><div class="empty-icon">📝</div>合約管理模組<br><span style="font-size:12px;margin-top:6px;display:block">開發中，即將上線</span></div>
   </div>
@@ -3309,6 +3315,11 @@ body.auth-pending .auth-screen{display:flex}
           </div>
         </div>
         <div class="form-field form-full" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+          <label class="form-label">預估毛利率</label>
+          <div style="display:flex;gap:6px;align-items:center"><input class="form-input" id="edit-case-est-margin" type="number" min="0" max="99" step="0.1" placeholder="例：30" style="width:100px">%</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">資金試算用：預估總成本＝合約金額×(1−預估毛利率)，用來估算進行中個案先收、還沒花掉的工程款。空白代表不估算。</div>
+        </div>
+        <div class="form-field form-full" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
           <label class="form-label">保固款／保留款</label>
           <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
             <div>
@@ -4265,11 +4276,11 @@ body.auth-pending .auth-screen{display:flex}
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<script src="js/core/types.js?v=c79458d8"></script>
-<script src="js/core/config.js?v=c79458d8"></script>
-<script src="js/core/data.js?v=c79458d8"></script>
-<script src="js/core/accounting.js?v=c79458d8"></script>
-<script src="js/core/ui.js?v=c79458d8"></script>
+<script src="js/core/types.js?v=043f2cd6"></script>
+<script src="js/core/config.js?v=043f2cd6"></script>
+<script src="js/core/data.js?v=043f2cd6"></script>
+<script src="js/core/accounting.js?v=043f2cd6"></script>
+<script src="js/core/ui.js?v=043f2cd6"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   loadData(); // 從 localStorage 還原資料
@@ -4748,27 +4759,28 @@ function payreqVendorPickerMouseDown(input) {
 
 
 </script>
-<script src="js/modules/payables.js?v=c79458d8"></script>
+<script src="js/modules/payables.js?v=043f2cd6"></script>
 <script>
 
 </script>
-<script src="js/modules/receivables.js?v=c79458d8"></script>
-<script src="js/modules/profit.js?v=c79458d8"></script>
-<script src="js/modules/expenses.js?v=c79458d8"></script>
-<script src="js/modules/cases.js?v=c79458d8"></script>
-<script src="js/modules/clients.js?v=c79458d8"></script>
-<script src="js/modules/vendors.js?v=c79458d8"></script>
-<script src="js/modules/attendance.js?v=c79458d8"></script>
-<script src="js/modules/payreq.js?v=c79458d8"></script>
-<script src="js/modules/feedback.js?v=c79458d8"></script>
-<script src="js/modules/systemnotes.js?v=c79458d8"></script>
-<script src="js/modules/employees.js?v=c79458d8"></script>
-<script src="js/modules/payroll.js?v=c79458d8"></script>
-<script src="js/modules/overhead.js?v=c79458d8"></script>
-<script src="js/modules/tax.js?v=c79458d8"></script>
-<script src="js/modules/profitshare.js?v=c79458d8"></script>
-<script src="js/modules/invoicerequest.js?v=c79458d8"></script>
-<script src="js/modules/receipts.js?v=c79458d8"></script>
-<script src="js/modules/mobile.js?v=c79458d8"></script>
+<script src="js/modules/receivables.js?v=043f2cd6"></script>
+<script src="js/modules/profit.js?v=043f2cd6"></script>
+<script src="js/modules/expenses.js?v=043f2cd6"></script>
+<script src="js/modules/cases.js?v=043f2cd6"></script>
+<script src="js/modules/clients.js?v=043f2cd6"></script>
+<script src="js/modules/vendors.js?v=043f2cd6"></script>
+<script src="js/modules/attendance.js?v=043f2cd6"></script>
+<script src="js/modules/payreq.js?v=043f2cd6"></script>
+<script src="js/modules/feedback.js?v=043f2cd6"></script>
+<script src="js/modules/systemnotes.js?v=043f2cd6"></script>
+<script src="js/modules/employees.js?v=043f2cd6"></script>
+<script src="js/modules/payroll.js?v=043f2cd6"></script>
+<script src="js/modules/overhead.js?v=043f2cd6"></script>
+<script src="js/modules/cash.js?v=043f2cd6"></script>
+<script src="js/modules/tax.js?v=043f2cd6"></script>
+<script src="js/modules/profitshare.js?v=043f2cd6"></script>
+<script src="js/modules/invoicerequest.js?v=043f2cd6"></script>
+<script src="js/modules/receipts.js?v=043f2cd6"></script>
+<script src="js/modules/mobile.js?v=043f2cd6"></script>
 </body>
 </html>

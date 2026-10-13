@@ -231,6 +231,10 @@ const POST_SPLIT_CHANGES = {
     reason: 'duplicate-entry warnings and delete audit (claude/case-settings)',
     changed: ['submitAddReceivable', 'deleteReceivableConfirm'],
   },
+  'ops/js/modules/cases.js': {
+    reason: '預估毛利率 field for the cash position module (claude/case-settings)',
+    changed: ['openEditCase', 'submitEditCase'],
+  },
   'ops/js/modules/tax.js': {
     reason: 'delete audit (claude/case-settings)',
     changed: ['taxDeleteLiability'],

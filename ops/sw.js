@@ -24,7 +24,7 @@ const SHELL = [
   'js/modules/payables.js', 'js/modules/receivables.js', 'js/modules/profit.js', 'js/modules/expenses.js',
   'js/modules/cases.js', 'js/modules/clients.js', 'js/modules/vendors.js', 'js/modules/attendance.js',
   'js/modules/payreq.js', 'js/modules/feedback.js', 'js/modules/systemnotes.js', 'js/modules/employees.js',
-  'js/modules/payroll.js', 'js/modules/overhead.js', 'js/modules/tax.js', 'js/modules/profitshare.js',
+  'js/modules/payroll.js', 'js/modules/overhead.js', 'js/modules/cash.js', 'js/modules/tax.js', 'js/modules/profitshare.js',
   'js/modules/invoicerequest.js',
   'js/modules/receipts.js',
   'js/modules/mobile.js',
