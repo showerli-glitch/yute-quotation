@@ -94,8 +94,8 @@ const CASH_DEFAULT_ITEMS = [
   { kind: 'account', name: '國泰世華 活存' },
   { kind: 'account', name: '國泰世華 支存' },
   { kind: 'loan',    name: '玉山借款' },
-  { kind: 'lease',   name: 'M340i 租金', payDay: 5, lastPayMonth: '2027-10' },
-  { kind: 'lease',   name: 'GOLF R 租金', payDay: 25, lastPayMonth: '2027-09' },
+  { kind: 'lease',   name: 'M340i 租金' },
+  { kind: 'lease',   name: 'GOLF R 租金' },
 ];
 
 function cashCanAccess() {
