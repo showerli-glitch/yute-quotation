@@ -170,7 +170,7 @@ function cashWipRows() {
   });
 }
 
-// ── 稅金：營業稅以今年各期「預留 − 已繳」為正的部分；營所稅用稅務管理的預估與已鎖定未繳 ──
+// ── 稅金：營業稅以今年還沒有繳納紀錄的各期預留；營所稅用稅務管理的預估與已鎖定未繳 ──
 function cashVatRows(today = cashToday()) {
   const year = today.slice(0, 4);
   const paidRows = TAX_LIABILITIES.filter(r => r.taxType === '營業稅' && r.status === 'paid');
@@ -180,7 +180,8 @@ function cashVatRows(today = cashToday()) {
     const reserve = invoices.reduce((s, r) => s + taxVatReserve(r.invoiceAmt), 0);
     const paid = paidRows.filter(r => String(r.period || '') === period).reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const due = `${m === 11 ? Number(year) + 1 : year}-${String(m === 11 ? 1 : m + 2).padStart(2, '0')}-15`;
-    return { period, reserve, paid, owed: Math.max(0, reserve - paid), overdueUnrecorded: !paid && reserve > 0 && due < today };
+    // 有繳納紀錄代表這期已申報結清（預留只是估計值），不再扣差額；沒有紀錄的整期預留都先扣。
+    return { period, reserve, paid, owed: paid > 0 ? 0 : reserve, overdueUnrecorded: !paid && reserve > 0 && due < today };
   }).filter(r => r.owed > 0.5);
 }
 

@@ -101,6 +101,17 @@ const safetyExp = await page.evaluate(() => {
 });
 check('安全水位＝3 個月×（最近 3 個完整月份公司開銷月均＋老闆每月 20 萬）', r1.r.months === 3 && r1.r.ownerDraw === 200000 && JSON.stringify(r1.r.overheadMonths) === JSON.stringify(safetyExp.months) && r1.r.safety === safetyExp.value, { r: r1.r, safetyExp });
 
+const vat = await page.evaluate(() => {
+  const before = cashVatRows().map(r => r.period);
+  RECEIVABLES.push({ id: rvNextId++, case: '', caseName: 'QA稅', item: 'QA發票', invoiceAmt: 105000, invoiceDate: '2026-09-10', receivableAmt: 105000, status: 'pending' });
+  const pending = cashVatRows().find(r => r.period === '2026-09~10');
+  TAX_LIABILITIES.push({ id: 'QA-VAT-910', taxType: '營業稅', period: '2026-09~10', amount: 1, status: 'paid', payDate: '2026-10-12', source: 'manual_tax_management' });
+  const filed = cashVatRows().find(r => r.period === '2026-09~10');
+  RECEIVABLES.pop(); TAX_LIABILITIES.pop();
+  return { before, pendingOwed: pending && pending.owed, pendingReserve: pending && pending.reserve, filed: filed || null };
+});
+check('營業稅：沒有繳納紀錄的期別扣整期預留；登錄繳納後該期不再扣差額', vat.pendingOwed > 0 && Math.abs(vat.pendingOwed - vat.pendingReserve) < 0.01 && vat.filed === null, vat);
+
 // WIP
 const wip = await page.evaluate(({ A, B, C }) => { const w = cashWipRows(); const g = c => w.find(x => x.code === c); return { a: g(A), b: g(B), c: g(C), missing: cashCompute().missingMargin.map(x => x.code) }; }, { A, B, C });
 check('超前收款：甲案 合約300萬、毛利30%、已收150萬、已付42萬 → 完工20%、已賺60萬、超前90萬', close(wip.a.estCost, 2100000) && close(wip.a.pct, 0.2) && close(wip.a.earned, 600000) && close(wip.a.overbilling, 900000), wip.a);
