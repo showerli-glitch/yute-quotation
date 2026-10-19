@@ -57,7 +57,7 @@ function qmApply() {
 function qmGo(tab) {
   qmTab = tab; qmPage = null;
   const toast = qmEl('qm-toast'); if (toast) toast.style.display = 'none';
-  if (tab === 'drive' && typeof driveAccessToken !== 'undefined' && driveAccessToken && !driveFilesCache.length) driveListFiles().catch(() => {});
+  if (tab === 'drive' && typeof driveTokenValid === 'function' && driveTokenValid() && !driveFilesCache.length) driveListFiles().catch(() => {});
   qmRender();
   qmEl('qm-body')?.scrollTo(0, 0);
 }
@@ -256,7 +256,7 @@ function qmAddDb(idx) {
 function qmDriveView() {
   const head = `${qmHeadTop('宇德報價系統 資料夾')}<div class="qm-title">雲端檔案</div>
     <input id="qm-drive-q" class="qm-search" type="search" placeholder="搜尋報價單名稱…" value="${qmEsc(qmDriveQuery)}" oninput="qmDriveQuery=this.value;qmRenderDriveList()">`;
-  const connected = typeof driveAccessToken !== 'undefined' && !!driveAccessToken;
+  const connected = typeof driveTokenValid === 'function' && driveTokenValid();
   const cur = currentDriveFileId ? (driveFilesCache.find(f => f.id === currentDriveFileId)?.name || qmVal('projName')) : '';
   let body = `<div class="qm-actions"><button type="button" class="qm-btn qm-primary qm-wide" onclick="saveQuoteToDrive()">存到雲端</button><button type="button" class="qm-btn qm-outline qm-wide" onclick="qmSaveAs()">另存新檔</button></div>
     <div class="qm-muted">${cur ? `目前開啟：${qmEsc(cur)}${lastFolderModifiedTime ? '・最後儲存 ' + qmEsc(qmTime(lastFolderModifiedTime)) : ''}` : '目前的報價單還沒存到雲端。'}</div>`;

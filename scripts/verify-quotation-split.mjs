@@ -21,7 +21,15 @@ const PARTS = [
 const MAIN = ['quotation/js/defaultitems.js', 'quotation/js/items.js', 'quotation/js/quote.js', 'quotation/js/output.js', 'quotation/js/app.js'];
 // Later intentional edits: { file: [[from, to], ...] } applied to the moved body before comparing.
 const POST_SPLIT_CHANGES = {
-  'quotation/js/app.js': [['const SESSION_HOURS = 4;', 'const SESSION_HOURS = 8;']],
+  // Drive token expiry (claude/quotation-drive-token): Google access tokens last about an hour; refresh before use, friendly 401.
+  'quotation/js/app.js': [['const SESSION_HOURS = 4;', 'const SESSION_HOURS = 8;'],
+    ["let driveAccessToken = null;\n", "let driveAccessToken = null;\n// Google 給的雲端存取權杖約 1 小時就失效；記下到期時間，過期前 2 分鐘就重新取得，不再拿過期的權杖去存檔（會回 401）。\nlet driveTokenExpiresAt = 0;\nfunction setDriveAccessToken(token, expiresIn){ driveAccessToken = token || null; driveTokenExpiresAt = token ? Date.now() + (Number(expiresIn) || 3600) * 1000 : 0; }\nfunction driveTokenValid(){ return !!driveAccessToken && Date.now() < driveTokenExpiresAt - 120000; }\n"],
+    ["      driveAccessToken = resp.access_token;\n      const session = JSON.parse", "      setDriveAccessToken(resp.access_token, resp.expires_in);\n      const session = JSON.parse"],
+    ["  if(driveAccessToken){ action(); return; }\n", "  if(driveTokenValid()){ action(); return; }\n  setDriveAccessToken(null);\n"],
+    ["  if(!res.ok){ const t=await res.text(); throw new Error(t); }\n  if(res.status===204) return null;", "  if(res.status===401){ setDriveAccessToken(null); throw new Error('Google 雲端授權已過期，請再按一次（會自動重新取得授權）'); }\n  if(!res.ok){ const t=await res.text(); throw new Error(t); }\n  if(res.status===204) return null;"],
+    ["async function driveLoad(fileId){\n  try {\n", "async function driveLoad(fileId){\n  if(!driveTokenValid()){ driveAuth(()=>driveLoad(fileId)); return; }\n  try {\n"],
+    ["        driveAccessToken = resp.access_token;\n        document.getElementById('loginScreen')", "        setDriveAccessToken(resp.access_token, resp.expires_in);\n        document.getElementById('loginScreen')"],
+    ["async function driveDeleteFile(fileId){\n  if(!confirm('確定要刪除這份報價嗎？')) return;\n", "async function driveDeleteFile(fileId){\n  if(!driveTokenValid()){ driveAuth(()=>driveDeleteFile(fileId)); return; }\n  if(!confirm('確定要刪除這份報價嗎？')) return;\n"]],
   'quotation/js/boot.js': [['if(Date.now()-d.loginTime>4*3600*1000)return;', 'if(Date.now()-d.loginTime>8*3600*1000)return;']],
 };
 // Intentional edits to the page itself (PWA tags, the new pwa.js), undone before comparing: [original, now].

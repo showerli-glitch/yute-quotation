@@ -245,7 +245,7 @@ if (hasPhone) {
   await m.emulateMedia({ media: 'screen' });
   check('列印（PDF）時手機畫面隱藏，版型用電腦版的 buildPrintDoc', !printVis.qm && printDoc > 1000, { printVis, printDoc });
 
-  await m.evaluate(() => { driveAccessToken = 'mock'; driveFilesCache = [{ id: 'f1', name: '宇德報價_A案_2026-10-01.json', modifiedTime: '2026-10-01T03:00:00Z' }, { id: 'f2', name: '宇德報價_B案_2026-10-02.json', modifiedTime: '2026-10-02T03:00:00Z' }]; });
+  await m.evaluate(() => { if (typeof setDriveAccessToken === 'function') setDriveAccessToken('mock', 3600); else driveAccessToken = 'mock'; driveFilesCache = [{ id: 'f1', name: '宇德報價_A案_2026-10-01.json', modifiedTime: '2026-10-01T03:00:00Z' }, { id: 'f2', name: '宇德報價_B案_2026-10-02.json', modifiedTime: '2026-10-02T03:00:00Z' }]; });
   await m.click('#qm-nav button[data-tab=drive]');
   await m.fill('#qm-drive-q', 'B案');
   const drive = await m.$$eval('#qm-drive-list .qm-fcard .qm-name', n => n.map(x => x.textContent));
