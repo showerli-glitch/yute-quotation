@@ -210,8 +210,8 @@ const POST_SPLIT_CHANGES = {
     literalChanges: [['const OPS_AUTH_SESSION_HOURS = 4;', 'const OPS_AUTH_SESSION_HOURS = 8;']],
   },
   'ops/js/modules/payables.js': {
-    reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort); payable attachments button (claude/pwa-polish); profit payee follows 分潤領款人, stale profit-case checkboxes cleared, settled-only profit cases confirmed, duplicate-entry warnings and delete audit (claude/case-settings); 公司不固定支出連結 and the overhead link / amortization view (claude/overhead-payable-link)',
-    changed: ['openAddPayableModal', 'openEditPayableModal', 'renderPayable', 'apTogglePaymentType', 'submitAddPayable', 'deletePayableConfirm', 'markPaid'],
+    reason: 'payable vendor picker sorted by vendor code (claude/vendor-delete-and-sort); payable attachments button (claude/pwa-polish); profit payee follows 分潤領款人, stale profit-case checkboxes cleared, settled-only profit cases confirmed, duplicate-entry warnings and delete audit (claude/case-settings); 公司不固定支出連結 and the overhead link / amortization view (claude/overhead-payable-link); rent counted once and fixed overhead link kept on edit (claude/fixed-overhead-fixes)',
+    changed: ['openAddPayableModal', 'openEditPayableModal', 'renderPayable', 'apTogglePaymentType', 'submitAddPayable', 'deletePayableConfirm', 'markPaid', 'pyRebuildAdditionalPayableOverhead'],
     appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
   },
   'ops/js/modules/expenses.js': {

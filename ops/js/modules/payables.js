@@ -414,7 +414,8 @@ function pyRebuildAdditionalPayableOverhead() {
   });
 
   const fixedGroups = new Map();
-  PAYABLES.filter(p => p.status === 'paid' && p.paymentType === 'overhead_link' && p.overheadTreatment === 'fixed' && p.overheadItem).forEach(p => {
+  // 公司房租已由 pyRebuildRentOverhead 寫入固定支出「房租」；這裡再算一次會重複（2026-01～03 曾顯示 60,000）。
+  PAYABLES.filter(p => p.status === 'paid' && p.paymentType === 'overhead_link' && p.overheadTreatment === 'fixed' && p.overheadItem && !pyIsCompanyRentPayable(p)).forEach(p => {
     const month = String(p.doneDate || p.transferDate || p.wantDate || '').slice(0, 7);
     if (!prIsValidMonth(month)) return;
     const key = `${month}|${p.overheadItem}`;
@@ -427,6 +428,8 @@ function pyRebuildAdditionalPayableOverhead() {
       const key = `${month}|${item}`;
       if (fixedKeys.has(key)) return;
       const idx = OH_FIXED_CONFIG.indexOf(item);
+      // 房租的金額與備註由房租連動負責，只移除舊的重複紀錄，不還原成重複前的數字。
+      if (item === '房租' && data.rentPayableManaged) { delete data.fixedPayableManagedItems[item]; return; }
       if (idx >= 0) {
         data.fixed[idx] = Number(meta.manualBackup) || 0;
         data.fixedNotes[idx] = String(meta.manualNoteBackup || '');
@@ -911,8 +914,12 @@ function submitAddPayable() {
   const selectedPaymentType = document.getElementById('ap-add-payment-type')?.value || 'vendor';
   const isOverheadVariable = selectedPaymentType === 'overhead_variable';
   const paymentType = isOverheadVariable ? 'overhead_link' : selectedPaymentType;
+  const editRow = editId ? PAYABLES.find(x => x.id === parseInt(editId)) : null;
+  // 固定開銷付款連結（房租、會計師記帳費等）的開銷項目沒有在視窗裡顯示，編輯時沿用原值，避免存檔後和公司開銷斷開。
+  const keepFixedOverhead = paymentType === 'overhead_link' && !isOverheadVariable && editRow?.paymentType === 'overhead_link' && editRow.overheadTreatment !== 'variable';
   const overheadItem = paymentType === 'prepaid_expense' ? (document.getElementById('ap-add-overhead-item')?.value || '').trim()
-    : isOverheadVariable ? ((document.getElementById('ap-add-overhead-var-item')?.value || '').trim() || summary) : '';
+    : isOverheadVariable ? ((document.getElementById('ap-add-overhead-var-item')?.value || '').trim() || summary)
+    : keepFixedOverhead ? (editRow.overheadItem || '') : '';
   const amortizationStartMonth = paymentType === 'prepaid_expense' ? (document.getElementById('ap-add-amortization-start')?.value || '') : '';
   const amortizationMonths = paymentType === 'prepaid_expense' ? parseInt(document.getElementById('ap-add-amortization-months')?.value || '') : 0;
   const isProfitType = isProfitPaymentType(paymentType);
