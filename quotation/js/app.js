@@ -36,6 +36,10 @@ const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const FOLDER_NAME = '宇德報價系統';
 let tokenClient;
 let driveAccessToken = null;
+// Google 給的雲端存取權杖約 1 小時就失效；記下到期時間，過期前 2 分鐘就重新取得，不再拿過期的權杖去存檔（會回 401）。
+let driveTokenExpiresAt = 0;
+function setDriveAccessToken(token, expiresIn){ driveAccessToken = token || null; driveTokenExpiresAt = token ? Date.now() + (Number(expiresIn) || 3600) * 1000 : 0; }
+function driveTokenValid(){ return !!driveAccessToken && Date.now() < driveTokenExpiresAt - 120000; }
 const SHARED_FOLDER_ID = '17fGaw38tzYoQ3kPXnMN8bOhCSpjkjqwX';
 let driveFolderId = SHARED_FOLDER_ID;
 let currentDriveFileId = null;
@@ -49,7 +53,7 @@ function initGsi(){
     scope: SCOPES,
     callback: async (resp) => {
       if(resp.error){ alert('授權失敗：'+resp.error); return; }
-      driveAccessToken = resp.access_token;
+      setDriveAccessToken(resp.access_token, resp.expires_in);
       const session = JSON.parse(localStorage.getItem('yutesign_session')||'{}');
       await fbSignIn(resp.access_token, session.email).catch(err => console.warn('Firebase 登入失敗', err));
       const action = pendingDriveAction;
@@ -63,7 +67,8 @@ function initGsi(){
 
 function driveAuth(action){
   if(!tokenClient){ alert('Google 授權模組尚未載入，請稍候再試'); return; }
-  if(driveAccessToken){ action(); return; }
+  if(driveTokenValid()){ action(); return; }
+  setDriveAccessToken(null);
   pendingDriveAction = action;
   tokenClient.requestAccessToken({prompt:''});
 }
@@ -131,6 +136,7 @@ async function driveApi(url, options={}){
     ...options,
     headers: { 'Authorization': 'Bearer ' + driveAccessToken, ...(options.headers||{}) }
   });
+  if(res.status===401){ setDriveAccessToken(null); throw new Error('Google 雲端授權已過期，請再按一次（會自動重新取得授權）'); }
   if(!res.ok){ const t=await res.text(); throw new Error(t); }
   if(res.status===204) return null;
   return res.json();
@@ -179,6 +185,7 @@ function renderDriveFiles(){
 }
 
 async function driveLoad(fileId){
+  if(!driveTokenValid()){ driveAuth(()=>driveLoad(fileId)); return; }
   try {
     const [res, meta] = await Promise.all([
       fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
@@ -222,6 +229,7 @@ async function driveLoad(fileId){
 }
 
 async function driveDeleteFile(fileId){
+  if(!driveTokenValid()){ driveAuth(()=>driveDeleteFile(fileId)); return; }
   if(!confirm('確定要刪除這份報價嗎？')) return;
   await driveApi(`https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`, { method: 'DELETE' });
   if(currentDriveFileId === fileId){ currentDriveFileId = null; }
@@ -367,7 +375,7 @@ function initLoginGsi(){
           return;
         }
         // 驗證通過，進入系統
-        driveAccessToken = resp.access_token;
+        setDriveAccessToken(resp.access_token, resp.expires_in);
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('mainApp').style.display = '';
         localStorage.setItem('yutesign_session', JSON.stringify({email: user.email, loginTime: Date.now()}));

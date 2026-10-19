@@ -20,7 +20,7 @@ function qpwaRedirect(purpose) {
 }
 
 // The same steps as the login popup callback in app.js (initLoginGsi); keep the two in step.
-async function qpwaCompleteLogin(token) {
+async function qpwaCompleteLogin(token, expiresIn) {
   try {
     const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: 'Bearer ' + token } });
     const user = await res.json();
@@ -29,7 +29,7 @@ async function qpwaCompleteLogin(token) {
       if (window.google?.accounts?.oauth2?.revoke) google.accounts.oauth2.revoke(token);
       return;
     }
-    driveAccessToken = token;
+    setDriveAccessToken(token, expiresIn);
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('mainApp').style.display = '';
     localStorage.setItem('yutesign_session', JSON.stringify({ email: user.email, loginTime: Date.now() }));
@@ -50,9 +50,9 @@ function qpwaHandleReturn() {
   if (!pending || pending.state !== params.get('state') || Date.now() - pending.at > 10 * 60 * 1000) { showLoginError('登入逾時或狀態不符，請再按一次登入。'); return; }
   const token = params.get('access_token');
   if (params.get('error') || !token) { if (pending.purpose === 'login') showLoginError('授權失敗，請再試一次'); return; }
-  if (pending.purpose === 'login') qpwaCompleteLogin(token);
+  if (pending.purpose === 'login') qpwaCompleteLogin(token, params.get('expires_in'));
   else {
-    driveAccessToken = token;
+    setDriveAccessToken(token, params.get('expires_in'));
     const session = JSON.parse(localStorage.getItem('yutesign_session') || '{}');
     fbSignIn(token, session.email).catch(err => console.warn('Firebase 登入失敗', err));
     setTimeout(() => alert('雲端硬碟已連線，請再按一次剛才的雲端功能'), 300);
@@ -72,7 +72,7 @@ function qpwaHandleReturn() {
   };
   const originalDriveAuth = window.driveAuth;
   window.driveAuth = function (action) {
-    if (qpwaIsStandalone() && !driveAccessToken) { qpwaRedirect('drive'); return; }
+    if (qpwaIsStandalone() && !driveTokenValid()) { qpwaRedirect('drive'); return; }
     return originalDriveAuth.apply(this, arguments);
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(qpwaHandleReturn, 0));
