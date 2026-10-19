@@ -266,7 +266,9 @@ function renderOverhead() {
           <td style="padding:8px 14px;font-size:12px">${v.name}</td>
           <td style="padding:8px 14px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:600">$${(v.amount||0).toLocaleString('zh-TW')}</td>
           <td style="padding:8px 14px;font-size:11px;color:var(--text3)">${v.note||''}</td>
-          <td style="padding:8px 8px;text-align:center">${manage ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--error)" onclick="ohDeleteVar('${month}',${v.id})">✕</button>` : ''}</td>
+          <td style="padding:8px 8px;text-align:center;white-space:nowrap">${v.sourcePayableId != null
+            ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" title="由應付帳款自動帶入；要修改或移除請改那筆應付" onclick="apOpenOverheadLinkModal(${Number(v.sourcePayableId)})">應付 #${Number(v.sourcePayableId)}</button>`
+            : (manage ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--error)" onclick="ohDeleteVar('${month}',${v.id})">✕</button>` : '')}</td>
         </tr>`).join('');
     }
   }

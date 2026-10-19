@@ -65,7 +65,7 @@ function renderPayable() {
       p.vendor, p.summary, p.caseName, p.case, p.person,
       p.wantDate, p.transferDate, p.doneDate, p.ticket, p.bank,
       searchAmountText(p.amount),
-      showPaymentType ? paymentTypeLabel(p.paymentType) : '',
+      showPaymentType ? apPaymentTypeDisplayLabel(p) : '',
       isProfitPaymentType(p.paymentType) ? psPersonName(p.profitPerson) : '',
     ].filter(Boolean).join(' ').toLowerCase();
     if (!searchTextMatches(searchable, kw)) return false;
@@ -80,7 +80,7 @@ function renderPayable() {
       p.vendor, p.summary, p.caseName, p.case, p.person,
       p.wantDate, p.transferDate, p.doneDate, p.ticket, p.bank,
       searchAmountText(p.amount),
-      showPaymentType ? paymentTypeLabel(p.paymentType) : '',
+      showPaymentType ? apPaymentTypeDisplayLabel(p) : '',
       isProfitPaymentType(p.paymentType) ? psPersonName(p.profitPerson) : '',
     ].filter(Boolean).join(' ').toLowerCase();
     if (!searchTextMatches(searchable, kw)) return false;
@@ -95,7 +95,7 @@ function renderPayable() {
       p.vendor, p.summary, p.caseName, p.case, p.person,
       p.wantDate, p.transferDate, p.doneDate, p.ticket, p.bank,
       searchAmountText(p.amount),
-      showPaymentType ? paymentTypeLabel(p.paymentType) : '',
+      showPaymentType ? apPaymentTypeDisplayLabel(p) : '',
       isProfitPaymentType(p.paymentType) ? psPersonName(p.profitPerson) : '',
     ].filter(Boolean).join(' ').toLowerCase();
     if (!searchTextMatches(searchable, kw)) return false;
@@ -117,7 +117,7 @@ function renderPayable() {
           <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent)">${showPaymentType && isProfitPaymentType(p.paymentType) ? '分潤款' : caseCodeBreak(p.case||'—')}</div>
         </td>
         <td style="padding:10px 6px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:115px" title="${p.vendor}">${p.vendor}</td>
-        <td style="padding:10px 14px;color:var(--text2);font-size:12px;white-space:normal;line-height:1.45;overflow-wrap:anywhere;min-width:170px;max-width:280px" title="${p.summary||''}">${p.summary||''}${showPaymentType && paymentTypeLabel(p.paymentType) ? `<div style="margin-top:3px;font-size:10px;color:var(--accent);line-height:1.4">${paymentTypeLabel(p.paymentType)}${isProfitPaymentType(p.paymentType) ? ' · ' + psPersonName(p.profitPerson) : ''}</div>` : ''}</td>
+        <td style="padding:10px 14px;color:var(--text2);font-size:12px;white-space:normal;line-height:1.45;overflow-wrap:anywhere;min-width:170px;max-width:280px" title="${p.summary||''}">${p.summary||''}${showPaymentType && apPaymentTypeDisplayLabel(p) ? `<div style="margin-top:3px;font-size:10px;color:var(--accent);line-height:1.4">${apPaymentTypeDisplayLabel(p)}${isProfitPaymentType(p.paymentType) ? ' · ' + psPersonName(p.profitPerson) : ''}</div>` : ''}${showPaymentType ? apOverheadLinkLine(p) : ''}</td>
         <td style="padding:10px 14px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">$${p.amount.toLocaleString('zh-TW')}</td>
         <td class="nowrap-col" style="padding:10px 14px;text-align:center;font-size:12px">${p.wantDate||'—'}</td>
         <td class="nowrap-col col-date" style="padding:10px 14px;text-align:center;font-size:12px">${p.transferDate||'—'}</td>
@@ -321,8 +321,9 @@ function markPaid(id) {
   const before = auditClone(p);
   const today = localDateKey(new Date());
   let actualRentDate = '';
-  if (pyIsCompanyRentPayable(p)) {
-    actualRentDate = prompt('請確認公司房租實際完成付款日（歸屬月份以此日期為準）：', today);
+  const isOverheadVariable = apIsOverheadVariablePayable(p);
+  if (pyIsCompanyRentPayable(p) || isOverheadVariable) {
+    actualRentDate = prompt(isOverheadVariable ? '請確認實際完成付款日（列入公司開銷不固定支出的月份以此日期為準）：' : '請確認公司房租實際完成付款日（歸屬月份以此日期為準）：', today);
     if (actualRentDate === null) return;
     const parsed = new Date(`${actualRentDate}T12:00:00`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(actualRentDate) || Number.isNaN(parsed.getTime()) || localDateKey(parsed) !== actualRentDate) {
@@ -531,7 +532,7 @@ function openAddPayableModal() {
   const amountEl = document.getElementById('ap-add-amount');
   if (amountEl) amountEl.placeholder = '例：420,000';
   // 清空欄位
-  ['ap-add-vendor','ap-add-amount','ap-add-summary','ap-add-note','ap-add-date','ap-add-transfer-date','ap-add-done-date','ap-add-ticket','ap-add-overhead-item','ap-add-amortization-start','ap-add-amortization-months'].forEach(id => {
+  ['ap-add-vendor','ap-add-amount','ap-add-summary','ap-add-note','ap-add-date','ap-add-transfer-date','ap-add-done-date','ap-add-ticket','ap-add-overhead-item','ap-add-amortization-start','ap-add-amortization-months','ap-add-overhead-var-item'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const bankEl = document.getElementById('ap-add-bank'); if (bankEl) bankEl.value = '';
@@ -578,9 +579,11 @@ function openEditPayableModal(id) {
   document.getElementById('ap-add-overhead-item').value = p.overheadItem || '';
   document.getElementById('ap-add-amortization-start').value = p.amortizationStartMonth || '';
   document.getElementById('ap-add-amortization-months').value = p.amortizationMonths || '';
+  const overheadVarEl = document.getElementById('ap-add-overhead-var-item');
+  if (overheadVarEl) overheadVarEl.value = apIsOverheadVariablePayable(p) ? (p.overheadItem || '') : '';
   const bankEl = document.getElementById('ap-add-bank'); if (bankEl) bankEl.value = p.bank || '';
   const statusEl = document.getElementById('ap-add-status'); if (statusEl) statusEl.value = p.status || 'approved';
-  const typeEl = document.getElementById('ap-add-payment-type'); if (typeEl) typeEl.value = p.paymentType || 'vendor';
+  const typeEl = document.getElementById('ap-add-payment-type'); if (typeEl) typeEl.value = apIsOverheadVariablePayable(p) ? 'overhead_variable' : (p.paymentType || 'vendor');
   const profitPersonEl = document.getElementById('ap-add-profit-person'); if (profitPersonEl) profitPersonEl.value = p.profitPerson || 'peng';
   apTogglePaymentType(p.profitCaseCodes || (p.case ? [p.case] : []));
   // 設定 radio
@@ -657,6 +660,9 @@ function apTogglePaymentType(selectedCodes = null) {
   if (caseEl) caseEl.required = requiresVendorCase;
   const amortizationFields = document.getElementById('ap-amortization-fields');
   if (amortizationFields) amortizationFields.style.display = type === 'prepaid_expense' ? '' : 'none';
+  const overheadVarFields = document.getElementById('ap-overhead-var-fields');
+  if (overheadVarFields) overheadVarFields.style.display = type === 'overhead_variable' ? '' : 'none';
+  if (type === 'overhead_variable') apFillOverheadVarItems();
   apUpdateAmortizationPreview();
   if (isProfit) {
     const list = document.getElementById('ap-profit-case-list');
@@ -901,8 +907,12 @@ function submitAddPayable() {
   const selectedStatus = document.getElementById('ap-add-status').value;
   // 「完成匯款日」代表付款已完成；即使使用者忘記切換狀態，也不得留下日期與狀態矛盾。
   const status  = doneDate ? 'paid' : selectedStatus;
-  const paymentType = document.getElementById('ap-add-payment-type')?.value || 'vendor';
-  const overheadItem = paymentType === 'prepaid_expense' ? (document.getElementById('ap-add-overhead-item')?.value || '').trim() : '';
+  // 「公司不固定支出連結」存成 overhead_link + overheadTreatment 'variable'（公司開銷不固定支出由 pyRebuildAdditionalPayableOverhead 彙總）。
+  const selectedPaymentType = document.getElementById('ap-add-payment-type')?.value || 'vendor';
+  const isOverheadVariable = selectedPaymentType === 'overhead_variable';
+  const paymentType = isOverheadVariable ? 'overhead_link' : selectedPaymentType;
+  const overheadItem = paymentType === 'prepaid_expense' ? (document.getElementById('ap-add-overhead-item')?.value || '').trim()
+    : isOverheadVariable ? ((document.getElementById('ap-add-overhead-var-item')?.value || '').trim() || summary) : '';
   const amortizationStartMonth = paymentType === 'prepaid_expense' ? (document.getElementById('ap-add-amortization-start')?.value || '') : '';
   const amortizationMonths = paymentType === 'prepaid_expense' ? parseInt(document.getElementById('ap-add-amortization-months')?.value || '') : 0;
   const isProfitType = isProfitPaymentType(paymentType);
@@ -924,10 +934,16 @@ function submitAddPayable() {
   if (paymentType === 'prepaid_expense' && (!Number.isInteger(amortizationMonths) || amortizationMonths < 1 || amortizationMonths > 120)) { showToast('攤提期數請填 1～120 個月', 'error'); return; }
   const editPayable = editId ? PAYABLES.find(x => x.id === parseInt(editId)) : null;
   if (!apConfirmSettledOnlyProfitCases(paymentType, profitCaseCodes, editPayable)) return;
-  if (paymentType === 'overhead_link' && !`${vendor} ${summary}`.includes('房租') && !editPayable?.overheadItem) {
+  if (isOverheadVariable && `${vendor} ${summary} ${note}`.includes('房租')) {
+    showToast('公司房租請用「固定開銷付款連結」，不要列入不固定支出', 'error'); return;
+  }
+  if (isOverheadVariable && status === 'paid' && !doneDate) {
+    showToast('已付款時必須填寫完成匯款日，列入公司開銷不固定支出的月份以此日期為準', 'error'); return;
+  }
+  if (!isOverheadVariable && paymentType === 'overhead_link' && !`${vendor} ${summary}`.includes('房租') && !editPayable?.overheadItem) {
     showToast('「固定開銷付款連結」目前僅限公司房租，摘要請明確填寫房租', 'error'); return;
   }
-  if (paymentType === 'overhead_link' && status === 'paid' && !doneDate) {
+  if (!isOverheadVariable && paymentType === 'overhead_link' && status === 'paid' && !doneDate) {
     showToast('公司房租已付款時必須填寫實際完成付款日，公司開銷月份以此日期為準', 'error'); return;
   }
   const amtNum   = parseInt(amount.replace(/[^0-9\-]/g,''));
@@ -962,6 +978,9 @@ function submitAddPayable() {
           overheadItem, amortizationStartMonth, amortizationMonths,
           amount:isNaN(amtNum)?p.amount:amtNum, wantDate:date, bank, transferDate, doneDate, ticket,
           invoice, receipt, person, status });
+        // 只處理不固定支出連結；固定開銷（房租等）的 overheadTreatment 維持原樣。
+        if (isOverheadVariable) p.overheadTreatment = 'variable';
+        else if (p.overheadTreatment === 'variable') p.overheadTreatment = '';
         syncDerivedReceivableForPayable(p);
         syncTaxLiabilityForPayable(p);
       }
@@ -983,6 +1002,7 @@ function submitAddPayable() {
       amount:isNaN(amtNum)?0:amtNum, wantDate:date, bank,
       transferDate:transferDate || (status==='paid'?date:''), doneDate:doneDate || (status==='paid'?date:''), ticket, invoice, receipt, person,
       paymentType, profitPerson, profitCaseCodes, overheadItem, amortizationStartMonth, amortizationMonths, status, note };
+    if (isOverheadVariable) row.overheadTreatment = 'variable';
     touchRowMeta(row, true);
     PAYABLES.push(row);
     syncDerivedReceivableForPayable(row);
@@ -1026,4 +1046,124 @@ function apConfirmSettledOnlyProfitCases(paymentType, codes, editPayable) {
   if (!codes.every(code => CASES.find(c => c.code === code)?.psSettled)) return true;
   const names = codes.map(code => CASES.find(c => c.code === code)?.name || code).join('、');
   return confirm(`勾選的關聯個案都已完成分潤結算：${names}\n\n這筆款項不會從目前未結算的分潤中扣除。確定要這樣存檔嗎？`);
+}
+
+// ── 公司不固定支出連結與攤提明細 ──
+// 不固定支出連結沿用既有資料欄位：paymentType 'overhead_link' + overheadTreatment 'variable' + overheadItem（開銷項目名稱）。
+// 已付款後由 pyRebuildAdditionalPayableOverhead 依完成匯款日的月份寫入公司開銷不固定支出；這裡只負責畫面與查看。
+function apIsOverheadVariablePayable(p) {
+  return !!p && p.paymentType === 'overhead_link' && p.overheadTreatment === 'variable';
+}
+
+function apPaymentTypeDisplayLabel(p) {
+  if (apIsOverheadVariablePayable(p)) return '公司不固定支出連結';
+  return paymentTypeLabel(p?.paymentType);
+}
+
+function apOverheadEsc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+}
+
+function apFillOverheadVarItems() {
+  const dl = document.getElementById('dl-ap-overhead-var-items');
+  if (!dl) return;
+  const names = new Set();
+  Object.values(OVERHEAD || {}).forEach(data => (data?.variable || []).forEach(row => {
+    if (row?.name && row.sourceType !== 'prepaid_amortization') names.add(String(row.name));
+  }));
+  dl.innerHTML = [...names].sort((a,b) => a.localeCompare(b, 'zh-TW')).map(name => `<option value="${apOverheadEsc(name)}">`).join('');
+}
+
+// 和 pyRebuildAdditionalPayableOverhead 的計算一致：每期四捨五入，最後一期補差額。
+function apOverheadSchedule(p) {
+  if (!p) return [];
+  if (apIsOverheadVariablePayable(p)) {
+    const month = String(p.doneDate || p.transferDate || p.wantDate || '').slice(0, 7);
+    return [{ index:1, total:1, month: p.status === 'paid' && prIsValidMonth(month) ? month : '', amount:Number(p.amount) || 0 }];
+  }
+  if (p.paymentType === 'prepaid_expense' && p.amortizationStartMonth && Number(p.amortizationMonths) > 0) {
+    const months = Math.max(1, Math.trunc(Number(p.amortizationMonths)));
+    const total = Math.round(Number(p.amount) || 0);
+    const monthly = Math.round(total / months);
+    const rows = [];
+    for (let i = 0; i < months; i += 1) {
+      rows.push({ index:i + 1, total:months, month:pyMonthOffset(p.amortizationStartMonth, i), amount: i === months - 1 ? total - monthly * (months - 1) : monthly });
+    }
+    return rows;
+  }
+  return [];
+}
+
+function apOverheadLinkLine(p) {
+  const fmt = n => '$' + Math.round(n).toLocaleString('zh-TW');
+  const linkStyle = 'margin-top:3px;font-size:10px;line-height:1.4;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px';
+  const plainStyle = 'margin-top:3px;font-size:10px;line-height:1.4;color:var(--text3)';
+  if (apIsOverheadVariablePayable(p)) {
+    const row = apOverheadSchedule(p)[0];
+    const item = p.overheadItem || p.summary || '公司不固定開銷';
+    if (!row.month) return `<div style="${plainStyle}">付款後列入公司開銷不固定支出「${apOverheadEsc(item)}」</div>`;
+    return `<div style="${linkStyle}" title="查看公司開銷連動" onclick="apOpenOverheadLinkModal(${p.id})">→ 公司開銷 ${row.month} 不固定支出「${apOverheadEsc(item)}」</div>`;
+  }
+  if (p.paymentType === 'prepaid_expense') {
+    const rows = apOverheadSchedule(p);
+    if (!rows.length) return `<div style="${plainStyle}">尚未設定攤提月份與期數</div>`;
+    const range = `${rows[0].month}～${rows[rows.length - 1].month}`;
+    if (p.status !== 'paid') return `<div style="${plainStyle}">付款後攤提 ${range}，共 ${rows.length} 期</div>`;
+    const nowMonth = currentMonthKey();
+    const done = rows.filter(r => r.month <= nowMonth);
+    const doneAmount = done.reduce((s, r) => s + r.amount, 0);
+    const totalAmount = rows.reduce((s, r) => s + r.amount, 0);
+    return `<div style="${linkStyle}" title="查看每期攤提明細" onclick="apOpenOverheadLinkModal(${p.id})">→ 攤提 ${range}・已攤 ${done.length}/${rows.length} 期 ${fmt(doneAmount)}・未攤 ${fmt(totalAmount - doneAmount)}</div>`;
+  }
+  return '';
+}
+
+function apOpenOverheadLinkModal(id) {
+  const p = PAYABLES.find(x => String(x.id) === String(id));
+  if (!p) { showToast('找不到這筆應付帳款', 'error'); return; }
+  const fmt = n => '$' + Math.round(n).toLocaleString('zh-TW');
+  const isVariable = apIsOverheadVariablePayable(p);
+  const rows = apOverheadSchedule(p);
+  const nowMonth = currentMonthKey();
+  const canSeeOverhead = canAccess('overhead');
+  const statusLabel = { pending:'待審核', approved:'待付款', paid:'已付款', rejected:'已退回' }[p.status] || p.status || '';
+  document.getElementById('ap-oh-link-title').textContent = isVariable ? '公司不固定支出連動' : '預付費用攤提明細';
+  const info = `
+    <div style="padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:12px;line-height:1.8;margin-bottom:12px">
+      <div><b>${apOverheadEsc(p.vendor || '受款人未填')}</b>／${apOverheadEsc(p.summary || '')}</div>
+      <div>應付 #${p.id}・${fmt(Number(p.amount) || 0)}・${statusLabel}${p.doneDate ? '・完成匯款 ' + p.doneDate : ''}</div>
+      <div>公司開銷項目：不固定支出「${apOverheadEsc(p.overheadItem || p.summary || '')}」</div>
+      ${p.status === 'paid' ? '' : '<div style="color:var(--error)">尚未付款，付款完成後才會列入公司開銷。</div>'}
+    </div>`;
+  const table = rows.length ? `
+    <div style="max-height:360px;overflow:auto;border:1px solid var(--border);border-radius:8px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--surface2);color:var(--text3)">
+          <th style="padding:6px 10px;text-align:left">期數</th><th style="padding:6px 10px;text-align:left">公司開銷月份</th>
+          <th style="padding:6px 10px;text-align:right">金額</th><th style="padding:6px 10px;text-align:center">狀態</th><th></th>
+        </tr></thead>
+        <tbody>${rows.map(r => `
+          <tr style="border-top:1px solid var(--border)${r.month === nowMonth ? ';background:var(--surface2)' : ''}">
+            <td style="padding:6px 10px">${r.index}/${r.total}</td>
+            <td style="padding:6px 10px;font-family:'DM Mono',monospace">${r.month || '付款後決定'}</td>
+            <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace">${fmt(r.amount)}</td>
+            <td style="padding:6px 10px;text-align:center;color:var(--text3)">${p.status !== 'paid' || !r.month ? '未計入' : r.month === nowMonth ? '本月' : r.month < nowMonth ? '已計入' : '未來月份'}</td>
+            <td style="padding:4px 8px;text-align:right">${canSeeOverhead && p.status === 'paid' && r.month ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" onclick="apGoOverheadMonth('${r.month}')">看公司開銷</button>` : ''}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : '<div style="font-size:12px;color:var(--text3)">尚未設定攤提月份與期數。</div>';
+  document.getElementById('ap-oh-link-body').innerHTML = info + table;
+  document.getElementById('ap-oh-link-footer').innerHTML = `
+    <button class="btn btn-ghost" onclick="closeModal('modal-ap-overhead-link')">關閉</button>
+    ${canManage('payable') ? `<button class="btn btn-primary" onclick="closeModal('modal-ap-overhead-link');openEditPayableModal(${p.id})">編輯這筆應付</button>` : ''}`;
+  openModal('modal-ap-overhead-link');
+}
+
+function apGoOverheadMonth(month) {
+  closeModal('modal-ap-overhead-link');
+  if (!canAccess('overhead')) { showToast('您沒有公司開銷的權限', 'error'); return; }
+  navTo('overhead', document.getElementById('nav-overhead'));
+  ohRenderMonthOptions(month);
+  renderOverhead();
 }

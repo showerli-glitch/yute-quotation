@@ -14,9 +14,9 @@
 <link rel="icon" type="image/svg+xml" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.svg?v=202606221952">
 <link rel="icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.ico?v=202606221952" sizes="any">
 <link rel="icon" type="image/png" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221952">
-<link rel="stylesheet" href="styles/invoicerequest.css?v=fe2076bf">
-<link rel="stylesheet" href="styles/mobile.css?v=fe2076bf">
-<link rel="manifest" href="manifest.webmanifest?v=fe2076bf">
+<link rel="stylesheet" href="styles/invoicerequest.css?v=64b37eb9">
+<link rel="stylesheet" href="styles/mobile.css?v=64b37eb9">
+<link rel="manifest" href="manifest.webmanifest?v=64b37eb9">
 <meta name="theme-color" content="#123D33">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3428,6 +3428,7 @@ body.auth-pending .auth-screen{display:flex}
             <option value="family_pass_through">親友成本轉付</option>
             <option value="private_loan">私人借支／支票借用</option>
             <option value="overhead_link">固定開銷付款連結</option>
+            <option value="overhead_variable">公司不固定支出連結</option>
             <option value="prepaid_expense">預付費用／分期攤提</option>
             <option value="tax_liability">稅務負債／繳稅</option>
             <option value="historical_profit_evidence">歷史分潤付款佐證</option>
@@ -3470,6 +3471,12 @@ body.auth-pending .auth-screen{display:flex}
             </div>
             <div class="form-field form-full" id="ap-amortization-preview" style="font-size:12px;line-height:1.7;color:var(--text3)">填入金額、開始月份與期數後顯示攤提預覽。</div>
           </div>
+        </div>
+        <div class="form-field form-full" id="ap-overhead-var-fields" style="display:none;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2)">
+          <label class="form-label">不固定支出項目名稱</label>
+          <input class="form-input" id="ap-add-overhead-var-item" placeholder="例：木材公會會員費（空白則用摘要）" list="dl-ap-overhead-var-items" autocomplete="off">
+          <datalist id="dl-ap-overhead-var-items"></datalist>
+          <div style="margin-top:8px;font-size:12px;line-height:1.7;color:var(--text3)">付款完成後，依「完成匯款日」的月份自動列入公司開銷的不固定支出；不歸任何個案成本。改回其他款項性質或退回這筆應付，公司開銷的這一列也會跟著移除。</div>
         </div>
         <div class="form-field form-full" id="ap-locked-payment-hint" style="display:none;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);font-size:12px;color:var(--text3)">
           系統結算款可分段付款：輸入本次付款金額並改為已付款；若小於待付款，系統會新增一筆已付款紀錄並保留原單餘額。
@@ -3864,6 +3871,17 @@ body.auth-pending .auth-screen{display:flex}
       <button class="btn btn-ghost" onclick="closeModal('modal-rv-link')">取消</button>
       <button class="btn btn-primary" onclick="saveRvLink()">儲存連結</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-ap-overhead-link" onclick="if(event.target===this)closeModal('modal-ap-overhead-link')">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-hd">
+      <div class="modal-title" id="ap-oh-link-title">公司開銷連動</div>
+      <button class="modal-close" onclick="closeModal('modal-ap-overhead-link')">✕</button>
+    </div>
+    <div class="modal-body" id="ap-oh-link-body"></div>
+    <div class="modal-footer" id="ap-oh-link-footer"></div>
   </div>
 </div>
 
@@ -4276,11 +4294,11 @@ body.auth-pending .auth-screen{display:flex}
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<script src="js/core/types.js?v=fe2076bf"></script>
-<script src="js/core/config.js?v=fe2076bf"></script>
-<script src="js/core/data.js?v=fe2076bf"></script>
-<script src="js/core/accounting.js?v=fe2076bf"></script>
-<script src="js/core/ui.js?v=fe2076bf"></script>
+<script src="js/core/types.js?v=64b37eb9"></script>
+<script src="js/core/config.js?v=64b37eb9"></script>
+<script src="js/core/data.js?v=64b37eb9"></script>
+<script src="js/core/accounting.js?v=64b37eb9"></script>
+<script src="js/core/ui.js?v=64b37eb9"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   loadData(); // 從 localStorage 還原資料
@@ -4759,28 +4777,28 @@ function payreqVendorPickerMouseDown(input) {
 
 
 </script>
-<script src="js/modules/payables.js?v=fe2076bf"></script>
+<script src="js/modules/payables.js?v=64b37eb9"></script>
 <script>
 
 </script>
-<script src="js/modules/receivables.js?v=fe2076bf"></script>
-<script src="js/modules/profit.js?v=fe2076bf"></script>
-<script src="js/modules/expenses.js?v=fe2076bf"></script>
-<script src="js/modules/cases.js?v=fe2076bf"></script>
-<script src="js/modules/clients.js?v=fe2076bf"></script>
-<script src="js/modules/vendors.js?v=fe2076bf"></script>
-<script src="js/modules/attendance.js?v=fe2076bf"></script>
-<script src="js/modules/payreq.js?v=fe2076bf"></script>
-<script src="js/modules/feedback.js?v=fe2076bf"></script>
-<script src="js/modules/systemnotes.js?v=fe2076bf"></script>
-<script src="js/modules/employees.js?v=fe2076bf"></script>
-<script src="js/modules/payroll.js?v=fe2076bf"></script>
-<script src="js/modules/overhead.js?v=fe2076bf"></script>
-<script src="js/modules/cash.js?v=fe2076bf"></script>
-<script src="js/modules/tax.js?v=fe2076bf"></script>
-<script src="js/modules/profitshare.js?v=fe2076bf"></script>
-<script src="js/modules/invoicerequest.js?v=fe2076bf"></script>
-<script src="js/modules/receipts.js?v=fe2076bf"></script>
-<script src="js/modules/mobile.js?v=fe2076bf"></script>
+<script src="js/modules/receivables.js?v=64b37eb9"></script>
+<script src="js/modules/profit.js?v=64b37eb9"></script>
+<script src="js/modules/expenses.js?v=64b37eb9"></script>
+<script src="js/modules/cases.js?v=64b37eb9"></script>
+<script src="js/modules/clients.js?v=64b37eb9"></script>
+<script src="js/modules/vendors.js?v=64b37eb9"></script>
+<script src="js/modules/attendance.js?v=64b37eb9"></script>
+<script src="js/modules/payreq.js?v=64b37eb9"></script>
+<script src="js/modules/feedback.js?v=64b37eb9"></script>
+<script src="js/modules/systemnotes.js?v=64b37eb9"></script>
+<script src="js/modules/employees.js?v=64b37eb9"></script>
+<script src="js/modules/payroll.js?v=64b37eb9"></script>
+<script src="js/modules/overhead.js?v=64b37eb9"></script>
+<script src="js/modules/cash.js?v=64b37eb9"></script>
+<script src="js/modules/tax.js?v=64b37eb9"></script>
+<script src="js/modules/profitshare.js?v=64b37eb9"></script>
+<script src="js/modules/invoicerequest.js?v=64b37eb9"></script>
+<script src="js/modules/receipts.js?v=64b37eb9"></script>
+<script src="js/modules/mobile.js?v=64b37eb9"></script>
 </body>
 </html>
