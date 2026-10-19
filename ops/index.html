@@ -14,9 +14,9 @@
 <link rel="icon" type="image/svg+xml" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.svg?v=202606221952">
 <link rel="icon" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.ico?v=202606221952" sizes="any">
 <link rel="icon" type="image/png" href="https://showerli-glitch.github.io/yute-quotation/ops/favicon.png?v=202606221952">
-<link rel="stylesheet" href="styles/invoicerequest.css?v=64b37eb9">
-<link rel="stylesheet" href="styles/mobile.css?v=64b37eb9">
-<link rel="manifest" href="manifest.webmanifest?v=64b37eb9">
+<link rel="stylesheet" href="styles/invoicerequest.css?v=603ae5f7">
+<link rel="stylesheet" href="styles/mobile.css?v=603ae5f7">
+<link rel="manifest" href="manifest.webmanifest?v=603ae5f7">
 <meta name="theme-color" content="#123D33">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -411,6 +411,40 @@ body.auth-pending .auth-screen{display:flex}
   font-size:11px;
   color:var(--text3);
   margin:8px 0 0;
+}
+/* 月份費用批次申請：視窗一打開就是固定高度（新增列時視窗不再上下長），表格在自己的框裡上下左右捲動，
+   左右捲軸永遠在看得到的框底；表頭與「#／歸屬個案」兩欄固定。用 #modal-add-expense 提高權重，蓋過平板／手機的通用彈窗規則。 */
+#modal-add-expense .modal.expense-modal{
+  display:flex!important;flex-direction:column;overflow:hidden!important;
+  width:min(96vw,1400px)!important;max-width:min(96vw,1400px)!important;
+  height:calc(100vh - 48px)!important;height:calc(100dvh - 48px)!important;max-height:none!important;
+}
+#modal-add-expense .expense-modal > .modal-hd,
+#modal-add-expense .expense-modal > .modal-footer{flex:none}
+#modal-add-expense .expense-modal > .modal-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden!important}
+#modal-add-expense .expense-modal > .modal-body > *{flex:none}
+#modal-add-expense .expense-modal > .modal-body > .expense-batch-scroll{
+  flex:1 1 auto;min-height:140px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface);
+}
+/* 捲軸一律顯示（Mac 預設會隱藏），讓人知道可以左右捲 */
+#modal-add-expense .expense-batch-scroll{scrollbar-width:auto;scrollbar-color:var(--border2) var(--surface2)}
+#modal-add-expense .expense-batch-scroll::-webkit-scrollbar{width:12px;height:12px}
+#modal-add-expense .expense-batch-scroll::-webkit-scrollbar-track{background:var(--surface2)}
+#modal-add-expense .expense-batch-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:6px;border:2px solid var(--surface2)}
+#modal-add-expense .expense-batch-scroll::-webkit-scrollbar-corner{background:var(--surface2)}
+#modal-add-expense .expense-batch-table{width:100%;min-width:1100px}
+#modal-add-expense .expense-batch-table thead th{position:sticky;top:0;z-index:2;background:var(--surface2);box-shadow:inset 0 -2px 0 var(--border)}
+#modal-add-expense .expense-batch-table tbody td:nth-child(1),
+#modal-add-expense .expense-batch-table tbody td:nth-child(2){position:sticky;z-index:1;background:var(--surface)}
+#modal-add-expense .expense-batch-table thead th:nth-child(1),
+#modal-add-expense .expense-batch-table thead th:nth-child(2){z-index:3}
+#modal-add-expense .expense-batch-table th:nth-child(1),
+#modal-add-expense .expense-batch-table td:nth-child(1){position:sticky;left:0}
+#modal-add-expense .expense-batch-table th:nth-child(2),
+#modal-add-expense .expense-batch-table td:nth-child(2){position:sticky;left:34px;box-shadow:1px 0 0 var(--border)}
+#modal-add-expense .expense-batch-table thead th:nth-child(2){box-shadow:1px 0 0 var(--border),inset 0 -2px 0 var(--border)}
+@media(max-width:767px){
+  #modal-add-expense .modal.expense-modal{width:100vw!important;max-width:100vw!important;height:100vh!important;height:100dvh!important;border-radius:0}
 }
 .mobile-scroll-x{
   overflow-x:auto;
@@ -3975,14 +4009,14 @@ body.auth-pending .auth-screen{display:flex}
         <table class="expense-batch-table">
           <colgroup>
             <col style="width:34px">
-            <col style="width:180px">
             <col style="width:170px">
-            <col style="width:132px">
-            <col style="width:250px">
             <col style="width:120px">
-            <col style="width:135px">
-            <col style="width:95px">
-            <col style="width:210px">
+            <col style="width:132px">
+            <col style="width:200px">
+            <col style="width:100px">
+            <col style="width:120px">
+            <col style="width:80px">
+            <col>
             <col style="width:30px">
           </colgroup>
           <thead>
@@ -4294,11 +4328,11 @@ body.auth-pending .auth-screen{display:flex}
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<script src="js/core/types.js?v=64b37eb9"></script>
-<script src="js/core/config.js?v=64b37eb9"></script>
-<script src="js/core/data.js?v=64b37eb9"></script>
-<script src="js/core/accounting.js?v=64b37eb9"></script>
-<script src="js/core/ui.js?v=64b37eb9"></script>
+<script src="js/core/types.js?v=603ae5f7"></script>
+<script src="js/core/config.js?v=603ae5f7"></script>
+<script src="js/core/data.js?v=603ae5f7"></script>
+<script src="js/core/accounting.js?v=603ae5f7"></script>
+<script src="js/core/ui.js?v=603ae5f7"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   loadData(); // 從 localStorage 還原資料
@@ -4777,28 +4811,28 @@ function payreqVendorPickerMouseDown(input) {
 
 
 </script>
-<script src="js/modules/payables.js?v=64b37eb9"></script>
+<script src="js/modules/payables.js?v=603ae5f7"></script>
 <script>
 
 </script>
-<script src="js/modules/receivables.js?v=64b37eb9"></script>
-<script src="js/modules/profit.js?v=64b37eb9"></script>
-<script src="js/modules/expenses.js?v=64b37eb9"></script>
-<script src="js/modules/cases.js?v=64b37eb9"></script>
-<script src="js/modules/clients.js?v=64b37eb9"></script>
-<script src="js/modules/vendors.js?v=64b37eb9"></script>
-<script src="js/modules/attendance.js?v=64b37eb9"></script>
-<script src="js/modules/payreq.js?v=64b37eb9"></script>
-<script src="js/modules/feedback.js?v=64b37eb9"></script>
-<script src="js/modules/systemnotes.js?v=64b37eb9"></script>
-<script src="js/modules/employees.js?v=64b37eb9"></script>
-<script src="js/modules/payroll.js?v=64b37eb9"></script>
-<script src="js/modules/overhead.js?v=64b37eb9"></script>
-<script src="js/modules/cash.js?v=64b37eb9"></script>
-<script src="js/modules/tax.js?v=64b37eb9"></script>
-<script src="js/modules/profitshare.js?v=64b37eb9"></script>
-<script src="js/modules/invoicerequest.js?v=64b37eb9"></script>
-<script src="js/modules/receipts.js?v=64b37eb9"></script>
-<script src="js/modules/mobile.js?v=64b37eb9"></script>
+<script src="js/modules/receivables.js?v=603ae5f7"></script>
+<script src="js/modules/profit.js?v=603ae5f7"></script>
+<script src="js/modules/expenses.js?v=603ae5f7"></script>
+<script src="js/modules/cases.js?v=603ae5f7"></script>
+<script src="js/modules/clients.js?v=603ae5f7"></script>
+<script src="js/modules/vendors.js?v=603ae5f7"></script>
+<script src="js/modules/attendance.js?v=603ae5f7"></script>
+<script src="js/modules/payreq.js?v=603ae5f7"></script>
+<script src="js/modules/feedback.js?v=603ae5f7"></script>
+<script src="js/modules/systemnotes.js?v=603ae5f7"></script>
+<script src="js/modules/employees.js?v=603ae5f7"></script>
+<script src="js/modules/payroll.js?v=603ae5f7"></script>
+<script src="js/modules/overhead.js?v=603ae5f7"></script>
+<script src="js/modules/cash.js?v=603ae5f7"></script>
+<script src="js/modules/tax.js?v=603ae5f7"></script>
+<script src="js/modules/profitshare.js?v=603ae5f7"></script>
+<script src="js/modules/invoicerequest.js?v=603ae5f7"></script>
+<script src="js/modules/receipts.js?v=603ae5f7"></script>
+<script src="js/modules/mobile.js?v=603ae5f7"></script>
 </body>
 </html>
