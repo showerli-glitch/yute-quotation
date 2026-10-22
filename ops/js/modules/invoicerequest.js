@@ -317,11 +317,58 @@ function irRenderQueue(container, options = {}) {
   const issued = irRows('issued').slice(0, options.issuedLimit ?? 5);
   if (!pending.length && !options.showEmpty) { /* nothing */ }
   if (!pending.length) container.appendChild(irEl('div', 'ir-empty', irCanIssue() ? '目前沒有待開立的申請' : '您沒有待開立的申請'));
-  pending.forEach(r => container.appendChild(irRequestCard(r, options.full !== false)));
+  if (pending.length && options.compactIssued) {
+    // 電腦版：待開立的卡片並排，不再一張佔滿整列。
+    const grid = irEl('div', 'ir-card-grid');
+    pending.forEach(r => grid.appendChild(irRequestCard(r, options.full !== false)));
+    container.appendChild(grid);
+  } else {
+    pending.forEach(r => container.appendChild(irRequestCard(r, options.full !== false)));
+  }
   if (issued.length) {
     container.appendChild(irEl('div', 'ir-sub', '最近已開立'));
-    issued.forEach(r => container.appendChild(irRequestCard(r, false)));
+    issued.forEach(r => container.appendChild(options.compactIssued ? irIssuedLine(r) : irRequestCard(r, false)));
   }
+}
+
+// 電腦版「最近已開立」一筆一行：已開立・買受人・項目・金額・發票號碼・日期・申請人。
+function irIssuedLine(r) {
+  const line = irEl('div', 'ir-line');
+  line.appendChild(irEl('span', 'ir-pill issued', '已開立'));
+  line.appendChild(irEl('span', 'ir-line-title', (r.buyerName || '') + '・' + (r.itemText || '')));
+  line.appendChild(irEl('span', 'ir-line-amount', irMoney(r.amount)));
+  line.appendChild(irEl('span', 'ir-meta', '發票 ' + (r.invoiceNo || '') + (r.invoiceDate ? '・' + r.invoiceDate : '')));
+  line.appendChild(irEl('span', 'ir-meta ir-line-who', r.requestedByName || ''));
+  return line;
+}
+
+// 電腦版面板收合：沒有待開立時預設收成一行；有待開立時預設展開；
+// 使用者手動收合會記住，但之後有新的申請進來（待開立筆數變多）就自動展開。
+const IR_PANEL_PREF_KEY = 'yutesign_ops_ir_panel';
+function irPanelPref() {
+  try { return JSON.parse(localStorage.getItem(IR_PANEL_PREF_KEY) || 'null'); } catch (e) { return null; }
+}
+function irDesktopPanelExpanded(pendingCount) {
+  const pref = irPanelPref();
+  if (!pref) return pendingCount > 0;
+  if (pendingCount > (Number(pref.pendingSeen) || 0)) return true;
+  return !pref.collapsed;
+}
+function irToggleDesktopPanel() {
+  const pending = irRows('requested').length;
+  const expanded = irDesktopPanelExpanded(pending);
+  try { localStorage.setItem(IR_PANEL_PREF_KEY, JSON.stringify({ collapsed: expanded, pendingSeen: pending })); } catch (e) {}
+  irRenderDesktopPanel();
+}
+function irDesktopSummary(pending, issued) {
+  if (pending.length) {
+    const first = pending.slice(0, 2).map(r => `${r.buyerName || ''}・${r.itemText || ''} ${irMoney(r.amount)}`).join('；');
+    return `${pending.length} 筆待開立：${first}${pending.length > 2 ? '…' : ''}`;
+  }
+  const last = issued[0];
+  const none = irCanIssue() ? '目前沒有待開立' : '目前沒有待開立的申請';
+  if (!last) return none;
+  return `${none}・最近已開立：${last.buyerName || ''}・${last.itemText || ''} ${irMoney(last.amount)}（發票 ${last.invoiceNo || ''}${last.invoiceDate ? '，' + last.invoiceDate : ''}）`;
 }
 
 function irRenderDesktopPanel() {
@@ -334,9 +381,17 @@ function irRenderDesktopPanel() {
   if (!show) return;
   const head = document.getElementById('rv-invoice-queue-head');
   if (head) head.textContent = irCanIssue() ? `開票待辦（${irPendingCount()}）` : `我的開票申請（${irRows('requested').length}）`;
-  const hasAny = irRows('requested').length || irRows('issued').length;
-  document.getElementById('rv-invoice-queue-body').hidden = !hasAny;
-  irRenderQueue(document.getElementById('rv-invoice-queue-list'));
+  const pending = irRows('requested');
+  const issued = irRows('issued');
+  const hasAny = pending.length || issued.length;
+  const expanded = !!hasAny && irDesktopPanelExpanded(pending.length);
+  panel.classList.toggle('collapsed', !expanded);
+  const summary = document.getElementById('rv-invoice-queue-summary');
+  if (summary) { summary.textContent = expanded ? '' : irDesktopSummary(pending, issued); summary.title = summary.textContent; }
+  const toggle = document.getElementById('rv-invoice-queue-toggle');
+  if (toggle) { toggle.hidden = !hasAny; toggle.textContent = expanded ? '收合 ▴' : '展開 ▾'; toggle.setAttribute('aria-expanded', String(expanded)); }
+  document.getElementById('rv-invoice-queue-body').hidden = !expanded;
+  irRenderQueue(document.getElementById('rv-invoice-queue-list'), { compactIssued: true, issuedLimit: 3 });
 }
 
 function irRenderAll() {

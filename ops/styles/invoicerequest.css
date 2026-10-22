@@ -1,7 +1,23 @@
 /* Invoice request (開票申請): shared by the desktop 應收 panel, the request/issue modals and the phone pages. */
-.ir-panel{margin-bottom:18px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+.ir-panel{margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 16px}
 .ir-panel[hidden]{display:none}
-.ir-panel-head{font-size:14px;font-weight:700;color:var(--text)}
+.ir-panel-bar{display:flex;align-items:center;gap:12px;min-height:32px}
+.ir-panel-head{flex:none;font-size:14px;font-weight:700;color:var(--text)}
+.ir-panel-summary{flex:1;min-width:0;font-size:13px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ir-panel-toggle{flex:none;margin-left:auto;border:1px solid var(--border2);background:transparent;color:var(--text);border-radius:8px;padding:0 12px;font:inherit;font-size:12px;cursor:pointer;min-height:30px}
+.ir-panel-toggle[hidden]{display:none}
+.ir-list-desktop{max-height:min(40vh,420px);overflow:auto}
+.ir-list-desktop .ir-card{padding:10px 12px;gap:4px}
+.ir-list-desktop .ir-row{padding:2px 0}
+.ir-list-desktop .ir-value{font-size:13px}
+.ir-list-desktop .ir-copy{min-height:26px;padding:2px 8px}
+.ir-list-desktop .ir-btn{min-height:30px}
+.ir-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px}
+.ir-line{display:flex;align-items:center;gap:12px;padding:6px 2px;border-bottom:1px solid var(--border);font-size:13px;min-width:0}
+.ir-line:last-child{border-bottom:0}
+.ir-line-title{flex:1;min-width:0;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ir-line-amount{flex:none;font-family:'DM Mono',monospace;color:var(--text)}
+.ir-line-who{flex:none}
 .ir-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .ir-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
 .ir-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
