@@ -244,6 +244,8 @@ function renderQuote(){saveQuoteState();refreshCatDropdowns();
     return;
   }
   const grouped=getSections();
+  // 項次跟 PDF 明細表一樣：每個大項從 1 開始；搜尋時仍顯示該工項在大項裡原本的項次。
+  const fullSections=getSections();
   if(qKeyword){
     Object.keys(grouped).forEach(cat=>{
       grouped[cat]=grouped[cat].filter(i=>i.name.toLowerCase().includes(qKeyword)||(i.note||'').toLowerCase().includes(qKeyword));
@@ -276,7 +278,7 @@ function renderQuote(){saveQuoteState();refreshCatDropdowns();
       const hint=item.minPrice!==item.maxPrice?`<div class="price-hint">$${item.minPrice.toLocaleString()}～$${item.maxPrice.toLocaleString()}</div>`:'';
       const isReviewed=reviewedIds.has(item.id);
       html+=`<div class="quote-row${selectedRowIds.has(item.id)?' selected':''}${isReviewed?' reviewed':''}" data-id="${item.id}" ondragover="qDO(event)" ondragleave="qDL(event)" ondrop="qDP(event,${item.id})">
-        <span class="row-num" draggable="true" ondragstart="qDS(event,${item.id})" ondragend="qDE()" onclick="toggleReviewed(event,${item.id})" title="點擊標記已審閱｜拖曳排序" style="cursor:grab">${isReviewed?'<span style="font-size:13px">✓</span>'+(num++):'<span class="drag-icon">⠿</span>'+num++}</span>
+        <span class="row-num" draggable="true" ondragstart="qDS(event,${item.id})" ondragend="qDE()" onclick="toggleReviewed(event,${item.id})" title="點擊標記已審閱｜拖曳排序" style="cursor:grab">${isReviewed?'<span style="font-size:13px">✓</span>'+((fullSections[cat]||[]).indexOf(item)+1):'<span class="drag-icon">⠿</span>'+((fullSections[cat]||[]).indexOf(item)+1)}</span>
         <div style="display:flex;flex-direction:column;gap:2px">
           <input class="row-input row-name" value="${escHtml(item.name)}" onchange="updateStrField(${item.id},'name',this.value)" style="width:100%;text-align:left">
           <select style="font-size:10px;padding:1px 3px;border:1px solid #e0ddd5;border-radius:3px;background:#fafaf8;color:#888;width:100%" onchange="updateItemCat(${item.id},this.value)">${buildCatOptions(item.cat)}</select>
