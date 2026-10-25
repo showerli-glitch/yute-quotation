@@ -30,6 +30,10 @@ const POST_SPLIT_CHANGES = {
     ["async function driveLoad(fileId){\n  try {\n", "async function driveLoad(fileId){\n  if(!driveTokenValid()){ driveAuth(()=>driveLoad(fileId)); return; }\n  try {\n"],
     ["        driveAccessToken = resp.access_token;\n        document.getElementById('loginScreen')", "        setDriveAccessToken(resp.access_token, resp.expires_in);\n        document.getElementById('loginScreen')"],
     ["async function driveDeleteFile(fileId){\n  if(!confirm('確定要刪除這份報價嗎？')) return;\n", "async function driveDeleteFile(fileId){\n  if(!driveTokenValid()){ driveAuth(()=>driveDeleteFile(fileId)); return; }\n  if(!confirm('確定要刪除這份報價嗎？')) return;\n"]],
+  // Row numbers restart in every section, like the PDF 報價明細表 (claude/quotation-section-numbering).
+  'quotation/js/quote.js': [
+    ["  const grouped=getSections();\n  if(qKeyword){", "  const grouped=getSections();\n  // 項次跟 PDF 明細表一樣：每個大項從 1 開始；搜尋時仍顯示該工項在大項裡原本的項次。\n  const fullSections=getSections();\n  if(qKeyword){"],
+    ["${isReviewed?'<span style=\"font-size:13px\">✓</span>'+(num++):'<span class=\"drag-icon\">⠿</span>'+num++}", "${isReviewed?'<span style=\"font-size:13px\">✓</span>'+((fullSections[cat]||[]).indexOf(item)+1):'<span class=\"drag-icon\">⠿</span>'+((fullSections[cat]||[]).indexOf(item)+1)}"]],
   'quotation/js/boot.js': [['if(Date.now()-d.loginTime>4*3600*1000)return;', 'if(Date.now()-d.loginTime>8*3600*1000)return;']],
 };
 // Intentional edits to the page itself (PWA tags, the new pwa.js), undone before comparing: [original, now].
