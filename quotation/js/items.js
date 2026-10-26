@@ -22,7 +22,7 @@ const NUM_ZH=['一','二','三','四','五','六','七','八','九','十',
 
 // State
 let mode='quote';  // 'quote' | 'edit'
-const DB_VERSION='2026050505';
+const DB_VERSION='2026102601';
 let dbItems=[];    // working copy of item database
 let quoteItems=[];
 let undoHistory=[];let redoHistory=[];
@@ -67,8 +67,21 @@ function loadDb(){
   try{
     const saved=localStorage.getItem('yutesign_db');
     const savedVer=localStorage.getItem('yutesign_db_ver');
-    if(saved && savedVer===DB_VERSION){
+    if(saved){
+      // 保留這台電腦在「編輯工項」改過的資料，只補上程式新增、這台電腦還沒看過的工項；看過後自己刪掉的不會再補回。
       dbItems=JSON.parse(saved);
+      const nameOf=i=>String(i['工項名稱']||'');
+      const added=new Set((typeof ADDED_ITEMS!=='undefined'?ADDED_ITEMS:[]).map(nameOf));
+      let seen=null;
+      try{ const s=JSON.parse(localStorage.getItem('yutesign_db_seen')||'null'); if(Array.isArray(s)) seen=new Set(s); }catch(e){}
+      if(!seen) seen=new Set(DEFAULT_ITEMS.map(nameOf).filter(n=>!added.has(n)));
+      const have=new Set(dbItems.map(nameOf));
+      DEFAULT_ITEMS.forEach(item=>{
+        if(!seen.has(nameOf(item)) && !have.has(nameOf(item))) dbItems.push({...item,類別:mapCat(item['類別'])});
+      });
+      localStorage.setItem('yutesign_db_seen',JSON.stringify(DEFAULT_ITEMS.map(nameOf)));
+      localStorage.setItem('yutesign_db_ver',DB_VERSION);
+      localStorage.setItem('yutesign_db',JSON.stringify(dbItems));
     } else {
       dbItems=DEFAULT_ITEMS.map(item=>({...item,類別:mapCat(item['類別'])}));
       localStorage.setItem('yutesign_db_ver',DB_VERSION);

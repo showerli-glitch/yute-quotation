@@ -10,7 +10,7 @@ const SHELL = [
   'index.html',
   'quotation.webmanifest',
   'quotation/styles/quotation.css', 'quotation/styles/mobile.css',
-  'quotation/js/boot.js', 'quotation/js/defaultitems.js', 'quotation/js/items.js', 'quotation/js/quote.js',
+  'quotation/js/boot.js', 'quotation/js/defaultitems.js', 'quotation/js/addeditems.js', 'quotation/js/items.js', 'quotation/js/quote.js',
   'quotation/js/output.js', 'quotation/js/app.js', 'quotation/js/pwa.js', 'quotation/js/mobile.js', 'quotation/js/shell.js',
   'quotation/icons/icon-192.png', 'quotation/icons/icon-512.png', 'quotation/icons/apple-touch-icon.png',
 ];
