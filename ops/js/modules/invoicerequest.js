@@ -57,6 +57,20 @@ function irPendingCount() {
   return irCanIssue() ? INVOICE_REQUESTS.filter(r => r.status === 'requested').length : 0;
 }
 
+// 應收「待開發票」卡片也要算開票待辦裡還沒填發票號碼的申請（登錄號碼前，申請不會寫進應收列）。
+// 只跟著「個案」篩選；同個案、同金額、已在應收列等開立的，當成同一張，只算一次。
+function irOpenRequestsForStats(noInvRows, filterCase) {
+  const unmatched = (noInvRows || []).slice();
+  return INVOICE_REQUESTS.filter(r => {
+    if (r.status !== 'requested') return false;
+    if (filterCase && r.case !== filterCase) return false;
+    if (!userCanViewCaseFinancials(r.case, 'receivable')) return false;
+    const i = unmatched.findIndex(x => x.case === r.case && Number(x.invoiceAmt || 0) === Number(r.amount || 0));
+    if (i >= 0) { unmatched.splice(i, 1); return false; }
+    return true;
+  });
+}
+
 function irFieldValue(r, key) {
   if (key === 'amountText') return irMoney(r.amount);
   return String(r[key] || '');
@@ -395,7 +409,8 @@ function irRenderDesktopPanel() {
 }
 
 function irRenderAll() {
-  irRenderDesktopPanel();
+  // renderReceivable 會一起重畫開票待辦面板，也會更新「待開發票」卡片的筆數。
+  renderReceivable();
   if (typeof mobileRenderOwnPage === 'function' && typeof MOBILE_OWN_PAGES !== 'undefined' && MOBILE_OWN_PAGES.includes(currentPage)) mobileRenderOwnPage(currentPage);
 }
 

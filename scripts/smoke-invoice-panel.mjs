@@ -52,6 +52,20 @@ const s5 = await state();
 check('又多一筆待開立：自動展開，兩張卡片並排', s5.expanded && s5.cards === 2 && await page.evaluate(() => { const c = [...document.querySelectorAll('#rv-invoice-queue-list .ir-card')].map(x => x.getBoundingClientRect()); return Math.abs(c[0].top - c[1].top) < 2; }), s5);
 const tall = await page.evaluate(() => Math.round(document.getElementById('rv-invoice-queue').getBoundingClientRect().height));
 check('展開時面板高度有上限（不會把應收表格擠出畫面）', tall <= Math.min(760 * 0.4, 420) + 90, { tall });
+
+// 「待開發票」卡片：應收列裡等開立的 + 開票待辦裡還沒填號碼的申請；同個案同金額只算一次；跟著個案篩選。
+const card = () => page.evaluate(() => parseInt(document.getElementById('rv-stat-noinv-count').textContent, 10));
+await set([]);
+const base = await card();
+await set([issued(1, 'FT29045608'), pending(5), pending(6)]);
+check('待開發票卡片：兩筆待開立申請也算進去', await card() === base + 2, { base, now: await card() });
+await page.evaluate(() => { RECEIVABLES.push({ id: 990001, case: 'QA-C', caseName: 'QA 對帳', buyer: 'QA 公司', item: 'QA 保留款', receivableAmt: 7777, collectAmt: 0, invoiceAmt: 7777, invoiceDate: '', invoiceNo: '', status: 'pending' }); });
+await set([pending(5), pending(6), { ...pending(7), case: 'QA-C', amount: 7777 }]);
+check('同個案、同金額的申請和應收列只算一次', await card() === base + 3, { base, now: await card() });
+await page.evaluate(() => { INVOICE_REQUESTS.push({ id: 8, status: 'requested', case: 'QA-D', amount: 1234, buyerName: 'QA', itemText: 'x', requestedBy: 'shower', requestedAt: '2026-10-22T09:00:00Z' }); irRenderAll(); });
+check('新增申請後（irRenderAll）卡片馬上更新', await card() === base + 4, { base, now: await card() });
+const filtered = await page.evaluate(() => { const el = document.getElementById('rv-filter-case'); const o = document.createElement('option'); o.value = 'QA-D'; el.appendChild(o); el.value = 'QA-D'; renderReceivable(); const n = parseInt(document.getElementById('rv-stat-noinv-count').textContent, 10); el.value = ''; o.remove(); RECEIVABLES.splice(RECEIVABLES.findIndex(r => r.id === 990001), 1); renderReceivable(); return n; });
+check('篩選個案時只算那個案的申請', filtered === 1, { filtered });
 await ctx.close();
 
 const fails = await H.finish(outJson);

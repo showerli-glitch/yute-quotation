@@ -179,7 +179,10 @@ function updateReceivableStats(scopeRows = null, yearScopeRows = null) {
   set('rv-stat-year-count',   yearRows.length+' 筆');
   set('rv-stat-pending-amt',  pending.length ? '$'+pending.reduce((s,r) => s + receivableExpectedAmount(r), 0).toLocaleString('zh-TW') : '—');
   set('rv-stat-pending-count', pending.length+' 筆');
-  set('rv-stat-noinv-count',  noInv.length+' 筆');
+  const openRequests = typeof irOpenRequestsForStats === 'function'
+    ? irOpenRequestsForStats(noInv, normalizeCaseFilterValue(document.getElementById('rv-filter-case')?.value || ''))
+    : [];
+  set('rv-stat-noinv-count',  (noInv.length + openRequests.length)+' 筆');
 }
 
 function openInvoice(id) {

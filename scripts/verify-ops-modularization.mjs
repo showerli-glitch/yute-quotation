@@ -228,8 +228,8 @@ const POST_SPLIT_CHANGES = {
     appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
   },
   'ops/js/modules/receivables.js': {
-    reason: 'duplicate-entry warnings and delete audit (claude/case-settings)',
-    changed: ['submitAddReceivable', 'deleteReceivableConfirm'],
+    reason: 'duplicate-entry warnings and delete audit (claude/case-settings); 待開發票 card also counts open 開票待辦 requests (claude/invoice-card-count)',
+    changed: ['submitAddReceivable', 'deleteReceivableConfirm', 'updateReceivableStats'],
   },
   'ops/js/modules/cases.js': {
     reason: '預估毛利率 field for the cash position module (claude/case-settings)',
