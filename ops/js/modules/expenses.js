@@ -401,7 +401,9 @@ function renderExpense() {
   const filterMonth  = document.getElementById('exp-filter-month')?.value  || '';
   const filterCase   = normalizeCaseFilterValue(document.getElementById('exp-filter-case')?.value   || '');
   const kw = (document.getElementById('exp-search')?.value || '').toLowerCase();
-  const rows = sortOpsRows(EXPENSES.filter(r => {
+  // 排序：日期（預設新到舊），或依填入順序。費用編號是送出時依序遞增、修改時不會變，所以照編號排就是填入的先後。
+  const sortMode = document.getElementById('exp-sort')?.value || 'date-desc';
+  const filteredRows = EXPENSES.filter(r => {
     if (expTab_current !== 'all' && r.status !== expTab_current) return false;
     if (filterPerson && r.person !== filterPerson) return false;
     if (filterMonth  && r.month  !== filterMonth)  return false;
@@ -410,8 +412,11 @@ function renderExpense() {
     if (r.caseKey && r.caseKey !== '固定開銷' && !userCanViewCaseFinancials(r.caseKey, 'expense')) return false;
     if (kw && !`${r.item} ${r.category} ${r.caseName} ${r.caseKey}`.toLowerCase().includes(kw)) return false;
     return true;
-  }), 'date-desc', r => r.date, r => r.item, r => r.amount);
-  // 沒篩選單一人員時，先依人員（跟人員下拉選單同一套順序）分開群組，組內沿用上面已經排好的日期新到舊
+  });
+  const rows = sortMode.startsWith('entry')
+    ? filteredRows.slice().sort((a,b) => ((Number(a.id)||0) - (Number(b.id)||0)) * (sortMode === 'entry-desc' ? -1 : 1))
+    : sortOpsRows(filteredRows, sortMode, r => r.date, r => r.item, r => r.amount);
+  // 沒篩選單一人員時，先依人員（跟人員下拉選單同一套順序）分開群組，組內沿用上面選的排序
   const expPersonOrder = USERS.map(u => u.id);
   const expPersonRank = p => { const i = expPersonOrder.indexOf(p); return i < 0 ? expPersonOrder.length : i; };
   rows.sort((a,b) => expPersonRank(a.person) - expPersonRank(b.person));

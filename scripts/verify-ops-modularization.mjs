@@ -215,8 +215,8 @@ const POST_SPLIT_CHANGES = {
     appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
   },
   'ops/js/modules/expenses.js': {
-    reason: 'expense row action shows a 單據 (attachments) button (claude/pwa-nodes); duplicate-entry warnings and delete audit (claude/case-settings)',
-    changed: ['expenseRowActions', 'submitBatchExpense', 'deleteExpense'],
+    reason: 'expense row action shows a 單據 (attachments) button (claude/pwa-nodes); duplicate-entry warnings and delete audit (claude/case-settings); sort by date or entry order (claude/expense-entry-sort)',
+    changed: ['expenseRowActions', 'submitBatchExpense', 'deleteExpense', 'renderExpense'],
   },
   'ops/js/modules/payreq.js': {
     reason: 'own rejected pay request editable by name; edit modal re-enables save (claude/payreq-applicant-fix); duplicate-entry warnings and delete audit (claude/case-settings)',
