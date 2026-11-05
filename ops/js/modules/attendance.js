@@ -773,6 +773,10 @@ function attComputeDraft(person, month) {
   let graceUsed = 0;
   let missingPunches = 0;
   const warnings = [];
+  // 請假與打卡串聯：同一天有請假時，不用「上班 + 9 小時」判斷早退，改成「當天實際在公司的時數（扣掉 12:00–13:00 午休）
+  // 是否補足 8 小時減去請假時數」，不足的部分（超過每日 10 分鐘彈性）才算進彈性早退；那天的晚到也由這個規則處理，不再另外提醒。
+  const leaveMinutesByDate = {};
+  leaves.forEach(l => { if (l.date) leaveMinutesByDate[l.date] = (leaveMinutesByDate[l.date] || 0) + Math.round((Number(l.hours) || 0) * 60); });
   records.forEach(r => {
     const inM = attMinutes(r.inTime);
     const outM = attMinutes(attEffectiveOutTime(r));
@@ -783,6 +787,16 @@ function attComputeDraft(person, month) {
     const stay = Math.max(0, outM - inM);
     const paid = Math.max(0, stay - ATTENDANCE_SETTINGS.lunchMinutes);
     workMinutes += paid;
+    const leaveMinutes = leaveMinutesByDate[r.date] || 0;
+    if (leaveMinutes > 0) {
+      const lunchOverlap = Math.max(0, Math.min(outM, attMinutes('13:00')) - Math.max(inM, attMinutes('12:00')));
+      const worked = Math.max(0, stay - lunchOverlap);
+      const required = Math.max(0, ATTENDANCE_SETTINGS.paidWorkMinutes - leaveMinutes);
+      graceUsed += Math.max(0, required - worked - ATTENDANCE_SETTINGS.graceEarlyLeaveMinutes);
+      overtimeMinutes += attRecordOvertimeMinutes(r);
+      if (r.locationType === 'site' && !r.caseCode) warnings.push(`${r.date} 工地打卡未指定案場`);
+      return;
+    }
     // 07:40 起可先打卡，但早於 08:00 不會讓正常下班時間提前；晚於 08:00 則依實際上班時間順延。
     const scheduledIn = Math.max(inM, attMinutes('08:00'));
     const expectedOut = scheduledIn + ATTENDANCE_SETTINGS.workdayMinutes;
@@ -801,13 +815,31 @@ function attComputeDraft(person, month) {
   // 生理假：性別工作平等法第14條，一年3天(24小時)以內半薪且不併入病假日數；超過部分併入病假（實務上一樣是半薪，這裡先不追蹤跨月的年度3天上限）。
   const menstrualHours = leaves.filter(r => r.type === 'menstrual').reduce((s,r)=>s+(Number(r.hours)||0),0);
   const unpaidOtherHours = leaves.filter(r => r.type === 'other').reduce((s,r)=>s+(Number(r.hours)||0),0);
-  const leaveDeduction = Math.round(personalHours * hourly + (sickHours + menstrualHours) * hourly * 0.5 + unpaidOtherHours * hourly);
-  const fullAttendancePenalty = graceUsed > ATTENDANCE_SETTINGS.monthlyGraceMinutes ? ATTENDANCE_SETTINGS.fullAttendancePenalty : 0;
+  // 家庭照顧假：性別平等工作法第20條，併入事假計算、不給工資。
+  const familyHours = leaves.filter(r => r.type === 'family').reduce((s,r)=>s+(Number(r.hours)||0),0);
+  const leaveDeduction = Math.round((personalHours + familyHours) * hourly + (sickHours + menstrualHours) * hourly * 0.5 + unpaidOtherHours * hourly);
+  // 全勤獎金：全額先看這個月／上個月薪資草稿記下的全額，沒有就用員工預設值，再沒有就用 ATTENDANCE_SETTINGS.fullAttendancePenalty（1,000）。
+  // 事假：當月有請就扣全額。家庭照顧假：視為薪資的一部分，按請假時數比例扣（全額 / 30 / 8 × 時數）。
+  // 彈性早退累計超過每月上限：扣 1,000。三項加總不超過全額。
+  const storedBase = [currentPayroll?.fullAttendanceBonusBase, priorPayroll?.fullAttendanceBonusBase].find(v => v !== undefined && v !== null && v !== '');
+  const fullAttendanceBase = storedBase !== undefined ? Number(storedBase) || 0 : (cfg.fullAttendanceBonus || ATTENDANCE_SETTINGS.fullAttendancePenalty || 0);
+  const fullAttendanceReasons = [];
+  let fullAttendanceRaw = 0;
+  if (graceUsed > ATTENDANCE_SETTINGS.monthlyGraceMinutes) {
+    const v = Math.min(fullAttendanceBase, ATTENDANCE_SETTINGS.fullAttendancePenalty);
+    fullAttendanceRaw += v; fullAttendanceReasons.push(`彈性早退超過 ${ATTENDANCE_SETTINGS.monthlyGraceMinutes} 分 ${v.toLocaleString('zh-TW')}`);
+  }
+  if (personalHours > 0) { fullAttendanceRaw += fullAttendanceBase; fullAttendanceReasons.push(`事假 ${personalHours} 小時（扣全額）`); }
+  if (familyHours > 0) {
+    const v = Math.round(fullAttendanceBase / 30 / 8 * familyHours);
+    fullAttendanceRaw += v; fullAttendanceReasons.push(`家庭照顧假 ${familyHours} 小時按比例 ${v.toLocaleString('zh-TW')}`);
+  }
+  const fullAttendancePenalty = Math.min(fullAttendanceBase, fullAttendanceRaw);
   const overtimeHours = Math.round(overtimeMinutes / 60 * 10) / 10;
   const overtimePay = Math.round(Math.min(overtimeHours, 2) * hourly * 4 / 3 + Math.max(0, overtimeHours - 2) * hourly * 5 / 3);
   const attendanceDays = new Set(records.map(r => r.date).filter(Boolean)).size;
   const expectedWorkdays = attExpectedWorkdays(month, person);
-  return { person, month, cfg, hourly, records, leaves, attendanceDays, expectedWorkdays, workMinutes, overtimeHours, overtimePay, leaveHours, leaveDeduction, fullAttendancePenalty, graceUsed, missingPunches, warnings };
+  return { person, month, cfg, hourly, records, leaves, attendanceDays, expectedWorkdays, workMinutes, overtimeHours, overtimePay, leaveHours, leaveDeduction, fullAttendanceBase, fullAttendancePenalty, fullAttendanceReasons, graceUsed, missingPunches, warnings };
 }
 
 function attApplyDraftToPayroll() {
@@ -823,7 +855,8 @@ function attApplyDraftToPayroll() {
     payDate: existing?.payDate || '',
     baseSalary: src.baseSalary || draft.cfg.baseSalary || 0,
     phoneAllowance: src.phoneAllowance || draft.cfg.phoneAllowance || 0,
-    fullAttendanceBonus: Math.max(0, (src.fullAttendanceBonus || draft.cfg.fullAttendanceBonus || 0) - draft.fullAttendancePenalty),
+    fullAttendanceBonus: Math.max(0, draft.fullAttendanceBase - draft.fullAttendancePenalty),
+    fullAttendanceBonusBase: draft.fullAttendanceBase,
     dutyAllowance: src.dutyAllowance || draft.cfg.dutyAllowance || 0,
     performanceBonus: src.performanceBonus || draft.cfg.performanceBonus || 0,
     mealAllowance: src.mealAllowance || draft.cfg.mealAllowance || 0,
@@ -837,7 +870,7 @@ function attApplyDraftToPayroll() {
     healthInsurance: src.healthInsurance || draft.cfg.healthInsurance || 0,
     voluntaryPension: existing?.voluntaryPension || 0,
     leaveDeduction: draft.leaveDeduction,
-    leaveNote: `出勤草稿：請假 ${draft.leaveHours} 小時；彈性早退累計 ${draft.graceUsed} 分；缺卡 ${draft.missingPunches} 筆${draft.fullAttendancePenalty ? '；全勤扣 1,000' : ''}`,
+    leaveNote: `出勤草稿：請假 ${draft.leaveHours} 小時；彈性早退累計 ${draft.graceUsed} 分；缺卡 ${draft.missingPunches} 筆${draft.fullAttendancePenalty ? `；全勤扣 ${draft.fullAttendancePenalty.toLocaleString('zh-TW')}（${draft.fullAttendanceReasons.join('、')}）` : ''}`,
     advancePaid: existing?.advancePaid || 0,
     note: `由出勤管理 ${month} 草稿寫入；請財務覆核。${draft.warnings.length ? '異常：' + draft.warnings.join('、') : ''}`,
   };
@@ -910,7 +943,7 @@ function renderAttendance() {
     }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px">尚無出勤紀錄</td></tr>`;
   }
   const leaveRows = ATTENDANCE_LEAVES.filter(r => r.person === person && String(r.date || '').startsWith(month)).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-  const leaveLabel = {personal:'事假', sick:'病假', menstrual:'生理假', annual:'特休', official:'公假', bereavement:'喪假', other:'其他'};
+  const leaveLabel = {personal:'事假', family:'家庭照顧假', sick:'病假', menstrual:'生理假', annual:'特休', official:'公假', bereavement:'喪假', other:'其他'};
   const ltbody = document.getElementById('att-leave-tbody');
   if (ltbody) {
     ltbody.innerHTML = leaveRows.length ? leaveRows.map(r => `<tr>
@@ -924,7 +957,7 @@ function renderAttendance() {
       <div style="font-size:13px;line-height:1.8;color:var(--text2)">
         <div><strong style="color:var(--text)">${nameOf(person)}｜${month}</strong></div>
         <div>時薪基礎：${attMoney(draft.hourly)}（月薪 / 30 / 8）</div>
-        <div>請假扣款：${attMoney(draft.leaveDeduction)}；全勤扣款：${attMoney(draft.fullAttendancePenalty)}</div>
+        <div>請假扣款：${attMoney(draft.leaveDeduction)}；全勤扣款：${attMoney(draft.fullAttendancePenalty)}（全勤全額 ${attMoney(draft.fullAttendanceBase)}${draft.fullAttendanceReasons.length ? '：' + tfEsc(draft.fullAttendanceReasons.join('、')) : ''}）</div>
         <div>加班試算：${draft.overtimeHours} 小時，${attMoney(draft.overtimePay)}（08:00 前打卡以 08:00 起算；每日滿 9 小時後，每滿 30 分鐘計）</div>
         <div>薪資草稿會寫入「請假扣款、加班費、全勤獎金調整與備註」，正式發薪前仍需財務覆核。</div>
       </div>

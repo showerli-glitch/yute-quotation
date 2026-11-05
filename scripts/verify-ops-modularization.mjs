@@ -244,8 +244,13 @@ const POST_SPLIT_CHANGES = {
     changed: ['ohDeleteVar', 'renderOverhead'],
   },
   'ops/js/modules/attendance.js': {
-    reason: 'delete audit (claude/case-settings)',
-    changed: ['attDeleteLeave'],
+    reason: 'delete audit (claude/case-settings); leave days use required hours instead of early-leave, 全勤 by leave type, 家庭照顧假 (claude/attendance-leave-link)',
+    changed: ['attDeleteLeave', 'attComputeDraft', 'attApplyDraftToPayroll', 'renderAttendance'],
+  },
+  'ops/js/modules/systemnotes.js': {
+    reason: 'attendance rule notes for leave days and 全勤 by leave type (claude/attendance-leave-link)',
+    changed: [],
+    literalChanges: [["'下班彈性 10 分鐘；每月累計超過 30 分鐘扣全勤 1,000。'", "'下班彈性 10 分鐘；每月累計超過 30 分鐘扣全勤 1,000。有請假的那天，實際在公司的時數（扣 12:00–13:00 午休）補足「8 小時減請假時數」就不算早退，也不提醒晚到。','全勤：當月有事假扣全額；家庭照顧假視為薪資的一部分，按請假時數比例扣（全勤全額 ÷ 30 ÷ 8 × 時數），工資比照事假不給；病假、生理假、特休、公假、喪假不影響全勤。各項合計不超過全勤全額。'"]],
   },
   'ops/js/modules/profitshare.js': {
     reason: '淨利率 column in the case net-profit tables (claude/case-settings)',
