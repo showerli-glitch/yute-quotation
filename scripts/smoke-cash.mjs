@@ -42,17 +42,21 @@ check('資金試算頁可進入，標題正確', (await page.evaluate(() => curr
 
 await page.evaluate(() => cashCreateDefaults());
 const items = await page.evaluate(() => CASH_ITEMS.map(i => [i.kind, i.name]));
-check('建立預設項目：5 個公司帳戶、玉山借款、兩台車租金', items.length === 8 && items.filter(i => i[0] === 'account').length === 5 && items.some(i => i[1] === '玉山借款') && items.filter(i => i[0] === 'lease').length === 2, items);
+check('建立預設項目：5 個公司帳戶、玉山借款（兩台車租金改由應付期票帶入，不再預設）', items.length === 6 && items.filter(i => i[0] === 'account').length === 5 && items.some(i => i[1] === '玉山借款') && !items.some(i => i[0] === 'lease'), items);
 
-// lease settings: M340i 63,760 on the 5th, last 2027-10
-await page.evaluate(() => { const i = CASH_ITEMS.find(x => x.name === 'M340i 租金'); cashStartEditItem(i.id); });
+// lease settings (added by hand): M340i 63,760 on the 5th, last 2027-10
+await page.evaluate(() => cashStartEditItem('new'));
+await page.selectOption('#cash-item-kind', 'lease');
+await page.fill('#cash-item-name', 'M340i 租金');
 await page.fill('#cash-item-monthly', '63,760');
 await page.fill('#cash-item-payday', '5');
 await page.fill('#cash-item-last', '2027-10');
 await page.click('button[onclick="cashSaveItem()"]');
 const lease = await page.evaluate(() => CASH_ITEMS.find(x => x.name === 'M340i 租金'));
 check('租賃設定：每期金額、扣款日、最後一期', lease.monthlyPayment === 63760 && lease.payDay === 5 && lease.lastPayMonth === '2027-10', lease);
-await page.evaluate(() => { const i = CASH_ITEMS.find(x => x.name === 'GOLF R 租金'); cashStartEditItem(i.id); });
+await page.evaluate(() => cashStartEditItem('new'));
+await page.selectOption('#cash-item-kind', 'lease');
+await page.fill('#cash-item-name', 'GOLF R 租金');
 await page.fill('#cash-item-monthly', '');
 await page.click('button[onclick="cashSaveItem()"]');
 check('租賃沒填每期金額 → 拒絕', (await lastToast(page)) === '租賃請填每期金額');

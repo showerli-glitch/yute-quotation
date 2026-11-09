@@ -1174,3 +1174,134 @@ function apGoOverheadMonth(month) {
   ohRenderMonthOptions(month);
   renderOverhead();
 }
+
+// 期票分期：一筆總額拆成 N 張每月同一天到期的支票，每張各一筆應付，票期依序加一個月（遇到小月取月底）。
+// 第一張走原本的存檔流程（新增或編輯都可以，檢查、重複提醒、連動都照舊），成功後再複製出其餘各張。
+// 票期在今天（含）以前的標已付款、完成匯款日＝票期；之後的為待付款、預約匯款日＝票期。
+// 資金試算把「有票期、待付款」的應付列成「已開支票未兌現」。
+const AP_INSTALLMENT_TYPES = ['vendor', 'family_pass_through', 'private_loan', 'overhead_variable'];
+
+function apInstallmentDate(firstDate, offset) {
+  const m = String(firstDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  const day = Number(m[3]);
+  const base = new Date(Number(m[1]), Number(m[2]) - 1 + offset, 1);
+  const lastDay = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+  base.setDate(Math.min(day, lastDay));
+  return localDateKey(base);
+}
+
+function apInstallmentPlan(total, count, firstDate) {
+  const n = Number(count);
+  if (!Number.isFinite(total) || total <= 0 || !Number.isInteger(n) || n < 2 || n > 60 || !apInstallmentDate(firstDate, 0)) return null;
+  const each = Math.round(total / n);
+  const today = localDateKey();
+  return Array.from({ length: n }, (_, i) => {
+    const ticket = apInstallmentDate(firstDate, i);
+    return { no: i + 1, count: n, ticket, amount: i === n - 1 ? total - each * (n - 1) : each, paid: ticket <= today };
+  });
+}
+
+function apInstallmentState() {
+  const on = !!document.getElementById('ap-installment-on')?.checked;
+  const total = parseInt(String(document.getElementById('ap-add-amount')?.value || '').replace(/[^0-9\-]/g, ''));
+  const count = document.getElementById('ap-installment-count')?.value || '';
+  const firstDate = document.getElementById('ap-add-ticket')?.value || '';
+  const type = document.getElementById('ap-add-payment-type')?.value || 'vendor';
+  return { on, total, count, firstDate, type, plan: apInstallmentPlan(total, count, firstDate) };
+}
+
+function apUpdateInstallmentPreview() {
+  const st = apInstallmentState();
+  const body = document.getElementById('ap-installment-body');
+  if (body) body.style.display = st.on ? '' : 'none';
+  const el = document.getElementById('ap-installment-preview');
+  if (!el || !st.on) return;
+  if (!AP_INSTALLMENT_TYPES.includes(st.type)) { el.textContent = '這個付款類型不能拆期票（預付費用／分期攤提、分潤款、稅務、固定開銷請維持一筆）。'; return; }
+  if (!st.plan) { el.textContent = '請填總額、第一張票期，張數 2～60。'; return; }
+  const money = v => '$' + Math.round(v).toLocaleString('zh-TW');
+  const p = st.plan;
+  const paid = p.filter(x => x.paid).length;
+  const sameAmount = p[0].amount === p[p.length - 1].amount;
+  el.textContent = `${p.length} 張，每張 ${money(p[0].amount)}${sameAmount ? '' : `（最後一張 ${money(p[p.length - 1].amount)}）`}，票期 ${p[0].ticket} ～ ${p[p.length - 1].ticket}。`
+    + (paid ? `票期已到的前 ${paid} 張標已付款，其餘 ${p.length - paid} 張為待付款，列入資金試算。` : '全部為待付款，列入資金試算。');
+}
+
+function apResetInstallmentFields(editRow) {
+  const field = document.getElementById('ap-installment-field');
+  if (field) field.style.display = editRow?.systemLocked ? 'none' : '';
+  const on = document.getElementById('ap-installment-on');
+  if (on) on.checked = false;
+  const count = document.getElementById('ap-installment-count');
+  if (count) count.value = '12';
+  apUpdateInstallmentPreview();
+}
+
+function apSubmitInstallments(originalSubmit, st) {
+  if (!requireManage('payable', '您沒有修改應付帳款的權限')) return;
+  const editId = document.getElementById('ap-edit-id')?.value || '';
+  const editRow = editId ? PAYABLES.find(x => x.id === parseInt(editId)) : null;
+  if (editRow?.systemLocked) { showToast('系統結算款不能拆期票', 'error'); return; }
+  if (!AP_INSTALLMENT_TYPES.includes(st.type)) { showToast('這個付款類型不能拆期票', 'error'); return; }
+  if (!st.plan) { showToast('期票分期：請填總額、第一張票期，張數 2～60', 'error'); return; }
+  const plan = st.plan;
+  const summaryEl = document.getElementById('ap-add-summary');
+  const baseSummary = String(summaryEl?.value || '').trim().replace(/（期票 \d+\/\d+）$/, '');
+  const tag = x => `${baseSummary}（期票 ${x.no}/${x.count}）`;
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  const first = plan[0];
+  setVal('ap-add-amount', String(first.amount));
+  setVal('ap-add-ticket', first.ticket);
+  setVal('ap-add-transfer-date', first.ticket);
+  setVal('ap-add-done-date', first.paid ? first.ticket : '');
+  setVal('ap-add-status', first.paid ? 'paid' : 'approved');
+  if (summaryEl) summaryEl.value = tag(first);
+  const beforeIds = new Set(PAYABLES.map(r => r.id));
+  // 第一張走原本流程，暫停它自己的存檔，等全部張數建好再一起存一次。
+  const realSave = window.saveData;
+  let saved = false;
+  window.saveData = function () { saved = true; };
+  try { originalSubmit(); } finally { window.saveData = realSave; }
+  const firstRow = editRow && editRow.summary === tag(first) && editRow.ticket === first.ticket
+    ? editRow
+    : PAYABLES.find(r => !beforeIds.has(r.id) && r.summary === tag(first));
+  if (!saved || !firstRow) {
+    setVal('ap-add-amount', String(st.total));
+    setVal('ap-add-ticket', st.firstDate);
+    if (summaryEl) summaryEl.value = baseSummary;
+    return;
+  }
+  const skip = new Set(['id', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'sourceKey', 'attachments', 'invoiceLink']);
+  plan.slice(1).forEach(x => {
+    const row = {};
+    Object.keys(firstRow).forEach(k => { if (!skip.has(k)) row[k] = firstRow[k]; });
+    Object.assign(row, { id: pyNextId++, amount: x.amount, summary: tag(x), ticket: x.ticket,
+      transferDate: x.ticket, doneDate: x.paid ? x.ticket : '', status: x.paid ? 'paid' : 'approved' });
+    touchRowMeta(row, true);
+    PAYABLES.push(row);
+    syncDerivedReceivableForPayable(row);
+    syncTaxLiabilityForPayable(row);
+  });
+  pyRebuildRentOverhead();
+  refreshAccountingLinkedViews(firstRow.case || '');
+  saveData();
+  showToast(`已建立 ${plan.length} 張期票，共 $${st.total.toLocaleString('zh-TW')} ✓`, 'success');
+}
+
+(function apHookInstallments() {
+  ['openAddPayableModal', 'openEditPayableModal'].forEach(name => {
+    const original = window[name];
+    if (typeof original !== 'function') return;
+    window[name] = function (id) {
+      const result = original.apply(this, arguments);
+      apResetInstallmentFields(name === 'openEditPayableModal' ? PAYABLES.find(x => Number(x.id) === Number(id)) : null);
+      return result;
+    };
+  });
+  const originalSubmit = window.submitAddPayable;
+  window.submitAddPayable = function () {
+    const st = apInstallmentState();
+    if (!st.on) return originalSubmit.apply(this, arguments);
+    return apSubmitInstallments(() => originalSubmit.apply(this, arguments), st);
+  };
+})();

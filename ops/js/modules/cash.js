@@ -94,8 +94,7 @@ const CASH_DEFAULT_ITEMS = [
   { kind: 'account', name: '國泰世華 活存' },
   { kind: 'account', name: '國泰世華 支存' },
   { kind: 'loan',    name: '玉山借款' },
-  { kind: 'lease',   name: 'M340i 租金' },
-  { kind: 'lease',   name: 'GOLF R 租金' },
+  // M340i／GOLF R 租金已改用應付「期票分期」記每張支票，資金試算從應付帶入「已開支票未兌現」，不再預設租賃項目以免重複扣。
 ];
 
 function cashCanAccess() {
@@ -245,8 +244,15 @@ function cashCompute() {
   items.filter(i => i.kind === 'loan' && i.include !== false).forEach(i => add('liability', '借款', i.name, cashItemValue(i), i.asOfDate ? `登錄日 ${i.asOfDate}` : '尚未登錄'));
   items.filter(i => i.kind === 'lease' && i.include !== false).forEach(i => add('liability', '租賃', i.name, cashItemValue(i),
     `${i.monthlyPayment ? `每月 ${i.payDay || '-'} 號 ${cashMoney(i.monthlyPayment)}` : '未填每期金額'}${i.lastPayMonth ? `，最後一期 ${i.lastPayMonth}` : ''}`, i.monthlyPayment ? 'auto' : 'manual'));
-  const approved = PAYABLES.filter(p => p.status === 'approved');
+  // 已開出、還沒兌現的支票（應付有票期、待付款）另列一行，依票期列出接下來的到期日；其他已核准未付照舊。
+  const checks = PAYABLES.filter(p => p.status === 'approved' && p.ticket).sort((a, b) => String(a.ticket).localeCompare(String(b.ticket)) || (a.id - b.id));
+  const approved = PAYABLES.filter(p => p.status === 'approved' && !p.ticket);
   const pending = PAYABLES.filter(p => p.status === 'pending');
+  if (checks.length) {
+    const shown = checks.slice(0, 6).map(p => `${p.ticket} ${p.vendor || ''} ${cashMoney(p.amount)}`);
+    add('liability', '應付', `已開支票未兌現（${checks.length} 張）`, checks.reduce((s, p) => s + (Number(p.amount) || 0), 0),
+      shown.join('；') + (checks.length > 6 ? `；…最後一張 ${checks[checks.length - 1].ticket}` : ''), 'auto');
+  }
   add('liability', '應付', `已核准未付（${approved.length} 筆）`, approved.reduce((s, p) => s + (Number(p.amount) || 0), 0), '含已結算未付的分潤結清款', 'auto');
   add('liability', '應付', `待審核請款（${pending.length} 筆）`, pending.reduce((s, p) => s + (Number(p.amount) || 0), 0), '保守起見一併扣除', 'auto');
   const wip = cashWipRows();
@@ -435,7 +441,7 @@ function cashRender() {
   const diff = last ? r.own - (Number(last.own) || 0) : null;
   const kpi = (label, value, sub, color = 'var(--text)') => `<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-val" style="font-size:20px;color:${color}">${value}</div><div class="kpi-sub">${sub}</div></div>`;
   const warnings = [];
-  if (!CASH_ITEMS.length) warnings.push(`還沒有資金項目。<button class="btn btn-primary btn-sm" onclick="cashCreateDefaults()">建立預設項目</button>（5 個公司帳戶、玉山借款、M340i、GOLF R 租金）`);
+  if (!CASH_ITEMS.length) warnings.push(`還沒有資金項目。<button class="btn btn-primary btn-sm" onclick="cashCreateDefaults()">建立預設項目</button>（5 個公司帳戶、玉山借款；車租期票由應付帳款「期票分期」自動帶入）`);
   if (r.missingMargin.length) warnings.push(`${r.missingMargin.length} 個進行中個案還沒填預估毛利率，超前收款沒有算進去：${r.missingMargin.map(w => `<a href="#" onclick="openEditCase('${cashEsc(w.code)}');return false">${cashEsc(w.name)}</a>`).join('、')}`);
   if (r.vatOverdue.length) warnings.push(`營業稅 ${r.vatOverdue.map(v => v.period).join('、')} 已過申報期但沒有登錄繳納，先當作未繳扣除；如果已經繳了，請到稅務管理登錄。`);
   const stale = CASH_ITEMS.filter(i => ['account', 'loan'].includes(i.kind) && i.include !== false && (!i.asOfDate || i.asOfDate < localDateKey(new Date(Date.now() - 35 * 86400000))));
