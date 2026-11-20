@@ -21,6 +21,7 @@ page.on('dialog', d => d.accept());
 const LOAN = 'YT-LOAN-QA-001';
 await page.evaluate(code => {
   CASES.push({ code, name: 'QA李公司車（財盟）', client: '', status: '進行中', amount: 0, person: '李鎮宇', profitSplit: '不分潤', excludeFromProfitReports: true, caseType: '私人借支', accountingTreatment: 'receivable_from_related_party' });
+  CASES.push({ code: 'YT-QA-2026-091', name: 'QA一般工程', client: '', status: '進行中', amount: 100000, person: '李鎮宇', profitSplit: '三人' });
   refreshAllCaseDropdowns();
   navTo('payable', document.getElementById('nav-payable'));
 }, LOAN);
@@ -76,7 +77,7 @@ check('改成私人借支後，原本攤進公司開銷的 12 期消失', ohBefo
 
 // 3. 尾數與小月。
 await page.evaluate(() => openAddPayableModal());
-await fill({ type: 'vendor', case: 'YT-LOAN-QA-001', caseName: 'QA', vendor: 'QA尾數', amount: '100000', summary: 'QA尾數', ticket: '2027-01-31', count: 3 });
+await fill({ type: 'vendor', case: 'YT-QA-2026-091', caseName: 'QA一般工程', vendor: 'QA尾數', amount: '100000', summary: 'QA尾數', ticket: '2027-01-31', count: 3 });
 await submit();
 const tail = await rowsOf('QA尾數');
 check('除不盡：33,333／33,333／33,334；1/31 起小月取月底（2/28、3/31）', tail.map(r => r.amount).join(',') === '33333,33333,33334' && tail.map(r => r.ticket).join(',') === '2027-01-31,2027-02-28,2027-03-31' && tail.every(r => r.status === 'approved'), tail);
