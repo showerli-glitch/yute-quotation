@@ -74,6 +74,16 @@ await page.fill('#cash-item-name', 'GLB');
 await page.click('button[onclick="cashSaveItem()"]');
 check('新增項目：私人帳戶（不計入）與其他預留', await page.evaluate(() => CASH_ITEMS.some(i => i.name === '李瑞興（私人）' && i.include === false) && CASH_ITEMS.some(i => i.name === 'GLB' && i.kind === 'reserve')));
 
+// typed amounts survive a re-render (user report 2026-11-20: typed 瑞興 支存 1,396,582, pressed 設定, the number was gone)
+const zhiId = await page.evaluate(() => CASH_ITEMS.find(i => i.name === '瑞興銀行 支存').id);
+await page.fill(`#cash-val-${zhiId}`, '1396582');
+await page.fill('#cash-snap-note', 'QA草稿備註');
+await page.click(`button[onclick="cashStartEditItem(${zhiId})"]`);
+const kept = await page.evaluate(id => { const el = document.getElementById(`cash-val-${id}`); return { v: el.value, border: el.style.borderColor, note: document.getElementById('cash-snap-note').value, form: !!document.getElementById('cash-item-name'), btn: document.querySelector(`button[onclick="cashStartEditItem(${id})"]`).textContent, hint: document.getElementById('cash-draft-hint').innerText, saved: CASH_ITEMS.find(i => i.id === id).amount }; }, zhiId);
+check('按「項目設定」後已打的金額和備註還在、黃框提示還沒存、金額沒有被存', kept.v === '1396582' && kept.note === 'QA草稿備註' && kept.form && kept.btn === '項目設定' && kept.border.includes('warning') && kept.hint.startsWith('有 1 項金額還沒存') && kept.saved === 0, kept);
+await page.evaluate(() => { cashEditingItemId = null; renderCurrentPage(); });
+check('雲端同步重畫後仍保留', (await page.evaluate(id => document.getElementById(`cash-val-${id}`).value, zhiId)) === '1396582');
+
 // enter this period dated 2026-10-01
 const values = { '玉山銀行 活存': 500000, '瑞興銀行 活存': 3000000, '瑞興銀行 支存': 0, '國泰世華 活存': 2000000, '國泰世華 支存': 100000, '玉山借款': 3500000, 'M340i 租金': 765120, 'GOLF R 租金': 0, '李瑞興（私人）': 999999, 'GLB': 150000 };
 await page.evaluate(v => { CASH_ITEMS.forEach(i => { const el = document.getElementById(`cash-val-${i.id}`); if (el && v[i.name] !== undefined) el.value = String(v[i.name]); }); }, values);
@@ -93,6 +103,7 @@ const r1 = await page.evaluate(() => {
     snaps: CASH_SNAPSHOTS.length, toast: window.__toasts[window.__toasts.length - 1] };
 });
 check('存成本期：建立一期並提示', r1.snaps === 1 && r1.toast === '已存成 2026-10-01 這一期 ✓', r1);
+check('存成本期後草稿清空，提示不再顯示還沒存', await page.evaluate(() => Object.keys(cashDrafts).length === 0 && !document.getElementById('cash-draft-hint').innerText.includes('還沒存') && !document.querySelector('[id^="cash-val-"]').style.borderColor));
 check('租賃自動扣期：10/1 登錄 765,120，過了 10/5 扣款日 → 701,360', r1.m340 === 765120 - 63760, { m340: r1.m340 });
 check('銀行帳戶合計不含「不計入」的私人帳戶', r1.bank === 5600000 && !r1.privateShown, { bank: r1.bank });
 check('自動項目＝獨立加總（已核准、待審核、已開票未收）；手動項目照登錄', r1.approved === r1.expApproved && r1.pending === r1.expPending && r1.billed === r1.expBilled && r1.glb === 150000 && r1.loan === 3500000, r1);

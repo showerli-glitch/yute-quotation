@@ -15,6 +15,14 @@ let cashSnapNextId = 1;
 const CASH_DEFAULT_SETTINGS = { reserveMonths: 3, ownerMonthlyDraw: 200000 };
 let CASH_SETTINGS = { ...CASH_DEFAULT_SETTINGS };
 let cashEditingItemId = null;
+// 「登錄本期金額」打了但還沒按「存成本期」的值（項目 id → 文字；date／note 是登錄日與備註）。
+// 畫面重畫（按項目設定、新增項目、雲端同步）時用它把已打的數字放回去，存成本期後清空。
+let cashDrafts = {};
+
+function cashSetDraft(key, el) {
+  cashDrafts[key] = el.value;
+  if (el.dataset.saved !== undefined) el.style.borderColor = cashParse(el.value) === Number(el.dataset.saved) ? '' : 'var(--warning)';
+}
 let cashViewSnapshotId = null;
 
 (function cashHookSnapshot() {
@@ -390,6 +398,7 @@ function cashSaveSnapshot() {
   };
   touchRowMeta(snap, true);
   CASH_SNAPSHOTS.push(snap);
+  cashDrafts = {};
   recordAuditLog('create', 'cashSnapshot', snap.id, before, auditClone(snap), { targetLabel: `資金試算 ${date}`, riskLevel: 'high' });
   saveData();
   cashRender();
@@ -448,11 +457,17 @@ function cashRender() {
   if (CASH_ITEMS.length && stale.length) warnings.push(`${stale.map(i => cashEsc(i.name)).join('、')} 超過 35 天沒有登錄，數字可能已經不準。`);
 
   const kindOrder = Object.keys(CASH_KINDS);
-  const entryRows = CASH_ITEMS.slice().sort((a, b) => kindOrder.indexOf(a.kind) - kindOrder.indexOf(b.kind)).map(i => `<tr style="border-bottom:1px solid var(--border)">
+  const draftOf = i => {
+    const saved = Math.round(cashItemValue(i));
+    const has = Object.prototype.hasOwnProperty.call(cashDrafts, i.id);
+    return { saved, text: has ? cashDrafts[i.id] : saved.toLocaleString('zh-TW'), changed: has && cashParse(cashDrafts[i.id]) !== saved };
+  };
+  const pending = CASH_ITEMS.filter(i => draftOf(i).changed).length;
+  const entryRows = CASH_ITEMS.slice().sort((a, b) => kindOrder.indexOf(a.kind) - kindOrder.indexOf(b.kind)).map(i => { const d = draftOf(i); return `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:6px 10px;font-size:12px">${cashEsc(i.name)}<div style="font-size:10px;color:var(--text3)">${CASH_KINDS[i.kind]?.label || ''}${i.include === false ? '・不計入' : ''}${i.asOfDate ? `・上次 ${i.asOfDate}` : ''}</div></td>
-      <td style="padding:6px 10px;width:170px"><input class="form-input" id="cash-val-${i.id}" type="text" inputmode="numeric" value="${Math.round(cashItemValue(i)).toLocaleString('zh-TW')}" style="text-align:right"></td>
-      <td style="padding:6px 10px;white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="cashStartEditItem(${i.id})">設定</button></td>
-    </tr>`).join('');
+      <td style="padding:6px 10px;width:170px"><input class="form-input" id="cash-val-${i.id}" type="text" inputmode="numeric" value="${cashEsc(d.text)}" data-saved="${d.saved}" oninput="cashSetDraft(${i.id},this)" style="text-align:right${d.changed ? ';border-color:var(--warning)' : ''}"></td>
+      <td style="padding:6px 10px;white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="cashStartEditItem(${i.id})" title="改名稱、類型、是否計入；不會儲存金額">項目設定</button></td>
+    </tr>`; }).join('');
   const editing = cashEditingItemId === 'new' ? {} : (cashEditingItemId != null ? CASH_ITEMS.find(i => String(i.id) === String(cashEditingItemId)) : null);
   const itemForm = editing ? `<div style="border:1px solid var(--accent);border-radius:8px;padding:12px;margin-top:10px;background:var(--surface2)">
       <div style="font-weight:600;font-size:13px;margin-bottom:8px">${cashEditingItemId === 'new' ? '新增項目' : '項目設定：' + cashEsc(editing.name)}</div>
@@ -522,10 +537,11 @@ function cashRender() {
           <span>登錄本期金額</span><button class="btn btn-ghost btn-sm" onclick="cashStartEditItem('new')">＋ 新增項目</button></div>
         <table style="width:100%;border-collapse:collapse"><tbody>${entryRows || '<tr><td style="padding:12px;color:var(--text3);font-size:12px">沒有項目</td></tr>'}</tbody></table>
         <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--border)">
-          <label style="font-size:11px;color:var(--text3)">登錄日<br><input class="form-input" id="cash-snap-date" type="date" value="${r.today}" max="${r.today}"></label>
-          <label style="font-size:11px;color:var(--text3);flex:1">備註<br><input class="form-input" id="cash-snap-note" placeholder="例：月初對帳"></label>
+          <label style="font-size:11px;color:var(--text3)">登錄日<br><input class="form-input" id="cash-snap-date" type="date" value="${cashEsc(cashDrafts.date || r.today)}" max="${r.today}" oninput="cashSetDraft('date',this)"></label>
+          <label style="font-size:11px;color:var(--text3);flex:1">備註<br><input class="form-input" id="cash-snap-note" placeholder="例：月初對帳" value="${cashEsc(cashDrafts.note || '')}" oninput="cashSetDraft('note',this)"></label>
           <button class="btn btn-primary btn-sm" onclick="cashSaveSnapshot()" ${CASH_ITEMS.length ? '' : 'disabled'}>存成本期</button>
         </div>
+        <div id="cash-draft-hint" style="padding:0 12px 8px;font-size:11px;color:${pending ? 'var(--warning)' : 'var(--text3)'}">${pending ? `有 ${pending} 項金額還沒存（黃框），` : ''}金額填完按「存成本期」才會儲存；「項目設定」只改名稱、類型和是否計入，不會存金額。</div>
         <div style="padding:0 12px 10px">${itemForm}</div>
       </div>
       <div style="width:300px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
