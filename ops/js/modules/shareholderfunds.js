@@ -262,7 +262,8 @@ function sfDetailHtml(code) {
     } else {
       source = sfEsc(SF_ADJUST_REASONS[e.row.reason] || e.row.reasonLabel || '差額沖帳');
       note = sfEsc(e.row.note || '');
-      action = `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px;height:auto;white-space:nowrap" onclick="event.stopPropagation();sfDeleteAdjust('${sfEsc(code)}','${sfEsc(e.row.id)}')">刪除</button>`;
+      const btn = 'class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px;height:auto;white-space:nowrap"';
+      action = `<span style="display:inline-flex;gap:4px"><button ${btn} onclick="event.stopPropagation();sfOpenAdjust('${sfEsc(code)}','${sfEsc(e.row.id)}')">編輯</button><button ${btn} onclick="event.stopPropagation();sfDeleteAdjust('${sfEsc(code)}','${sfEsc(e.row.id)}')">刪除</button></span>`;
     }
     return `<tr><td style="${SF_TD};font-family:'DM Mono',monospace;white-space:nowrap">${sfEsc(e.date || '—')}</td><td style="${SF_TD}">${sfTag(kindLabel[e.kind], 'var(--accent)', 'var(--accent2)')}</td>
       <td style="${SF_TD}">${source}</td><td style="${SF_TD};color:var(--text2)">${note}</td><td style="${SF_TD}">${sfStatusTag(e)}</td>
@@ -331,28 +332,44 @@ function sfNewAccount() {
 }
 
 // ── 差額沖帳 ──
-function sfOpenAdjust(code) {
-  if (!sfCanAccess()) { showToast('您沒有此功能的權限', 'error'); return; }
+// 不含某一筆沖帳時，全部付完後的差額（正數＝欠公司）。編輯時用來比對新金額。
+function sfShortfallExcluding(code, adjustId) {
   const l = sfLedger(code);
-  if (!(l.balanceAll < -0.5)) { showToast('這個帳戶全部付完後沒有欠款，不需要差額沖帳', 'warning'); return; }
-  const shortfall = Math.round(-l.balanceAll);
+  const row = adjustId ? (l.account?.loanAdjustments || []).find(a => String(a.id) === String(adjustId)) : null;
+  const without = row ? Math.round(Number(row.amount) || 0) : 0;
+  return { l, row, shortfall: Math.round(-(l.balanceAll - without)), inflow: l.inflowAll - without };
+}
+
+function sfOpenAdjust(code, adjustId) {
+  if (!sfCanAccess()) { showToast('您沒有此功能的權限', 'error'); return; }
+  const { l, row, shortfall, inflow } = sfShortfallExcluding(code, adjustId);
+  if (adjustId && !row) { showToast('找不到這筆差額沖帳', 'error'); return; }
+  if (!row && !(l.balanceAll < -0.5)) { showToast('這個帳戶全部付完後沒有欠款，不需要差額沖帳', 'warning'); return; }
   document.getElementById('sf-adjust-code').value = code;
-  document.getElementById('sf-adjust-title').textContent = `差額沖帳・${l.account.name}`;
+  document.getElementById('sf-adjust-id').value = row ? row.id : '';
+  document.getElementById('sf-adjust-title').textContent = `${row ? '編輯差額沖帳' : '差額沖帳'}・${l.account.name}`;
+  document.getElementById('sf-adjust-submit').textContent = row ? '儲存' : '沖帳';
+  const gap = shortfall > 0
+    ? `<span>${row ? '不含這筆的差額' : '差額'} <b style="font-family:'DM Mono',monospace;color:var(--error)">${sfMoney(shortfall)}</b>（欠公司）</span>`
+    : `<span>${row ? '不含這筆的差額' : '差額'} <b style="font-family:'DM Mono',monospace;color:var(--success)">${sfMoney(-shortfall)}</b>（公司代管）</span>`;
   document.getElementById('sf-adjust-summary').innerHTML = `<span>公司付出 <b style="font-family:'DM Mono',monospace">${sfMoney(l.outAll)}</b></span>
-    <span>轉入／收回／沖帳 <b style="font-family:'DM Mono',monospace">${sfMoney(l.inflowAll)}</b></span>
-    <span>差額 <b style="font-family:'DM Mono',monospace;color:var(--error)">${sfMoney(shortfall)}</b>（欠公司）</span>`;
-  document.getElementById('sf-adjust-reason').value = 'tax';
-  document.getElementById('sf-adjust-amount').value = shortfall.toLocaleString('zh-TW');
-  document.getElementById('sf-adjust-date').value = localDateKey();
-  document.getElementById('sf-adjust-note').value = '';
+    <span>${row ? '轉入／收回／其他沖帳' : '轉入／收回／沖帳'} <b style="font-family:'DM Mono',monospace">${sfMoney(inflow)}</b></span>
+    ${gap}`;
+  document.getElementById('sf-adjust-reason').value = row ? (SF_ADJUST_REASONS[row.reason] ? row.reason : 'other') : 'tax';
+  document.getElementById('sf-adjust-amount').value = (row ? Math.round(Number(row.amount) || 0) : Math.max(shortfall, 0)).toLocaleString('zh-TW');
+  document.getElementById('sf-adjust-date').value = row ? (row.date || '') : localDateKey();
+  document.getElementById('sf-adjust-note').value = row ? (row.note || '') : '';
   openModal('modal-sf-adjust');
 }
 
 function sfSubmitAdjust() {
   if (!sfCanAccess()) { showToast('您沒有此功能的權限', 'error'); return; }
   const code = document.getElementById('sf-adjust-code').value;
+  const editId = document.getElementById('sf-adjust-id').value;
   const c = CASES.find(x => x.code === code);
   if (!sfIsAccount(c)) { showToast('找不到往來帳戶', 'error'); return; }
+  const existing = editId ? (c.loanAdjustments || []).find(a => String(a.id) === String(editId)) : null;
+  if (editId && !existing) { showToast('找不到這筆差額沖帳，可能已被刪除', 'error'); return; }
   const reason = document.getElementById('sf-adjust-reason').value;
   const amount = Math.round(Number(String(document.getElementById('sf-adjust-amount').value || '').replace(/[^0-9.]/g, '')) || 0);
   const date = document.getElementById('sf-adjust-date').value;
@@ -361,18 +378,30 @@ function sfSubmitAdjust() {
   if (!(amount > 0)) { showToast('請填寫沖帳金額', 'error'); return; }
   if (!date) { showToast('請填寫沖帳日', 'error'); return; }
   if (!note) { showToast('請寫明差額的原因說明', 'error'); return; }
-  const shortfall = Math.round(-sfLedger(code).balanceAll);
-  if (amount > shortfall && !confirm(`沖帳金額 ${sfMoney(amount)} 大於目前差額 ${sfMoney(shortfall)}，沖完後會變成公司代管 ${sfMoney(amount - shortfall)}。確定嗎？`)) return;
+  const { shortfall } = sfShortfallExcluding(code, existing ? existing.id : null);
+  if (amount > shortfall && !confirm(`沖帳金額 ${sfMoney(amount)} 大於${existing ? '不含這筆的' : '目前'}差額 ${sfMoney(Math.max(shortfall, 0))}，沖完後會變成公司代管 ${sfMoney(amount - Math.max(shortfall, 0))}。確定嗎？`)) return;
   const before = auditClone(c.loanAdjustments || []);
-  const row = { id: `adj-${Date.now()}`, date, amount, reason, reasonLabel: SF_ADJUST_REASONS[reason], note };
-  touchRowMeta(row, true);
-  c.loanAdjustments = [...(c.loanAdjustments || []), row];
-  touchRowMeta(c);
-  recordAuditLog('create', 'loanAdjustment', code, before, auditClone(c.loanAdjustments), { targetLabel: `${c.name} 差額沖帳 ${sfMoney(amount)}`, riskLevel: 'medium' });
+  if (existing) {
+    const oldAmount = Math.round(Number(existing.amount) || 0);
+    c.loanAdjustments = c.loanAdjustments.map(a => {
+      if (String(a.id) !== String(existing.id)) return a;
+      const row = { ...a, date, amount, reason, reasonLabel: SF_ADJUST_REASONS[reason], note };
+      touchRowMeta(row);
+      return row;
+    });
+    touchRowMeta(c);
+    recordAuditLog('update', 'loanAdjustment', code, before, auditClone(c.loanAdjustments), { targetLabel: `${c.name} 差額沖帳 ${sfMoney(oldAmount)} → ${sfMoney(amount)}`, riskLevel: 'medium' });
+  } else {
+    const row = { id: `adj-${Date.now()}`, date, amount, reason, reasonLabel: SF_ADJUST_REASONS[reason], note };
+    touchRowMeta(row, true);
+    c.loanAdjustments = [...(c.loanAdjustments || []), row];
+    touchRowMeta(c);
+    recordAuditLog('create', 'loanAdjustment', code, before, auditClone(c.loanAdjustments), { targetLabel: `${c.name} 差額沖帳 ${sfMoney(amount)}`, riskLevel: 'medium' });
+  }
   closeModal('modal-sf-adjust');
   saveData();
   sfRender();
-  showToast(`已沖帳 ${sfMoney(amount)} ✓`, 'success');
+  showToast(existing ? `已更新差額沖帳 ${sfMoney(amount)} ✓` : `已沖帳 ${sfMoney(amount)} ✓`, 'success');
 }
 
 function sfDeleteAdjust(code, id) {

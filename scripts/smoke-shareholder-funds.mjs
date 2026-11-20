@@ -118,8 +118,21 @@ check('沖帳不進公司開銷', ohBefore === (await page.evaluate(() => JSON.s
 const text2 = await page.evaluate(() => document.getElementById('sf-container').innerText);
 check('明細列出差額沖帳和原因', text2.includes('差額沖帳') && text2.includes('公司負擔稅金') && text2.includes('$0 結清'));
 const adjId = afterAdj.adj[0].id;
+check('差額沖帳那一列有「編輯」和「刪除」', await page.evaluate(id => { const b = [...document.querySelectorAll('#sf-container button')].filter(x => (x.getAttribute('onclick') || '').includes(id)).map(x => x.textContent); return b.includes('編輯') && b.includes('刪除'); }, adjId));
+const editAdj = await page.evaluate(({ P, adjId }) => { sfOpenAdjust(P, adjId); const v = id => document.getElementById(id).value; return { open: document.getElementById('modal-sf-adjust').classList.contains('open'), id: v('sf-adjust-id'), amount: v('sf-adjust-amount'), reason: v('sf-adjust-reason'), note: v('sf-adjust-note'), date: v('sf-adjust-date'), title: document.getElementById('sf-adjust-title').textContent, btn: document.getElementById('sf-adjust-submit').textContent, summary: document.getElementById('sf-adjust-summary').innerText }; }, { P, adjId });
+check('編輯差額沖帳：帶出原本的金額、原因、日期、說明，按鈕是「儲存」', editAdj.open && editAdj.id === adjId && editAdj.amount === '25,543' && editAdj.reason === 'tax' && editAdj.note.startsWith('月租含 5%') && editAdj.date === afterAdj.adj[0].date && editAdj.title.startsWith('編輯差額沖帳') && editAdj.btn === '儲存' && editAdj.summary.includes('不含這筆的差額') && editAdj.summary.includes('$25,543'), editAdj);
+const auditBefore = await page.evaluate(() => AUDIT_LOGS.length);
+await page.evaluate(() => { document.getElementById('sf-adjust-amount').value = '25,000'; document.getElementById('sf-adjust-reason').value = 'other'; document.getElementById('sf-adjust-note').value = '改正金額'; sfSubmitAdjust(); });
+const edited = await page.evaluate(P => { const c = CASES.find(x => x.code === P); const last = AUDIT_LOGS[0]; return { rows: c.loanAdjustments.map(a => ({ id: a.id, amount: a.amount, reason: a.reason, note: a.note })), all: sfLedger(P).balanceAll, audit: last && { action: last.action, label: last.targetLabel } }; }, P);
+check('儲存後：同一筆改成 25,000、原因其他，沒有多出一筆，留下修改紀錄', edited.rows.length === 1 && edited.rows[0].id === adjId && edited.rows[0].amount === 25000 && edited.rows[0].reason === 'other' && edited.rows[0].note === '改正金額' && edited.all === -543 && (await page.evaluate(() => AUDIT_LOGS.length)) === auditBefore + 1 && edited.audit.action === 'update' && edited.audit.label.includes('$25,543 → $25,000'), edited);
+check('編輯後提示已更新', (await lastToast(page)) === '已更新差額沖帳 $25,000 ✓');
+await page.evaluate(({ P, adjId }) => { sfOpenAdjust(P, adjId); document.getElementById('sf-adjust-amount').value = ''; sfSubmitAdjust(); }, { P, adjId });
+check('編輯時金額清空不能儲存', (await lastToast(page)) === '請填寫沖帳金額' && (await page.evaluate(P => CASES.find(x => x.code === P).loanAdjustments[0].amount, P)) === 25000);
+await page.evaluate(() => closeModal('modal-sf-adjust'));
+const newAfterEdit = await page.evaluate(P => { sfOpenAdjust(P); const r = { id: document.getElementById('sf-adjust-id').value, btn: document.getElementById('sf-adjust-submit').textContent, amount: document.getElementById('sf-adjust-amount').value }; closeModal('modal-sf-adjust'); return r; }, P);
+check('編輯過後再按「差額沖帳」是新增，帶入剩下的 543', newAfterEdit.id === '' && newAfterEdit.btn === '沖帳' && newAfterEdit.amount === '543', newAfterEdit);
 await page.evaluate(({ P, adjId }) => sfDeleteAdjust(P, adjId), { P, adjId });
-check('差額沖帳可以刪除', (await page.evaluate(P => sfLedger(P).balanceAll, P)) === -25543);
+check('差額沖帳可以刪除', (await page.evaluate(P => sfLedger(P).balanceAll, P)) === -25543 && (await page.evaluate(P => CASES.find(x => x.code === P).loanAdjustments.length, P)) === 0);
 await page.evaluate(P => { sfOpenAdjust(P); document.getElementById('sf-adjust-note').value = '公司負擔稅金'; sfSubmitAdjust(); }, P);
 
 // 7. 李的車：財盟 956,400 拆 12 張（第一張 11/05 已兌現），沒有分潤轉入 → 欠公司。
