@@ -297,6 +297,127 @@ if (hasPhone) {
   await mctx.close();
 }
 
+// ═══════════ SHARED ITEM PRICES (quotation/js/pricesync.js; only when present) ═══════════
+const hasPriceSync = await (async () => { try { return (await fetch(`${ORIGIN}/quotation/js/pricesync.js`)).ok; } catch (e) { return false; } })();
+if (hasPriceSync) {
+  H.setScenario('Q-prices');
+  H.state.rtdb = {};
+  const openAs = async (email, seed) => {
+    const c = await newContext(email);
+    await c.addInitScript(({ email, seed }) => {
+      try {
+        if (!localStorage.getItem('yutesign_session')) localStorage.setItem('yutesign_session', JSON.stringify({ email, loginTime: Date.now() }));
+        if (seed && !localStorage.getItem('__seeded')) { localStorage.setItem('__seeded', '1'); Object.entries(seed).forEach(([k, v]) => localStorage.setItem(k, v)); }
+      } catch (e) {}
+    }, { email, seed: seed || null });
+    const pg = await c.newPage();
+    const dialogs = [];
+    const errs = [];
+    pg.on('dialog', d => { dialogs.push(d.message()); d.accept(); });
+    pg.on('pageerror', e => errs.push(String(e)));
+    await pg.goto(`${ORIGIN}/`, { waitUntil: 'load' });
+    await pg.waitForFunction(() => typeof qpsApply === 'function' && qpsRecords !== null, null, { timeout: 15000 });
+    await pg.waitForTimeout(300);
+    return { c, pg, dialogs, errs };
+  };
+  const items = () => H.state.rtdb?.quotation?.yutesign?.items || {};
+  const rec = name => Object.values(items()).find(r => r.n === name);
+  const names = await (async () => { const t = await openAs('shower.li@yutesign.com'); const n = await t.pg.evaluate(() => [dbItems[0]['工項名稱'], dbItems[1]['工項名稱'], dbItems[2]['工項名稱'], dbItems[5]['工項名稱'], dbItems[3]['參考單價']]); await t.c.close(); return n; })();
+  const [X, Y, Z, W] = names;
+
+  const A = await openAs('shower.li@yutesign.com');
+  await A.pg.evaluate(X => { const i = dbItems.findIndex(d => d['工項名稱'] === X); updateDbItem(i, '參考單價', 4321); saveDb(); }, X);
+  await A.pg.waitForTimeout(300);
+  check('改單價 → 寫進雲端一筆（記錄修改人）', rec(X)?.p === 4321 && rec(X)?.by === 'shower.li@yutesign.com' && Object.keys(items()).length === 1, rec(X));
+
+  const B = await openAs('peng@yutesign.com');
+  const seenB = await B.pg.evaluate(X => ({ price: dbItems.find(d => d['工項名稱'] === X)['參考單價'], meta: qpsMetaText(X), total: dbItems.length }), X);
+  check('另一位同事開啟 → 看到新單價和「最後修改：shower.li」', seenB.price === 4321 && /最後修改：shower\.li/.test(seenB.meta), seenB);
+  const quoteB = await B.pg.evaluate(X => { addItem(dbItems.find(d => d['工項名稱'] === X)); return quoteItems[quoteItems.length - 1].price; }, X);
+  check('報價單加入這個工項時用的是新單價', quoteB === 4321, quoteB);
+
+  const delB = await B.pg.evaluate(Y => { setMode('edit'); const i = dbItems.findIndex(d => d['工項名稱'] === Y); deleteDbItem(i); const still = dbItems.some(d => d['工項名稱'] === Y); const j = dbItems.findIndex(d => d['工項名稱'] === Y); dbItems.splice(j, 1); saveDb(); setMode('quote'); return { still, back: dbItems.some(d => d['工項名稱'] === Y) }; }, Y);
+  await B.pg.waitForTimeout(300);
+  check('同事不能刪工項：刪除鍵擋下；就算從清單拿掉，存檔時也會還原、雲端沒有刪除紀錄', delB.still && delB.back && !rec(Y) && B.dialogs.some(m => m.includes('只有李鎮宇可以刪除')), { delB, dialogs: B.dialogs });
+
+  await B.pg.evaluate(Z => { const i = dbItems.findIndex(d => d['工項名稱'] === Z); updateDbItem(i, '工項名稱', Z + '（改名）'); saveDb(); }, Z);
+  await B.pg.waitForTimeout(300);
+  check('同事可以改工項名稱（舊名稱標記為改名、新名稱一筆）', rec(Z)?.del === true && rec(Z)?.moved === Z + '（改名）' && rec(Z + '（改名）')?.by === 'peng@yutesign.com', { old: rec(Z), now: rec(Z + '（改名）') });
+
+  await A.pg.evaluate(Y => { const i = dbItems.findIndex(d => d['工項名稱'] === Y); deleteDbItem(i); saveDb(); }, Y);
+  await A.pg.waitForTimeout(300);
+  check('李鎮宇可以刪除工項（雲端記一筆刪除）', rec(Y)?.del === true && rec(Y)?.by === 'shower.li@yutesign.com', rec(Y));
+  await B.pg.reload({ waitUntil: 'load' });
+  await B.pg.waitForFunction(() => typeof qpsApply === 'function' && qpsRecords !== null, null, { timeout: 15000 });
+  await B.pg.waitForTimeout(300);
+  const afterDel = await B.pg.evaluate(([Y, Z]) => ({ y: dbItems.some(d => d['工項名稱'] === Y), z: dbItems.some(d => d['工項名稱'] === Z), z2: dbItems.some(d => d['工項名稱'] === Z + '（改名）') }), [Y, Z]);
+  check('重新開啟：刪除的工項不見、改名的工項只剩新名稱', !afterDel.y && !afterDel.z && afterDel.z2, afterDel);
+
+  H.state.rtdbFail = true;
+  B.dialogs.length = 0;
+  await B.pg.evaluate(W => { const i = dbItems.findIndex(d => d['工項名稱'] === W); updateDbItem(i, '參考單價', 777); saveDb(); }, W);
+  await B.pg.waitForTimeout(300);
+  const offline = await B.pg.evaluate(W => ({ local: JSON.parse(localStorage.getItem('yutesign_db')).find(d => d['工項名稱'] === W)['參考單價'], pending: localStorage.getItem('yutesign_quote_price_pending') }), W);
+  check('連不上雲端時：單價先存在這台、提示同步失敗', offline.local === 777 && offline.pending === '1' && !rec(W) && B.dialogs.some(m => m.includes('同步到雲端失敗')), { offline, dialogs: B.dialogs });
+  H.state.rtdbFail = false;
+  await B.pg.reload({ waitUntil: 'load' });
+  await B.pg.waitForFunction(() => typeof qpsApply === 'function' && qpsRecords !== null, null, { timeout: 15000 });
+  await B.pg.waitForTimeout(600);
+  check('恢復連線後重新開啟：自動補傳', rec(W)?.p === 777 && rec(W)?.by === 'peng@yutesign.com', rec(W));
+
+  // A device that edited prices before this feature existed: offered once, uploaded on 確定.
+  const oldDb = await A.pg.evaluate(() => { const d = DEFAULT_ITEMS.map(item => ({ ...item, 類別: mapCat(item['類別']) })); d[10] = { ...d[10], '參考單價': 12345 }; return { db: JSON.stringify(d), name: d[10]['工項名稱'] }; });
+  const C = await openAs('lien@yutesign.com', { yutesign_db: oldDb.db, yutesign_db_ver: '2026050505' });
+  await C.pg.waitForTimeout(400);
+  check('舊裝置第一次開新版：詢問是否上傳這台改過的單價，確定後上傳', C.dialogs.some(m => m.includes('要上傳這台的版本')) && rec(oldDb.name)?.p === 12345 && rec(oldDb.name)?.by === 'lien@yutesign.com', { dialogs: C.dialogs, rec: rec(oldDb.name) });
+  const kept = await C.pg.evaluate(([X, W]) => ({ x: dbItems.find(d => d['工項名稱'] === X)['參考單價'], w: dbItems.find(d => d['工項名稱'] === W)['參考單價'] }), [X, W]);
+  check('上傳後仍保有其他人改過的單價（逐項合併，不會整份蓋掉）', kept.x === 4321 && kept.w === 777, kept);
+  await C.c.close();
+
+  // A colleague's device with its own new items AND a different price for a shared item, answering 取消:
+  // the new items must still be kept and uploaded; only the price difference falls back to the cloud.
+  const colDb = await A.pg.evaluate(() => { const d = DEFAULT_ITEMS.map(item => ({ ...item, 類別: mapCat(item['類別']) })); d.unshift({ '類別': '木作及系統櫃工程', '工項名稱': '同事自建測試櫃', '單位': '尺', '參考單價': 6600, '出現次數': 1 }); d[21] = { ...d[21], '參考單價': 99 }; return { db: JSON.stringify(d), changed: d[21]['工項名稱'], cloudPrice: DEFAULT_ITEMS.find(i => i['工項名稱'] === d[21]['工項名稱'])['參考單價'] }; });
+  const D = await newContext('wu@yutesign.com');
+  await D.addInitScript(({ db }) => { try { if (!localStorage.getItem('__seeded')) { localStorage.setItem('__seeded', '1'); localStorage.setItem('yutesign_session', JSON.stringify({ email: 'wu@yutesign.com', loginTime: Date.now() })); localStorage.setItem('yutesign_db', db); localStorage.setItem('yutesign_db_ver', '2026102601'); } } catch (e) {} }, { db: colDb.db });
+  const Dp = await D.newPage(); const Ddlg = [];
+  Dp.on('dialog', d => { Ddlg.push(d.message()); d.dismiss(); });
+  await Dp.goto(`${ORIGIN}/`, { waitUntil: 'load' });
+  await Dp.waitForFunction(() => typeof qpsApply === 'function' && qpsRecords !== null, null, { timeout: 15000 });
+  await Dp.waitForTimeout(500);
+  const dState = await Dp.evaluate(n => ({ own: dbItems.find(d => d['工項名稱'] === '同事自建測試櫃')?.['參考單價'], changed: dbItems.find(d => d['工項名稱'] === n)['參考單價'] }), colDb.changed);
+  check('同事按「取消」：自己建的工項仍保留並上傳，只有單價不同的那項改用雲端版本', Ddlg.some(m => m.includes('不論選哪個都會保留')) && dState.own === 6600 && rec('同事自建測試櫃')?.by === 'wu@yutesign.com' && dState.changed === colDb.cloudPrice && !rec(colDb.changed), { Ddlg, dState });
+  // Offline: a new item saved on this device must survive a cloud update from someone else.
+  H.state.rtdbFail = true; Ddlg.length = 0;
+  await Dp.evaluate(() => { dbItems.unshift({ '類別': '油漆工程', '工項名稱': '離線新增測試項', '單位': '式', '參考單價': 1234, '出現次數': 1 }); saveDb(); });
+  await Dp.waitForTimeout(300);
+  H.state.rtdbFail = false;
+  await A.pg.evaluate(X => { const i = dbItems.findIndex(d => d['工項名稱'] === X); updateDbItem(i, '參考單價', 5555); saveDb(); }, X);
+  await A.pg.waitForTimeout(300);
+  // The mock cloud does not push live events across browser contexts: deliver the new cloud state to D the way the
+  // live listener would.
+  await Dp.evaluate(() => new Promise(r => fbDb.ref(QPS_PATH).once ? fbDb.ref(QPS_PATH).once('value').then(s => { qpsApply(s.val() || {}); r(); }) : window.__mockRtdbGet(QPS_PATH).then(v => { qpsApply(v || {}); r(); })));
+  await Dp.waitForTimeout(300);
+  const dAfter = await Dp.evaluate(X => ({ off: dbItems.some(d => d['工項名稱'] === '離線新增測試項'), x: dbItems.find(d => d['工項名稱'] === X)['參考單價'], own: dbItems.some(d => d['工項名稱'] === '同事自建測試櫃'), stored: JSON.parse(localStorage.getItem('yutesign_db')).some(d => d['工項名稱'] === '離線新增測試項') }), X);
+  check('離線時新增的工項：別人更新雲端後仍留在這台（也存在本機），同時收到別人的新單價', dAfter.off && dAfter.stored && dAfter.own && dAfter.x === 5555, dAfter);
+  await Dp.reload({ waitUntil: 'load' });
+  await Dp.waitForFunction(() => typeof qpsApply === 'function' && qpsRecords !== null, null, { timeout: 15000 });
+  await Dp.waitForTimeout(600);
+  check('重新開啟後自動補傳離線新增的工項，且不會用舊單價蓋掉別人的新價', rec('離線新增測試項')?.p === 1234 && rec(X)?.p === 5555 && rec(X)?.by === 'shower.li@yutesign.com', { off: rec('離線新增測試項'), x: rec(X) });
+  await D.close();
+  await A.pg.evaluate(X => { const i = dbItems.findIndex(d => d['工項名稱'] === X); updateDbItem(i, '參考單價', 4321); saveDb(); }, X);
+  await A.pg.waitForTimeout(300);
+
+  await A.pg.setViewportSize({ width: 390, height: 844 });
+  await A.pg.waitForTimeout(200);
+  const phoneMeta = await A.pg.evaluate(X => { qmOpenPage('prices'); qmPriceQuery = X.slice(0, 4); qmRenderPriceList(); return document.getElementById('qm-price-list').textContent; }, X);
+  check('手機「編輯工項單價」顯示最後修改人', /最後修改：shower\.li/.test(phoneMeta), phoneMeta.slice(0, 80));
+  await A.pg.setViewportSize({ width: 1440, height: 900 });
+  const deskMeta = await A.pg.evaluate(X => { setMode('edit'); document.getElementById('searchInput').value = X; renderLeftPanel(); const t = document.querySelector('#itemList .qps-meta')?.textContent || ''; setMode('quote'); return t; }, X);
+  check('電腦版「編輯工項」也顯示最後修改人', /最後修改：shower\.li/.test(deskMeta), deskMeta);
+  check('同步過程沒有頁面錯誤', [...A.errs, ...B.errs].length === 0, [...A.errs, ...B.errs]);
+  await A.c.close(); await B.c.close();
+}
+
 const fails = await H.finish(outJson, { observations: obs, observationsHash: hash(JSON.stringify(obs)) });
 console.log('observations hash', hash(JSON.stringify(obs)));
 process.exit(fails ? 1 : 0);

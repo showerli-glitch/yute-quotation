@@ -478,7 +478,8 @@ function qmRenderPriceList() {
   if (!items.length) { el.innerHTML = '<div class="qm-empty">沒有符合的工項</div>'; return; }
   el.innerHTML = items.map(d => {
     const idx = dbItems.indexOf(d);
-    return `<div class="qm-card"><div class="qm-name">${qmEsc(d['工項名稱'])}</div><div class="qm-muted">${qmEsc(d['類別'])}</div>
+    const meta = typeof qpsMetaText === 'function' ? qpsMetaText(d['工項名稱']) : '';
+    return `<div class="qm-card"><div class="qm-name">${qmEsc(d['工項名稱'])}</div><div class="qm-muted">${qmEsc(d['類別'])}${meta ? '・' + qmEsc(meta) : ''}</div>
       <div class="qm-two"><label class="qm-field qm-unit"><span>單位</span><input value="${qmEsc(d['單位'])}" onchange="qmDbSet(${idx},'單位',this.value)"></label><label class="qm-field qm-grow"><span>參考單價</span><div class="qm-money"><b>$</b><input type="number" inputmode="decimal" value="${qmEsc(d['參考單價'])}" onchange="qmDbSet(${idx},'參考單價',parseFloat(this.value)||0)"></div></label></div></div>`;
   }).join('');
 }
