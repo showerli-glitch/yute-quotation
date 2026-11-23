@@ -371,12 +371,13 @@ function cashSaveSettings() {
   showToast('安全水位設定已儲存 ✓', 'success');
 }
 
-// 登錄本期：更新手動項目的金額與登錄日，並把當下整份試算凍結成一期。
-function cashSaveSnapshot() {
+// 儲存銀行餘額：只更新手動項目的金額與餘額日期，不存成一期。
+function cashSaveBalances() {
   if (!cashRequire()) return;
   const date = document.getElementById('cash-snap-date')?.value || cashToday();
-  if (date > cashToday()) { showToast('登錄日不能是未來日期', 'error'); return; }
+  if (date > cashToday()) { showToast('餘額日期不能是未來日期', 'error'); return; }
   const before = auditClone(CASH_ITEMS);
+  const savedAt = new Date().toISOString();
   CASH_ITEMS.forEach(i => {
     const el = document.getElementById(`cash-val-${i.id}`);
     if (!el) return;
@@ -387,28 +388,116 @@ function cashSaveSnapshot() {
       i.amount = value;
       i.asOfDate = date;
     }
+    i.balanceSavedAt = savedAt;
     touchRowMeta(i);
   });
+  Object.keys(cashDrafts).forEach(k => { if (k !== 'note') delete cashDrafts[k]; });
+  recordAuditLog('update', 'cashItem', 'balances', before, auditClone(CASH_ITEMS), { targetLabel: `資金試算 銀行餘額 ${date}`, riskLevel: 'medium' });
+  saveData();
+  cashRender();
+  showToast(`銀行餘額已儲存（${date}）✓`, 'success');
+}
+
+// 最近一次儲存銀行餘額的時間（舊資料沒有 balanceSavedAt 就用項目的更新時間）。
+function cashBalanceSavedAt() {
+  return CASH_ITEMS.filter(i => ['account', 'loan'].includes(i.kind) && i.include !== false)
+    .map(i => i.balanceSavedAt || i.updatedAt || i.createdAt || '').filter(Boolean).sort().pop() || '';
+}
+
+// 儲存銀行餘額之後才記的收款／付款（可能還沒反映在銀行餘額裡）。
+function cashMovesSince(since = cashBalanceSavedAt()) {
+  if (!since) return [];
+  const caseName = code => (typeof CASES !== 'undefined' ? CASES.find(c => c.code === code)?.name : '') || code || '';
+  const moves = [];
+  (typeof RECEIVABLES !== 'undefined' ? RECEIVABLES : []).forEach(x => {
+    const amount = Math.round(Number(x.collectAmt) || 0);
+    if (!(amount > 0) || String(x.updatedAt || x.createdAt || '') <= since) return;
+    moves.push({ kind: 'in', id: x.id, date: x.collectDate || '', amount, label: [x.caseName || caseName(x.case), x.item].filter(Boolean).join(' '), at: x.updatedAt || x.createdAt });
+  });
+  (typeof PAYABLES !== 'undefined' ? PAYABLES : []).forEach(x => {
+    if (x.status !== 'paid' || x.transferToLoanCase || String(x.updatedAt || x.createdAt || '') <= since) return;
+    moves.push({ kind: 'out', id: x.id, date: x.doneDate || x.transferDate || '', amount: Math.round(Number(x.amount) || 0), label: [x.vendor, x.summary].filter(Boolean).join(' '), at: x.updatedAt || x.createdAt });
+  });
+  return moves.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+}
+
+function cashPendingDrafts() {
+  return CASH_ITEMS.filter(i => Object.prototype.hasOwnProperty.call(cashDrafts, i.id) && cashParse(cashDrafts[i.id]) !== Math.round(cashItemValue(i))).length;
+}
+
+function cashFmtTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : `${localDateKey(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+// 本期結算：全部帳確認過後，把當下整份試算凍結成一期。
+function cashOpenSettle() {
+  if (!cashRequire()) return;
+  if (!CASH_ITEMS.length) { showToast('還沒有資金項目', 'error'); return; }
+  const pending = cashPendingDrafts();
+  if (pending) { showToast(`有 ${pending} 項金額還沒儲存，請先按「儲存銀行餘額」`, 'error'); return; }
+  const r = cashCompute();
+  const savedAt = cashBalanceSavedAt();
+  const moves = cashMovesSince(savedAt);
+  const asOf = CASH_ITEMS.filter(i => ['account', 'loan'].includes(i.kind) && i.include !== false).map(i => i.asOfDate || '').filter(Boolean).sort();
+  const inSum = moves.filter(m => m.kind === 'in').reduce((t, m) => t + m.amount, 0);
+  const outSum = moves.filter(m => m.kind === 'out').reduce((t, m) => t + m.amount, 0);
+  const row = (label, value, color = 'var(--text)') => `<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0"><span>${label}</span><b style="font-family:'DM Mono',monospace;color:${color}">${value}</b></div>`;
+  const checks = [];
+  checks.push(`銀行餘額：${asOf.length ? (asOf[0] === asOf[asOf.length - 1] ? `餘額日期 ${cashEsc(asOf[0])}` : `餘額日期 ${cashEsc(asOf[0])}～${cashEsc(asOf[asOf.length - 1])}`) : '還沒登錄'}，${savedAt ? `${cashEsc(cashFmtTime(savedAt))} 儲存` : '還沒儲存'}`);
+  if (r.missingMargin.length) checks.push(`${r.missingMargin.length} 個進行中個案沒填預估毛利率，超前收款沒算進去`);
+  if (r.vatOverdue.length) checks.push(`營業稅 ${r.vatOverdue.map(v => cashEsc(v.period)).join('、')} 已過申報期但沒登錄繳納，先當作未繳`);
+  const moveList = moves.length ? `<div style="margin-top:10px;border:1px solid var(--warning);border-radius:8px;padding:10px 12px;background:var(--warning-bg,rgba(200,150,0,.08))">
+      <div style="font-weight:600;margin-bottom:6px">⚠ 儲存銀行餘額之後又記了 ${moves.length} 筆收付款（收 ${cashMoney(inSum)}／付 ${cashMoney(outSum)}）</div>
+      <div style="max-height:160px;overflow:auto;font-size:11px;line-height:1.7">${moves.map(m => `<div style="display:flex;justify-content:space-between;gap:10px"><span>${m.kind === 'in' ? '收款' : '付款'} #${cashEsc(m.id)} ${cashEsc(m.date)} ${cashEsc(m.label)}</span><span style="font-family:'DM Mono',monospace;color:${m.kind === 'in' ? 'var(--success)' : 'var(--error)'}">${m.kind === 'in' ? '+' : '−'}${cashMoney(m.amount)}</span></div>`).join('')}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px">如果這些錢還沒算進銀行餘額，請先取消，更新銀行餘額後按「儲存銀行餘額」。</div>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:12px"><input type="checkbox" id="cash-settle-moves-ok">這些收付款都已經反映在銀行餘額裡</label>
+    </div>` : '<div style="margin-top:10px;font-size:11px;color:var(--text3)">儲存銀行餘額之後沒有新的收付款。</div>';
+  document.getElementById('cash-settle-body').innerHTML = `
+    <div style="font-size:12px;line-height:1.7;margin-bottom:10px">${checks.map(c => '・' + c).join('<br>')}</div>
+    <div style="border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--surface2);font-size:12px">
+      ${row('可用的錢', cashMoney(r.assets), 'var(--success)')}${row('不是自己的錢', cashMoney(r.liabilities), 'var(--error)')}
+      ${row('自有資金', cashMoney(r.own), r.own < 0 ? 'var(--error)' : 'var(--success)')}${row('可動用金額', cashMoney(r.available), r.available < 0 ? 'var(--error)' : 'var(--accent)')}
+    </div>
+    ${moveList}
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+      <label style="font-size:11px;color:var(--text3)">結算日<br><input class="form-input" id="cash-settle-date" type="date" value="${r.today}" max="${r.today}"></label>
+      <label style="font-size:11px;color:var(--text3);flex:1;min-width:200px">備註<br><input class="form-input" id="cash-settle-note" placeholder="例：11 月底結算，帳已核對"></label>
+    </div>`;
+  document.getElementById('cash-settle-body').dataset.moves = String(moves.length);
+  openModal('modal-cash-settle');
+}
+
+function cashConfirmSettle() {
+  if (!cashRequire()) return;
+  const pending = cashPendingDrafts();
+  if (pending) { showToast(`有 ${pending} 項金額還沒儲存，請先按「儲存銀行餘額」`, 'error'); return; }
+  const date = document.getElementById('cash-settle-date')?.value || cashToday();
+  if (date > cashToday()) { showToast('結算日不能是未來日期', 'error'); return; }
+  const savedAt = cashBalanceSavedAt();
+  const moves = cashMovesSince(savedAt);
+  if (moves.length && !document.getElementById('cash-settle-moves-ok')?.checked) { showToast('請確認餘額儲存後的收付款都已反映在銀行餘額，或先更新銀行餘額', 'error'); return; }
   const result = cashCompute();
   const snap = {
-    id: cashSnapNextId++, date, note: (document.getElementById('cash-snap-note')?.value || '').trim(),
+    id: cashSnapNextId++, date, note: (document.getElementById('cash-settle-note')?.value || '').trim(),
     lines: result.lines, assets: result.assets, liabilities: result.liabilities, own: result.own,
     safety: result.safety, available: result.available, reserveMonths: result.months, ownerMonthlyDraw: result.ownerDraw,
-    overheadAverage: Math.round(result.overhead.average),
+    overheadAverage: Math.round(result.overhead.average), balanceSavedAt: savedAt, movesAfterBalance: moves.length,
   };
   touchRowMeta(snap, true);
   CASH_SNAPSHOTS.push(snap);
-  cashDrafts = {};
-  recordAuditLog('create', 'cashSnapshot', snap.id, before, auditClone(snap), { targetLabel: `資金試算 ${date}`, riskLevel: 'high' });
+  recordAuditLog('create', 'cashSnapshot', snap.id, null, auditClone(snap), { targetLabel: `資金試算結算 ${date}`, riskLevel: 'high' });
+  closeModal('modal-cash-settle');
   saveData();
   cashRender();
-  showToast(`已存成 ${date} 這一期 ✓`, 'success');
+  showToast(`已完成 ${date} 結算 ✓`, 'success');
 }
 
 function cashDeleteSnapshot(id) {
   if (!cashRequire()) return;
   const row = CASH_SNAPSHOTS.find(s => String(s.id) === String(id));
-  if (!row || !confirm(`確定刪除 ${row.date} 這一期的紀錄？`)) return;
+  if (!row || !confirm(`確定刪除 ${row.date} 這次結算的紀錄？`)) return;
   CASH_SNAPSHOTS.splice(CASH_SNAPSHOTS.indexOf(row), 1);
   auditDeletedRow('cashSnapshot', row, `資金試算 ${row.date}`);
   if (String(cashViewSnapshotId) === String(id)) cashViewSnapshotId = null;
@@ -454,6 +543,8 @@ function cashRender() {
   if (r.missingMargin.length) warnings.push(`${r.missingMargin.length} 個進行中個案還沒填預估毛利率，超前收款沒有算進去：${r.missingMargin.map(w => `<a href="#" onclick="openEditCase('${cashEsc(w.code)}');return false">${cashEsc(w.name)}</a>`).join('、')}`);
   if (r.vatOverdue.length) warnings.push(`營業稅 ${r.vatOverdue.map(v => v.period).join('、')} 已過申報期但沒有登錄繳納，先當作未繳扣除；如果已經繳了，請到稅務管理登錄。`);
   const stale = CASH_ITEMS.filter(i => ['account', 'loan'].includes(i.kind) && i.include !== false && (!i.asOfDate || i.asOfDate < localDateKey(new Date(Date.now() - 35 * 86400000))));
+  const movesAfter = CASH_ITEMS.length ? cashMovesSince() : [];
+  if (movesAfter.length) warnings.push(`銀行餘額 ${cashEsc(cashFmtTime(cashBalanceSavedAt()))} 儲存後，又記了 ${movesAfter.length} 筆收付款（收 ${cashMoney(movesAfter.filter(m => m.kind === 'in').reduce((t, m) => t + m.amount, 0))}／付 ${cashMoney(movesAfter.filter(m => m.kind === 'out').reduce((t, m) => t + m.amount, 0))}），銀行餘額可能要重新登錄。`);
   if (CASH_ITEMS.length && stale.length) warnings.push(`${stale.map(i => cashEsc(i.name)).join('、')} 超過 35 天沒有登錄，數字可能已經不準。`);
 
   const kindOrder = Object.keys(CASH_KINDS);
@@ -514,18 +605,19 @@ function cashRender() {
     </tr>${viewing && String(viewing.id) === String(s.id) ? `<tr><td colspan="8" style="padding:10px;background:var(--surface2)"><div style="display:flex;gap:12px;flex-wrap:wrap">
       ${cashLinesTable((s.lines || []).filter(l => l.side === 'asset'), `${cashEsc(s.date)} 可用的錢`, s.assets, 'var(--success)')}
       ${cashLinesTable((s.lines || []).filter(l => l.side === 'liability'), `${cashEsc(s.date)} 不是自己的錢`, s.liabilities, 'var(--error)')}</div></td></tr>` : ''}`;
-  }).join('') || '<tr><td colspan="8" style="padding:12px;text-align:center;color:var(--text3);font-size:12px">還沒有存過任何一期</td></tr>';
+  }).join('') || '<tr><td colspan="8" style="padding:12px;text-align:center;color:var(--text3);font-size:12px">還沒有結算過</td></tr>';
 
   container.innerHTML = `
     <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-      <div><div style="font-size:16px;font-weight:800">資金試算</div><div style="font-size:12px;color:var(--text3);margin-top:4px">估算一律偏保守（寧可算低）。自動項目即時取自應收、應付、淨利潤儀表與稅務管理；只顯示，不回寫任何帳務資料。</div></div>
+      <div><div style="font-size:16px;font-weight:800">資金試算</div><div style="font-size:12px;color:var(--text3);margin-top:4px">估算一律偏保守（寧可算低）。下面數字即時計算：銀行餘額用最近儲存的，自動項目即時取自應收、應付、淨利潤儀表與稅務管理；只顯示，不回寫任何帳務資料。帳都確認過後按「本期結算」存成一期。</div></div>
+      <div><button class="btn btn-primary btn-sm" onclick="cashOpenSettle()" ${CASH_ITEMS.length ? '' : 'disabled'}>本期結算</button></div>
     </div>
     ${warnings.length ? `<div style="border:1px solid var(--warning);background:var(--warning-bg,rgba(200,150,0,.08));border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.7">${warnings.map(w => '⚠ ' + w).join('<br>')}</div>` : ''}
     <div class="profit-kpi-grid" style="margin-bottom:14px">
       ${kpi('自有資金', cashMoney(r.own), `可用 ${cashMoney(r.assets)} − 不是自己的 ${cashMoney(r.liabilities)}`, r.own < 0 ? 'var(--error)' : 'var(--success)')}
       ${kpi('安全水位', cashMoney(r.safety), `${r.months} 個月 ×（公司開銷月均 ${cashMoney(r.overhead.average)} ＋ 老闆每月 ${cashMoney(r.ownerDraw)}）`)}
       ${kpi('可動用金額', cashMoney(r.available), r.available < 0 ? '低於安全水位，先不要動用' : '自有資金扣掉安全水位後', r.available < 0 ? 'var(--error)' : 'var(--accent)')}
-      ${kpi('與上期差額', diff == null ? '—' : cashMoney(diff), last ? `上期 ${cashEsc(last.date)} 自有資金 ${cashMoney(last.own)}` : '存過一期後才有比較', diff == null ? 'var(--text3)' : diff < 0 ? 'var(--error)' : 'var(--success)')}
+      ${kpi('與上次結算差額', diff == null ? '—' : cashMoney(diff), last ? `上次結算 ${cashEsc(last.date)} 自有資金 ${cashMoney(last.own)}` : '結算過一次後才有比較', diff == null ? 'var(--text3)' : diff < 0 ? 'var(--error)' : 'var(--success)')}
     </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px">
       ${cashLinesTable(r.lines.filter(l => l.side === 'asset'), '可用的錢（＋）', r.assets, 'var(--success)')}
@@ -534,14 +626,14 @@ function cashRender() {
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px">
       <div style="flex:1;min-width:340px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <div style="padding:10px 12px;background:var(--surface2);font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <span>登錄本期金額</span><button class="btn btn-ghost btn-sm" onclick="cashStartEditItem('new')">＋ 新增項目</button></div>
+          <span>登錄銀行餘額</span><button class="btn btn-ghost btn-sm" onclick="cashStartEditItem('new')">＋ 新增項目</button></div>
         <table style="width:100%;border-collapse:collapse"><tbody>${entryRows || '<tr><td style="padding:12px;color:var(--text3);font-size:12px">沒有項目</td></tr>'}</tbody></table>
         <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--border)">
-          <label style="font-size:11px;color:var(--text3)">登錄日<br><input class="form-input" id="cash-snap-date" type="date" value="${cashEsc(cashDrafts.date || r.today)}" max="${r.today}" oninput="cashSetDraft('date',this)"></label>
-          <label style="font-size:11px;color:var(--text3);flex:1">備註<br><input class="form-input" id="cash-snap-note" placeholder="例：月初對帳" value="${cashEsc(cashDrafts.note || '')}" oninput="cashSetDraft('note',this)"></label>
-          <button class="btn btn-primary btn-sm" onclick="cashSaveSnapshot()" ${CASH_ITEMS.length ? '' : 'disabled'}>存成本期</button>
+          <label style="font-size:11px;color:var(--text3)">餘額日期<br><input class="form-input" id="cash-snap-date" type="date" value="${cashEsc(cashDrafts.date || r.today)}" max="${r.today}" oninput="cashSetDraft('date',this)"></label>
+          <div style="flex:1;font-size:11px;color:var(--text3);padding-bottom:6px">${cashBalanceSavedAt() ? `上次儲存 ${cashEsc(cashFmtTime(cashBalanceSavedAt()))}` : ''}</div>
+          <button class="btn btn-primary btn-sm" onclick="cashSaveBalances()" ${CASH_ITEMS.length ? '' : 'disabled'}>儲存銀行餘額</button>
         </div>
-        <div id="cash-draft-hint" style="padding:0 12px 8px;font-size:11px;color:${pending ? 'var(--warning)' : 'var(--text3)'}">${pending ? `有 ${pending} 項金額還沒存（黃框），` : ''}金額填完按「存成本期」才會儲存；「項目設定」只改名稱、類型和是否計入，不會存金額。</div>
+        <div id="cash-draft-hint" style="padding:0 12px 8px;font-size:11px;color:${pending ? 'var(--warning)' : 'var(--text3)'}">${pending ? `有 ${pending} 項金額還沒存（黃框），` : ''}金額填完按「儲存銀行餘額」才會儲存，不會存成一期；帳都確認過後再按上方「本期結算」。「項目設定」只改名稱、類型和是否計入，不會存金額。</div>
         <div style="padding:0 12px 10px">${itemForm}</div>
       </div>
       <div style="width:300px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
@@ -561,9 +653,9 @@ function cashRender() {
         <tbody>${wipRows}</tbody></table></div>
     </div>
     <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
-      <div style="padding:10px 12px;background:var(--surface2);font-size:13px;font-weight:600">歷史期別</div>
+      <div style="padding:10px 12px;background:var(--surface2);font-size:13px;font-weight:600">歷史結算</div>
       <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
-        <thead><tr style="border-bottom:1px solid var(--border2)">${['登錄日', '可用的錢', '不是自己的錢', '自有資金', '與上期差額', '可動用金額', '登錄人', ''].map((h, i) => `<th style="padding:6px 10px;font-size:11px;color:var(--text3);text-align:${i && i < 6 ? 'right' : 'left'}">${h}</th>`).join('')}</tr></thead>
+        <thead><tr style="border-bottom:1px solid var(--border2)">${['結算日', '可用的錢', '不是自己的錢', '自有資金', '與上次差額', '可動用金額', '結算人', ''].map((h, i) => `<th style="padding:6px 10px;font-size:11px;color:var(--text3);text-align:${i && i < 6 ? 'right' : 'left'}">${h}</th>`).join('')}</tr></thead>
         <tbody>${historyRows}</tbody></table></div>
     </div>`;
 }

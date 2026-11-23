@@ -23,7 +23,7 @@ let page = await openApp(ctx);
 let confirmAnswer = true;
 page.on('dialog', d => (d.type() === 'confirm' && !confirmAnswer ? d.dismiss() : d.accept()));
 const before = await counts(page);
-const missing = await page.evaluate(() => ['cashCompute', 'cashRender', 'cashSaveSnapshot', 'cashLeaseRemaining', 'cashWipRows', 'cashCreateDefaults'].filter(n => typeof window[n] !== 'function'));
+const missing = await page.evaluate(() => ['cashCompute', 'cashRender', 'cashSaveBalances', 'cashOpenSettle', 'cashConfirmSettle', 'cashLeaseRemaining', 'cashWipRows', 'cashCreateDefaults'].filter(n => typeof window[n] !== 'function'));
 check('資金試算函式可用、選單對老闆顯示', missing.length === 0 && await visible(page, '#nav-cash'), { missing });
 
 await page.evaluate(({ A, B, C }) => {
@@ -77,10 +77,10 @@ check('新增項目：私人帳戶（不計入）與其他預留', await page.ev
 // typed amounts survive a re-render (user report 2026-11-20: typed 瑞興 支存 1,396,582, pressed 設定, the number was gone)
 const zhiId = await page.evaluate(() => CASH_ITEMS.find(i => i.name === '瑞興銀行 支存').id);
 await page.fill(`#cash-val-${zhiId}`, '1396582');
-await page.fill('#cash-snap-note', 'QA草稿備註');
+await page.fill('#cash-snap-date', '2026-09-30');
 await page.click(`button[onclick="cashStartEditItem(${zhiId})"]`);
-const kept = await page.evaluate(id => { const el = document.getElementById(`cash-val-${id}`); return { v: el.value, border: el.style.borderColor, note: document.getElementById('cash-snap-note').value, form: !!document.getElementById('cash-item-name'), btn: document.querySelector(`button[onclick="cashStartEditItem(${id})"]`).textContent, hint: document.getElementById('cash-draft-hint').innerText, saved: CASH_ITEMS.find(i => i.id === id).amount }; }, zhiId);
-check('按「項目設定」後已打的金額和備註還在、黃框提示還沒存、金額沒有被存', kept.v === '1396582' && kept.note === 'QA草稿備註' && kept.form && kept.btn === '項目設定' && kept.border.includes('warning') && kept.hint.startsWith('有 1 項金額還沒存') && kept.saved === 0, kept);
+const kept = await page.evaluate(id => { const el = document.getElementById(`cash-val-${id}`); return { v: el.value, border: el.style.borderColor, note: document.getElementById('cash-snap-date').value, form: !!document.getElementById('cash-item-name'), btn: document.querySelector(`button[onclick="cashStartEditItem(${id})"]`).textContent, hint: document.getElementById('cash-draft-hint').innerText, saved: CASH_ITEMS.find(i => i.id === id).amount }; }, zhiId);
+check('按「項目設定」後已打的金額和餘額日期還在、黃框提示還沒存、金額沒有被存', kept.v === '1396582' && kept.note === '2026-09-30' && kept.form && kept.btn === '項目設定' && kept.border.includes('warning') && kept.hint.startsWith('有 1 項金額還沒存') && kept.saved === 0, kept);
 await page.evaluate(() => { cashEditingItemId = null; renderCurrentPage(); });
 check('雲端同步重畫後仍保留', (await page.evaluate(id => document.getElementById(`cash-val-${id}`).value, zhiId)) === '1396582');
 
@@ -88,8 +88,18 @@ check('雲端同步重畫後仍保留', (await page.evaluate(id => document.getE
 const values = { '玉山銀行 活存': 500000, '瑞興銀行 活存': 3000000, '瑞興銀行 支存': 0, '國泰世華 活存': 2000000, '國泰世華 支存': 100000, '玉山借款': 3500000, 'M340i 租金': 765120, 'GOLF R 租金': 0, '李瑞興（私人）': 999999, 'GLB': 150000 };
 await page.evaluate(v => { CASH_ITEMS.forEach(i => { const el = document.getElementById(`cash-val-${i.id}`); if (el && v[i.name] !== undefined) el.value = String(v[i.name]); }); }, values);
 await page.fill('#cash-snap-date', '2026-10-01');
-await page.fill('#cash-snap-note', 'QA第一期');
-await page.click('button[onclick="cashSaveSnapshot()"]');
+await page.click('button[onclick="cashSaveBalances()"]');
+const bal = await page.evaluate(() => ({ snaps: CASH_SNAPSHOTS.length, toast: window.__toasts[window.__toasts.length - 1], zhi: CASH_ITEMS.find(i => i.name === '瑞興銀行 支存'), btn: [...document.querySelectorAll('#cash-container button')].map(b => b.textContent) }));
+check('儲存銀行餘額：只存金額和餘額日期，不會存成一期', bal.snaps === 0 && bal.toast === '銀行餘額已儲存（2026-10-01）✓' && bal.zhi.amount === 0 && bal.zhi.asOfDate === '2026-10-01' && !!bal.zhi.balanceSavedAt && bal.btn.includes('儲存銀行餘額') && bal.btn.includes('本期結算') && !bal.btn.includes('存成本期'), bal);
+await page.evaluate(() => { const i = CASH_ITEMS.find(x => x.name === 'GLB'); const el = document.getElementById(`cash-val-${i.id}`); el.value = '1'; el.dispatchEvent(new Event('input')); cashOpenSettle(); });
+check('有金額還沒儲存時不能結算', (await lastToast(page)) === '有 1 項金額還沒儲存，請先按「儲存銀行餘額」' && !(await page.evaluate(() => document.getElementById('modal-cash-settle').classList.contains('open'))));
+await page.evaluate(() => { const i = CASH_ITEMS.find(x => x.name === 'GLB'); const el = document.getElementById(`cash-val-${i.id}`); el.value = '150,000'; el.dispatchEvent(new Event('input')); });
+await page.click('button[onclick="cashOpenSettle()"]');
+const settleUi = await page.evaluate(() => ({ open: document.getElementById('modal-cash-settle').classList.contains('open'), text: document.getElementById('cash-settle-body').innerText, moves: !!document.getElementById('cash-settle-moves-ok') }));
+check('本期結算視窗：列出餘額日期、四個數字，沒有新的收付款', settleUi.open && settleUi.text.includes('餘額日期 2026-10-01') && settleUi.text.includes('自有資金') && settleUi.text.includes('可動用金額') && settleUi.text.includes('沒有新的收付款') && !settleUi.moves, settleUi);
+await page.fill('#cash-settle-date', '2026-10-01');
+await page.fill('#cash-settle-note', 'QA第一期');
+await page.click('#cash-settle-submit');
 const r1 = await page.evaluate(() => {
   const r = cashCompute();
   const line = l => r.lines.find(x => x.label === l || x.label.startsWith(l));
@@ -102,8 +112,8 @@ const r1 = await page.evaluate(() => {
     expBilled: RECEIVABLES.filter(x => !(x.collectAmt > 0 || x.collectDate) && Number(x.invoiceAmt || 0) > 0).reduce((s, x) => s + receivableExpectedAmount(x), 0),
     snaps: CASH_SNAPSHOTS.length, toast: window.__toasts[window.__toasts.length - 1] };
 });
-check('存成本期：建立一期並提示', r1.snaps === 1 && r1.toast === '已存成 2026-10-01 這一期 ✓', r1);
-check('存成本期後草稿清空，提示不再顯示還沒存', await page.evaluate(() => Object.keys(cashDrafts).length === 0 && !document.getElementById('cash-draft-hint').innerText.includes('還沒存') && !document.querySelector('[id^="cash-val-"]').style.borderColor));
+check('確認結算：建立一期並提示', r1.snaps === 1 && r1.toast === '已完成 2026-10-01 結算 ✓', r1);
+check('儲存銀行餘額後沒有未存金額，提示不再顯示還沒存', await page.evaluate(() => cashPendingDrafts() === 0 && !document.getElementById('cash-draft-hint').innerText.includes('還沒存') && !document.querySelector('[id^="cash-val-"]').style.borderColor));
 check('租賃自動扣期：10/1 登錄 765,120，過了 10/5 扣款日 → 701,360', r1.m340 === 765120 - 63760, { m340: r1.m340 });
 check('銀行帳戶合計不含「不計入」的私人帳戶', r1.bank === 5600000 && !r1.privateShown, { bank: r1.bank });
 check('自動項目＝獨立加總（已核准、待審核、已開票未收）；手動項目照登錄', r1.approved === r1.expApproved && r1.pending === r1.expPending && r1.billed === r1.expBilled && r1.glb === 150000 && r1.loan === 3500000, r1);
@@ -160,12 +170,28 @@ const set = await page.evaluate(() => ({ s: { ...CASH_SETTINGS }, r: cashCompute
 check('安全水位設定：2 個月、每月 15 萬，立即生效', set.s.reserveMonths === 2 && set.s.ownerMonthlyDraw === 150000 && set.r.safety === Math.round(2 * (set.r.overhead.average + 150000)), set.s);
 await page.evaluate(() => { const i = CASH_ITEMS.find(x => x.name === '玉山銀行 活存'); document.getElementById(`cash-val-${i.id}`).value = '600,000'; });
 await page.fill('#cash-snap-date', '2026-10-13');
-await page.click('button[onclick="cashSaveSnapshot()"]');
+await page.click('button[onclick="cashSaveBalances()"]');
+// a receivable collected after the balances were saved (the 2026-11-20 石牌 739,000 case)
+const late = await page.evaluate(() => { const x = RECEIVABLES.find(r => !(Number(r.collectAmt) > 0)); x.collectAmt = 88000; x.collectDate = '2026-10-13'; x.status = 'collected'; x.updatedAt = new Date(Date.now() + 60000).toISOString(); cashRender(); return { id: x.id, warn: document.getElementById('cash-container').innerText }; });
+check('餘額儲存後又記收款：上方提醒銀行餘額可能要重新登錄', late.warn.includes('又記了 1 筆收付款（收 $88,000／付 $0）'), late.warn.slice(0, 600));
+await page.click('button[onclick="cashOpenSettle()"]');
+const lateUi = await page.evaluate(() => ({ text: document.getElementById('cash-settle-body').innerText, box: !!document.getElementById('cash-settle-moves-ok') }));
+check('結算視窗列出那筆收款，要勾選確認', lateUi.box && lateUi.text.includes(`收款 #${late.id}`) && lateUi.text.includes('+$88,000'), lateUi);
+await page.fill('#cash-settle-date', '2026-10-13');
+await page.click('#cash-settle-submit');
+check('沒勾確認不能結算', (await lastToast(page)) === '請確認餘額儲存後的收付款都已反映在銀行餘額，或先更新銀行餘額' && (await page.evaluate(() => CASH_SNAPSHOTS.length)) === 1);
+await page.check('#cash-settle-moves-ok');
+await page.click('#cash-settle-submit');
 const hist = await page.evaluate(() => { const s = cashSortedSnapshots(); return { n: s.length, d: s[0].own - s[1].own, latest: s[0].date, text: document.getElementById('cash-container').innerText }; });
-check('第二期：歷史列兩期，「與上期差額」＝兩期自有資金相減', hist.n === 2 && hist.latest === '2026-10-13' && hist.text.includes('與上期差額'), { n: hist.n, d: hist.d });
+check('第二期：歷史結算列兩期，「與上次結算差額」＝兩期自有資金相減', hist.n === 2 && hist.latest === '2026-10-13' && hist.text.includes('與上次結算差額') && hist.text.includes('歷史結算'), { n: hist.n, d: hist.d });
+check('結算紀錄記下餘額儲存時間和之後的收付款筆數', await page.evaluate(() => { const s = cashSortedSnapshots()[0]; return !!s.balanceSavedAt && s.movesAfterBalance === 1; }));
 await page.fill('#cash-snap-date', '2026-12-31');
-await page.click('button[onclick="cashSaveSnapshot()"]');
-check('登錄日不能是未來日期', (await lastToast(page)) === '登錄日不能是未來日期' && (await page.evaluate(() => CASH_SNAPSHOTS.length)) === 2);
+await page.click('button[onclick="cashSaveBalances()"]');
+const futBal = await lastToast(page);
+await page.fill('#cash-snap-date', '2026-10-13');
+await page.evaluate(() => { cashOpenSettle(); document.getElementById('cash-settle-date').value = '2026-12-31'; const b = document.getElementById('cash-settle-moves-ok'); if (b) b.checked = true; cashConfirmSettle(); });
+check('餘額日期、結算日都不能是未來日期', futBal === '餘額日期不能是未來日期' && (await lastToast(page)) === '結算日不能是未來日期' && (await page.evaluate(() => CASH_SNAPSHOTS.length)) === 2);
+await page.evaluate(() => closeModal('modal-cash-settle'));
 
 // delete with audit
 await page.evaluate(() => { const s = cashSortedSnapshots()[1]; cashDeleteSnapshot(s.id); const i = CASH_ITEMS.find(x => x.name === 'GLB'); cashDeleteItem(i.id); });
@@ -200,9 +226,9 @@ const pengNav = await visible(page, '#nav-cash');
 await page.evaluate(() => { window.__toasts = []; navTo('cash'); });
 const pengToast = await lastToast(page);
 const pengToasts = [];
-for (const fn of ['cashCreateDefaults', 'cashSaveSnapshot', 'cashSaveSettings']) { await page.evaluate(fn => { window.__toasts = []; window[fn](); }, fn); pengToasts.push(await lastToast(page)); }
+for (const fn of ['cashCreateDefaults', 'cashSaveBalances', 'cashOpenSettle', 'cashConfirmSettle', 'cashSaveSettings']) { await page.evaluate(fn => { window.__toasts = []; window[fn](); }, fn); pengToasts.push(await lastToast(page)); }
 const pengWrites = await page.evaluate(t => ({ toasts: t, snaps: CASH_SNAPSHOTS.length, html: document.getElementById('cash-container').innerHTML }), pengToasts);
-check('其他人（彭俞豪）看不到選單、進不去、所有寫入都被拒', !pengNav && pengToast === '您沒有此功能的權限' && pengWrites.toasts.length === 3 && pengWrites.toasts.every(t => t === '您沒有此功能的權限') && pengWrites.snaps === 1 && pengWrites.html === '', { pengNav, pengToast, pengWrites: { ...pengWrites, html: pengWrites.html.length } });
+check('其他人（彭俞豪）看不到選單、進不去、所有寫入都被拒', !pengNav && pengToast === '您沒有此功能的權限' && pengWrites.toasts.length === 5 && pengWrites.toasts.every(t => t === '您沒有此功能的權限') && pengWrites.snaps === 1 && pengWrites.html === '', { pengNav, pengToast, pengWrites: { ...pengWrites, html: pengWrites.html.length } });
 const after = await counts(page);
 check('其他集合只多了測試個案與測試收付款', after.CASES === before.CASES + 3 && after.RECEIVABLES === before.RECEIVABLES + 2 && after.PAYABLES === before.PAYABLES + 2 && after.EXPENSES === before.EXPENSES && after.VENDORS === before.VENDORS && after.PAYROLL === before.PAYROLL, { before, after });
 await ctx.close();
