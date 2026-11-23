@@ -24,18 +24,26 @@ function cashSetDraft(key, el) {
   if (el.dataset.saved !== undefined) el.style.borderColor = cashParse(el.value) === Number(el.dataset.saved) ? '' : 'var(--warning)';
 }
 let cashViewSnapshotId = null;
+// 未結算個案的預估（財務填「還可收／還要付」；存成最終總收款／總成本，之後記收付款會自動遞減）。
+let CASH_ESTIMATES = [];
+let cashEstNextId = 1;
+// 下方明細表看哪一種算法：safe＝保守（排除未結算個案），est＝含預估利潤。
+let cashLineMode = 'safe';
 
 (function cashHookSnapshot() {
   const originalCreate = window.createDataSnapshot;
   window.createDataSnapshot = function () {
     tagCompany(CASH_ITEMS);
     tagCompany(CASH_SNAPSHOTS);
+    tagCompany(CASH_ESTIMATES);
     const snapshot = originalCreate.apply(this, arguments);
     snapshot.CASH_ITEMS = CASH_ITEMS;
     snapshot.CASH_SNAPSHOTS = CASH_SNAPSHOTS;
     snapshot.CASH_SETTINGS = CASH_SETTINGS;
     snapshot.cashItemNextId = cashItemNextId;
     snapshot.cashSnapNextId = cashSnapNextId;
+    snapshot.CASH_ESTIMATES = CASH_ESTIMATES;
+    snapshot.cashEstNextId = cashEstNextId;
     return snapshot;
   };
   const originalApply = window.applyDataSnapshot;
@@ -49,11 +57,15 @@ let cashViewSnapshotId = null;
       CASH_SETTINGS = { ...CASH_DEFAULT_SETTINGS, ...(d.CASH_SETTINGS && typeof d.CASH_SETTINGS === 'object' ? d.CASH_SETTINGS : {}) };
       cashItemNextId = Math.max(Number(d.cashItemNextId) || 1, ...CASH_ITEMS.map(r => (Number(r.id) || 0) + 1), 1);
       cashSnapNextId = Math.max(Number(d.cashSnapNextId) || 1, ...CASH_SNAPSHOTS.map(r => (Number(r.id) || 0) + 1), 1);
+      CASH_ESTIMATES.length = 0;
+      if (Array.isArray(d.CASH_ESTIMATES)) CASH_ESTIMATES.push(...d.CASH_ESTIMATES.filter(Boolean));
+      cashEstNextId = Math.max(Number(d.cashEstNextId) || 1, ...CASH_ESTIMATES.map(r => (Number(r.id) || 0) + 1), 1);
     }
     return result;
   };
   OPS_CLOUD_ROW_MERGE_CONFIGS.push({ collection: 'CASH_ITEMS', nextIdField: 'cashItemNextId', label: '資金試算項目', reassignIdOnNewCollision: true });
   OPS_CLOUD_ROW_MERGE_CONFIGS.push({ collection: 'CASH_SNAPSHOTS', nextIdField: 'cashSnapNextId', label: '資金試算期別', reassignIdOnNewCollision: true });
+  OPS_CLOUD_ROW_MERGE_CONFIGS.push({ collection: 'CASH_ESTIMATES', nextIdField: 'cashEstNextId', label: '資金試算個案預估', reassignIdOnNewCollision: true });
 })();
 
 // ── 頁面接進既有的導覽（不改 index.html 的骨架函式） ──
@@ -86,6 +98,47 @@ let cashViewSnapshotId = null;
     return result;
   };
 })();
+
+// ── 成本控制表：老闆／財務多看到一欄「預估毛利」（資金試算填的預估；不改 renderProfit 本身） ──
+(function cashHookCostControl() {
+  if (typeof window.renderProfit !== 'function') return;
+  const original = window.renderProfit;
+  window.renderProfit = function () {
+    const result = original.apply(this, arguments);
+    try { cashDecorateCostControl(); } catch (err) { console.warn('cashDecorateCostControl', err); }
+    return result;
+  };
+})();
+
+function cashDecorateCostControl() {
+  const tbody = document.getElementById('pf-case-tbody');
+  const table = tbody?.closest('table');
+  if (!table) return;
+  table.querySelectorAll('.cash-est-col').forEach(el => el.remove());
+  if (!cashCanAccess()) return;
+  const headRow = table.querySelector('thead tr');
+  if (headRow) headRow.insertAdjacentHTML('beforeend', '<th class="cash-est-col" style="padding:10px 10px;text-align:right;white-space:nowrap" title="資金試算填的預估：（已收＋還可收）−（已記成本＋還要付）− 稅務成本">預估毛利</th>');
+  const open = new Set(cashOpenCases().map(c => c.code));
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const m = (tr.getAttribute('onclick') || '').match(/pfSelectDetailCase\('([^']+)'\)/);
+    if (!m) {
+      const last = tr.lastElementChild;
+      if (last && last.hasAttribute('colspan')) {
+        last.dataset.cashColspan = last.dataset.cashColspan || last.getAttribute('colspan');
+        last.setAttribute('colspan', String(Number(last.dataset.cashColspan) + 1));
+      } else tr.insertAdjacentHTML('beforeend', '<td class="cash-est-col"></td>');
+      return;
+    }
+    const c = CASES.find(x => x.code === m[1]);
+    const e = c && open.has(c.code) ? cashCaseEstimate(c) : null;
+    const cell = e
+      ? `<span style="font-weight:700;color:${e.gross < 0 ? 'var(--error)' : 'var(--accent)'}" title="還可收 ${cashMoney(e.remainingRevenue)}、還要付 ${cashMoney(e.remainingCost)}（${cashEsc(e.row.date || '')}）">${e.gross < 0 ? '-' : ''}${cashMoney(Math.abs(e.gross))}</span>`
+      : '<span style="color:var(--text3)">—</span>';
+    tr.insertAdjacentHTML('beforeend', `<td class="cash-est-col" style="padding:10px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${cell}</td>`);
+  });
+  const foot = document.getElementById('pf-case-tfoot')?.querySelector('tr');
+  if (foot) foot.insertAdjacentHTML('beforeend', '<td class="cash-est-col"></td>');
+}
 
 const CASH_KINDS = {
   account: { label: '銀行帳戶', side: 'asset' },
@@ -152,29 +205,75 @@ function cashItemValue(item) {
 }
 
 // ── 進行中個案：依預估毛利率算超前收款（已收 − 已賺營收），只扣不加 ──
-function cashCaseCostIncurred(code) {
-  const payables = PAYABLES.filter(p => p.case === code && ['paid', 'approved', 'pending'].includes(p.status) && isProjectCostPayment(p))
-    .reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const expenses = EXPENSES.filter(e => e.caseKey === code && e.status === 'approved' && e.postCloseTreatment !== 'company_absorb')
-    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  return payables + expenses;
+// ── 未結算個案：已收、已記成本都從系統即時抓（跟淨利潤儀表同一套條件），預估由財務填 ──
+// 名單＝淨利潤儀表還沒結算的個案（psIsProfitSettlementCase）；結算過又有保固款等增量的，只算結算基準日之後。
+function cashOpenCases() {
+  return CASES.filter(c => c && psIsProfitSettlementCase(c));
 }
 
-function cashWipRows() {
-  const open = CASES.filter(c => c && c.status !== '結案' && !c.psSettled && (Number(c.amount) || 0) > 0);
-  return open.map(c => {
-    const contract = Number(c.amount) || 0;
-    const collected = caseCollectedAmount(c.code);
-    const hasMargin = c.estMarginPct !== undefined && c.estMarginPct !== null && c.estMarginPct !== '' && Number.isFinite(Number(c.estMarginPct));
-    const needsMargin = !c.excludeFromProfitReports;
-    if (!hasMargin) return { code: c.code, name: c.name, contract, collected, hasMargin: false, needsMargin, overbilling: 0 };
-    const margin = Math.min(Math.max(Number(c.estMarginPct), 0), 99) / 100;
-    const estCost = contract * (1 - margin);
-    const cost = cashCaseCostIncurred(c.code);
-    const pct = estCost > 0 ? Math.min(1, cost / estCost) : 1;
-    const earned = contract * pct;
-    return { code: c.code, name: c.name, contract, collected, hasMargin: true, needsMargin, margin, estCost, cost, pct, earned, overbilling: Math.max(0, collected - earned) };
-  });
+function cashCaseActuals(c) {
+  const cutoff = c.psSettled ? psCaseSettlementCutoff(c) : '';
+  const after = d => !cutoff || String(d || '') > cutoff;
+  const sum = (rows, f) => rows.reduce((s, r) => s + (Number(f(r)) || 0), 0);
+  const rv = RECEIVABLES.filter(r => r && r.case === c.code);
+  const rvIn = rv.filter(r => receivableIsCollected(r) && after(r.collectDate));
+  const collected = sum(rvIn, r => r.collectAmt);
+  const billedOpen = sum(rv.filter(r => !receivableIsCollected(r) && Number(r.invoiceAmt || 0) > 0), r => receivableExpectedAmount(r));
+  const py = PAYABLES.filter(p => p && p.case === c.code && isProjectCostPayment(p));
+  const paidCost = sum(py.filter(p => p.status === 'paid' && after(p.doneDate)), p => p.amount);
+  const unpaidCost = sum(py.filter(p => ['approved', 'pending'].includes(p.status)), p => p.amount);
+  const expCost = sum(EXPENSES.filter(e => e && e.caseKey === c.code && e.status === 'approved' && e.postCloseTreatment !== 'company_absorb' && after(e.date || (e.month ? e.month + '-01' : ''))), e => e.amount);
+  const taxCost = sum(rvIn, r => (Number(r.invoiceAmt) || 0) / 1.05 * 0.05 / 2);
+  const recordedCost = paidCost + unpaidCost + expCost;
+  // held：這個案子現在算在公司身上的錢（已收＋已開票未收 − 已記成本），保守法整筆排除。
+  return { collected, billedOpen, paidCost, unpaidCost, expCost, recordedCost, taxCost, held: collected + billedOpen - recordedCost };
+}
+
+function cashEstimateRow(code) {
+  return CASH_ESTIMATES.find(e => e && e.caseCode === code) || null;
+}
+
+function cashCaseEstimate(c, a = cashCaseActuals(c)) {
+  const row = cashEstimateRow(c.code);
+  if (!row) return null;
+  const finalRevenue = Number(row.finalRevenue) || 0;
+  const finalCost = Number(row.finalCost) || 0;
+  const remainingRevenue = Math.max(0, finalRevenue - a.collected);
+  const remainingCost = Math.max(0, finalCost - a.recordedCost);
+  const revenue = a.collected + remainingRevenue;
+  const cost = a.recordedCost + remainingCost;
+  const tax = a.taxCost + remainingRevenue / 1.05 * 0.05 / 2;
+  const staleDate = localDateKey(new Date(Date.now() - 30 * 86400000));
+  return {
+    row, remainingRevenue, remainingCost, revenue, cost, tax, gross: revenue - cost - tax,
+    futureUninvoiced: Math.max(0, remainingRevenue - a.billedOpen),
+    overCost: a.recordedCost > finalCost + 0.5, stale: !row.date || row.date < staleDate,
+  };
+}
+
+// 用淨利潤儀表的同一套規則（公司開銷分攤、預留營所稅、扣已付薪資與分潤款）算「預估最終」的分潤：
+// 全部未結算個案一起算（公司開銷照毛利比例分攤，跟實際結算一樣）；有預估的個案暫時把「還可收」當成已收、
+// 「還要付＋已記未付」當成已付放進去，沒預估的照目前已發生的數字。算完立刻拿掉，不存、不顯示。
+function cashEstimateRun(items) {
+  if (!items.some(x => x.e)) return null;
+  const saved = { sel: PS_SELECTED_CASES, start: PS_OH_START, end: PS_OH_END };
+  const today = cashToday();
+  const fakeRv = items.filter(x => x.e && x.e.remainingRevenue > 0).map(x => ({ id: `cash-est-r-${x.c.code}`, case: x.c.code, item: '資金試算預估', collectAmt: x.e.remainingRevenue, invoiceAmt: x.e.remainingRevenue, receivableAmt: x.e.remainingRevenue, collectDate: today, status: 'collected' }));
+  const fakePy = items.filter(x => x.e && x.e.remainingCost + x.a.unpaidCost > 0).map(x => ({ id: `cash-est-p-${x.c.code}`, case: x.c.code, vendor: '資金試算預估', amount: x.e.remainingCost + x.a.unpaidCost, status: 'paid', doneDate: today }));
+  RECEIVABLES.push(...fakeRv);
+  PAYABLES.push(...fakePy);
+  PS_SELECTED_CASES = items.map(x => x.c.code);
+  // 公司開銷只算到這個月（淨利潤儀表預設會含之後才攤提的月份）。
+  const pastMonths = psAvailableOverheadMonths().filter(m => m <= today.slice(0, 7));
+  PS_OH_START = null;
+  PS_OH_END = pastMonths.length ? pastMonths[pastMonths.length - 1] : null;
+  try {
+    return psComputeData();
+  } finally {
+    fakeRv.forEach(r => { const i = RECEIVABLES.indexOf(r); if (i >= 0) RECEIVABLES.splice(i, 1); });
+    fakePy.forEach(p => { const i = PAYABLES.indexOf(p); if (i >= 0) PAYABLES.splice(i, 1); });
+    PS_SELECTED_CASES = saved.sel; PS_OH_START = saved.start; PS_OH_END = saved.end;
+  }
 }
 
 // ── 稅金：營業稅以今年各期「預留 − 已繳」為正的部分；營所稅用稅務管理的預估與已鎖定未繳 ──
@@ -204,21 +303,6 @@ function cashIncomeTax(today = cashToday()) {
   return { open: taxOpenIncomeEstimate(), formal };
 }
 
-// ── 彭、連未領分潤：已結算未付的在應付裡；這裡是淨利潤儀表的未結算預估，扣回已計入超前收款的部分 ──
-function cashProfitShareRows(wipRows) {
-  const data = psComputeData();
-  const over = Object.fromEntries(wipRows.filter(w => w.overbilling > 0).map(w => [w.code, w.overbilling]));
-  return data.rows.filter(r => r.person !== 'shower').map(r => {
-    const overlap = data.caseRows.reduce((s, c) => {
-      if (!over[c.code] || !(c.gross > 0)) return s;
-      const netFactor = Math.min(1, Math.max(0, c.caseNet / c.gross));
-      return s + over[c.code] * (c.ratios?.[r.person] || 0) * netFactor;
-    }, 0);
-    const preview = Number(r.unpaid) || 0;
-    return { person: r.person, name: r.name || psPersonName(r.person), preview, overlap, owed: Math.max(0, preview - overlap) };
-  }).filter(r => r.preview > 0.5 || r.owed > 0.5);
-}
-
 // ── 安全水位：最近 3 個完整月份的公司開銷平均（含員工薪資）＋老闆每月領款 ──
 function cashMonthlyOverhead(today = cashToday()) {
   const current = today.slice(0, 7);
@@ -237,8 +321,9 @@ function cashMonthlyOverhead(today = cashToday()) {
 function cashCompute() {
   const today = cashToday();
   const items = CASH_ITEMS.filter(Boolean);
-  const lines = [];
-  const add = (side, group, label, amount, detail = '', source = 'manual') => lines.push({ side, group, label, amount: Math.round(Number(amount) || 0), detail, source });
+  const base = [];
+  const mk = (side, group, label, amount, detail = '', source = 'manual') => ({ side, group, label, amount: Math.round(Number(amount) || 0), detail, source });
+  const add = (...args) => base.push(mk(...args));
 
   items.filter(i => i.kind === 'account').forEach(i => {
     if (i.include === false) return;
@@ -263,28 +348,69 @@ function cashCompute() {
   }
   add('liability', '應付', `已核准未付（${approved.length} 筆）`, approved.reduce((s, p) => s + (Number(p.amount) || 0), 0), '含已結算未付的分潤結清款', 'auto');
   add('liability', '應付', `待審核請款（${pending.length} 筆）`, pending.reduce((s, p) => s + (Number(p.amount) || 0), 0), '保守起見一併扣除', 'auto');
-  const wip = cashWipRows();
-  cashProfitShareRows(wip).forEach(r => add('liability', '未領分潤', `${r.name} 未結算預估分潤`, r.owed,
-    `淨利潤儀表預估 ${cashMoney(r.preview)}${r.overlap > 0.5 ? `，扣回已計入超前收款的部分 ${cashMoney(r.overlap)}` : ''}`, 'auto'));
   const vat = cashVatRows(today);
   add('liability', '稅金', '預留營業稅', vat.reduce((s, r) => s + r.owed, 0),
     vat.map(r => `${r.period} ${cashMoney(r.owed)}${r.overdueUnrecorded ? '（已過申報期、未登錄繳納）' : ''}`).join('；') || '今年各期都已繳足', 'auto');
-  const income = cashIncomeTax(today);
-  add('liability', '稅金', '預留營所稅', income.open + income.formal, `未結算個案預估 ${cashMoney(income.open)}；已結算未繳 ${cashMoney(income.formal)}`, 'auto');
-  const over = wip.filter(w => w.overbilling > 0.5);
-  add('liability', '進行中個案', `超前收款（${over.length} 案）`, over.reduce((s, w) => s + w.overbilling, 0),
-    over.map(w => `${w.name} ${cashMoney(w.overbilling)}`).join('；'), 'auto');
   items.filter(i => i.kind === 'reserve' && i.include !== false).forEach(i => add('liability', '其他預留', i.name, cashItemValue(i), i.note || ''));
 
-  const assets = lines.filter(l => l.side === 'asset').reduce((s, l) => s + l.amount, 0);
-  const liabilities = lines.filter(l => l.side === 'liability').reduce((s, l) => s + l.amount, 0);
-  const own = assets - liabilities;
+  // 未結算個案
+  const open = cashOpenCases().map(c => { const a = cashCaseActuals(c); return { c, a, e: cashCaseEstimate(c, a) }; });
+  const withEst = open.filter(x => x.e);
+  const noEst = open.filter(x => !x.e);
+  const run = cashEstimateRun(open);
+  const income = cashIncomeTax(today);
+  const holdLine = (list, label) => {
+    const pos = list.filter(x => x.a.held > 0.5);
+    const neg = list.filter(x => x.a.held < -0.5);
+    const detail = [pos.map(x => `${x.c.name} ${cashMoney(x.a.held)}`).join('；'),
+      neg.length ? `公司先墊（未加回）：${neg.map(x => `${x.c.name} ${cashMoney(-x.a.held)}`).join('；')}` : ''].filter(Boolean).join('。');
+    return mk('liability', '未結算個案', `${label}（${pos.length} 案）`, pos.reduce((s, x) => s + x.a.held, 0), detail || '沒有', 'auto');
+  };
+
+  const safeLines = [...base,
+    holdLine(open, '未結算個案淨收款'),
+    mk('liability', '稅金', '預留營所稅', income.formal, `已結算未繳 ${cashMoney(income.formal)}；未結算個案已整案排除`, 'auto')];
+
+  const estLines = [...base];
+  const futureIn = withEst.filter(x => x.e.futureUninvoiced > 0.5);
+  if (withEst.length) estLines.splice(estLines.filter(l => l.side === 'asset').length, 0, mk('asset', '個案預估', `預估還可收（未開票，${futureIn.length} 案）`,
+    futureIn.reduce((s, x) => s + x.e.futureUninvoiced, 0), futureIn.map(x => `${x.c.name} ${cashMoney(x.e.futureUninvoiced)}`).join('；') || '沒有', 'auto'));
+  if (noEst.length) estLines.push(holdLine(noEst, '未填預估個案淨收款'));
+  const futureOut = withEst.filter(x => x.e.remainingCost > 0.5);
+  if (withEst.length) estLines.push(mk('liability', '個案預估', `預估還要付（${futureOut.length} 案）`, futureOut.reduce((s, x) => s + x.e.remainingCost, 0),
+    futureOut.map(x => `${x.c.name} ${cashMoney(x.e.remainingCost)}`).join('；') || '沒有', 'auto'));
+  // 全部個案都有預估：照結算規則（扣已付薪資、已付分潤款）。只有部分有預估：只算有預估個案的分潤，
+  // 薪資和已付分潤款先不扣（扣了會少算要付的錢），全部填完後才精準。
+  const estCodes = new Set(withEst.map(x => x.c.code));
+  const estCaseRows = run ? run.caseRows.filter(x => estCodes.has(x.code)) : [];
+  const complete = !!run && !noEst.length;
+  const people = !run ? [] : run.rows.filter(r => r.person !== 'shower').map(r => {
+    const fromEst = estCaseRows.reduce((t, x) => t + x.caseNet * (Number(x.ratios?.[r.person]) || 0), 0);
+    return complete
+      ? { person: r.person, name: r.name, owed: Math.max(0, r.unpaid), net: r.net, detail: `預估分到 ${cashMoney(r.net)}，扣已付薪資 ${cashMoney(r.salary)}、已付分潤款 ${cashMoney(r.bonus)}${r.adjustment ? `、結案後抵扣 ${cashMoney(r.adjustment)}` : ''}` }
+      : { person: r.person, name: r.name, owed: Math.max(0, fromEst), net: fromEst, detail: `有預估的 ${withEst.length} 案分到 ${cashMoney(fromEst)}；薪資、已付分潤款等全部個案填完預估後才扣` };
+  }).filter(r => Math.abs(r.net) > 0.5 || r.owed > 0.5);
+  people.forEach(r => estLines.push(mk('liability', '未領分潤', `${r.name} 預估分潤`, r.owed, r.detail, 'auto')));
+  const estTax = Math.abs(estCaseRows.reduce((t, x) => t + (Number(x.taxReserve) || 0), 0));
+  estLines.push(mk('liability', '稅金', '預留營所稅', income.formal + estTax, `已結算未繳 ${cashMoney(income.formal)}；有預估的個案 ${cashMoney(estTax)}`, 'auto'));
+
   const months = Math.max(0, Number(CASH_SETTINGS.reserveMonths) || 0);
   const ownerDraw = Math.max(0, Number(CASH_SETTINGS.ownerMonthlyDraw) || 0);
   const overhead = cashMonthlyOverhead(today);
   const safety = Math.round(months * (overhead.average + ownerDraw));
-  return { today, lines, assets, liabilities, own, safety, available: own - safety, months, ownerDraw, overhead, wip,
-    missingMargin: wip.filter(w => !w.hasMargin && w.needsMargin), vatOverdue: vat.filter(r => r.overdueUnrecorded) };
+  const totals = lines => {
+    const assets = lines.filter(l => l.side === 'asset').reduce((s, l) => s + l.amount, 0);
+    const liabilities = lines.filter(l => l.side === 'liability').reduce((s, l) => s + l.amount, 0);
+    return { lines, assets, liabilities, own: assets - liabilities, safety, available: assets - liabilities - safety };
+  };
+  const shower = run ? run.rows.find(r => r.person === 'shower') : null;
+  const caseNet = Object.fromEntries(estCaseRows.map(x => [x.code, x]));
+  const myShare = complete ? shower.net + (Number(run.companyRetained) || 0)
+    : estCaseRows.reduce((t, x) => t + x.caseNet * (Number(x.ratios?.shower) || 0), 0);
+  return { today, ...totals(safeLines), estimate: totals(estLines), months, ownerDraw, overhead,
+    open: open.map(x => ({ ...x, mine: caseNet[x.c.code] ? caseNet[x.c.code].caseNet * (Number(caseNet[x.c.code].ratios?.shower) || 0) : null })),
+    run, people, complete, myShare, noEstimate: noEst.map(x => x.c), staleEstimates: withEst.filter(x => x.e.stale).map(x => x.c), overEstimates: withEst.filter(x => x.e.overCost).map(x => x.c),
+    vatOverdue: vat.filter(r => r.overdueUnrecorded) };
 }
 
 // ── 寫入：項目、登錄本期、設定（只有 shower／nc） ──
@@ -437,6 +563,8 @@ function cashOpenSettle() {
   if (!CASH_ITEMS.length) { showToast('還沒有資金項目', 'error'); return; }
   const pending = cashPendingDrafts();
   if (pending) { showToast(`有 ${pending} 項金額還沒儲存，請先按「儲存銀行餘額」`, 'error'); return; }
+  const pendingEst = cashPendingEstDrafts();
+  if (pendingEst) { showToast(`有 ${pendingEst} 個個案預估還沒存，請先按該列的「存」`, 'error'); return; }
   const r = cashCompute();
   const savedAt = cashBalanceSavedAt();
   const moves = cashMovesSince(savedAt);
@@ -446,7 +574,9 @@ function cashOpenSettle() {
   const row = (label, value, color = 'var(--text)') => `<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0"><span>${label}</span><b style="font-family:'DM Mono',monospace;color:${color}">${value}</b></div>`;
   const checks = [];
   checks.push(`銀行餘額：${asOf.length ? (asOf[0] === asOf[asOf.length - 1] ? `餘額日期 ${cashEsc(asOf[0])}` : `餘額日期 ${cashEsc(asOf[0])}～${cashEsc(asOf[asOf.length - 1])}`) : '還沒登錄'}，${savedAt ? `${cashEsc(cashFmtTime(savedAt))} 儲存` : '還沒儲存'}`);
-  if (r.missingMargin.length) checks.push(`${r.missingMargin.length} 個進行中個案沒填預估毛利率，超前收款沒算進去`);
+  if (r.noEstimate.length) checks.push(`${r.noEstimate.length} 個未結算個案沒填預估，「含預估利潤」對這些個案照保守排除`);
+  if (r.overEstimates.length) checks.push(`${r.overEstimates.map(c => cashEsc(c.name)).join('、')} 已記成本超過預估`);
+  if (r.staleEstimates.length) checks.push(`${r.staleEstimates.map(c => cashEsc(c.name)).join('、')} 的預估超過 30 天沒更新`);
   if (r.vatOverdue.length) checks.push(`營業稅 ${r.vatOverdue.map(v => cashEsc(v.period)).join('、')} 已過申報期但沒登錄繳納，先當作未繳`);
   const moveList = moves.length ? `<div style="margin-top:10px;border:1px solid var(--warning);border-radius:8px;padding:10px 12px;background:var(--warning-bg,rgba(200,150,0,.08))">
       <div style="font-weight:600;margin-bottom:6px">⚠ 儲存銀行餘額之後又記了 ${moves.length} 筆收付款（收 ${cashMoney(inSum)}／付 ${cashMoney(outSum)}）</div>
@@ -458,7 +588,8 @@ function cashOpenSettle() {
     <div style="font-size:12px;line-height:1.7;margin-bottom:10px">${checks.map(c => '・' + c).join('<br>')}</div>
     <div style="border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--surface2);font-size:12px">
       ${row('可用的錢', cashMoney(r.assets), 'var(--success)')}${row('不是自己的錢', cashMoney(r.liabilities), 'var(--error)')}
-      ${row('自有資金', cashMoney(r.own), r.own < 0 ? 'var(--error)' : 'var(--success)')}${row('可動用金額', cashMoney(r.available), r.available < 0 ? 'var(--error)' : 'var(--accent)')}
+      ${row('自有資金（保守）', cashMoney(r.own), r.own < 0 ? 'var(--error)' : 'var(--success)')}${row('可動用金額（保守）', cashMoney(r.available), r.available < 0 ? 'var(--error)' : 'var(--accent)')}
+      ${row('自有資金（含預估利潤）', cashMoney(r.estimate.own), r.estimate.own < 0 ? 'var(--error)' : 'var(--success)')}${row('可動用金額（含預估利潤）', cashMoney(r.estimate.available), r.estimate.available < 0 ? 'var(--error)' : 'var(--accent)')}
     </div>
     ${moveList}
     <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
@@ -471,8 +602,8 @@ function cashOpenSettle() {
 
 function cashConfirmSettle() {
   if (!cashRequire()) return;
-  const pending = cashPendingDrafts();
-  if (pending) { showToast(`有 ${pending} 項金額還沒儲存，請先按「儲存銀行餘額」`, 'error'); return; }
+  const pending = cashPendingDrafts() + cashPendingEstDrafts();
+  if (pending) { showToast(`有 ${pending} 項金額還沒儲存，請先儲存`, 'error'); return; }
   const date = document.getElementById('cash-settle-date')?.value || cashToday();
   if (date > cashToday()) { showToast('結算日不能是未來日期', 'error'); return; }
   const savedAt = cashBalanceSavedAt();
@@ -484,6 +615,7 @@ function cashConfirmSettle() {
     lines: result.lines, assets: result.assets, liabilities: result.liabilities, own: result.own,
     safety: result.safety, available: result.available, reserveMonths: result.months, ownerMonthlyDraw: result.ownerDraw,
     overheadAverage: Math.round(result.overhead.average), balanceSavedAt: savedAt, movesAfterBalance: moves.length,
+    estimate: { lines: result.estimate.lines, assets: result.estimate.assets, liabilities: result.estimate.liabilities, own: result.estimate.own, available: result.estimate.available, myShare: Math.round(result.myShare), cases: result.open.filter(x => x.e).length },
   };
   touchRowMeta(snap, true);
   CASH_SNAPSHOTS.push(snap);
@@ -492,6 +624,74 @@ function cashConfirmSettle() {
   saveData();
   cashRender();
   showToast(`已完成 ${date} 結算 ✓`, 'success');
+}
+
+// ── 個案預估：輸入「還可收／還要付」，存成最終總收款／總成本，之後記收付款會自動遞減 ──
+function cashPendingEstDrafts() {
+  return Object.keys(cashDrafts).filter(k => /^est[RC]:/.test(k)).map(k => k.slice(5)).filter((v, i, a) => a.indexOf(v) === i).filter(code => {
+    const c = CASES.find(x => x.code === code);
+    if (!c) return false;
+    const e = cashCaseEstimate(c);
+    const cur = { R: e ? Math.round(e.remainingRevenue) : null, C: e ? Math.round(e.remainingCost) : null };
+    return ['R', 'C'].some(k => {
+      const key = `est${k}:${code}`;
+      if (!Object.prototype.hasOwnProperty.call(cashDrafts, key)) return false;
+      const raw = String(cashDrafts[key]).trim();
+      return cur[k] == null ? raw !== '' : (raw === '' || cashParse(raw) !== cur[k]);
+    });
+  }).length;
+}
+
+function cashSaveEstimate(code) {
+  if (!cashRequire()) return;
+  const c = CASES.find(x => x.code === code);
+  if (!c || !cashOpenCases().includes(c)) { showToast('這個個案已經結算，不需要預估', 'error'); return; }
+  const rEl = document.getElementById(`cash-est-r-${code}`);
+  const cEl = document.getElementById(`cash-est-c-${code}`);
+  const rRaw = String(rEl?.value ?? '').trim();
+  const cRaw = String(cEl?.value ?? '').trim();
+  if (rRaw === '' || cRaw === '') { showToast('請填「預估還可收」和「預估還要付」（沒有就填 0）', 'error'); return; }
+  const remR = cashParse(rRaw);
+  const remC = cashParse(cRaw);
+  if (remR < 0 || remC < 0) { showToast('預估金額不能是負數', 'error'); return; }
+  const a = cashCaseActuals(c);
+  const existing = cashEstimateRow(code);
+  const before = existing ? auditClone(existing) : null;
+  const fields = { caseCode: code, caseName: c.name, finalRevenue: Math.round(a.collected + remR), finalCost: Math.round(a.recordedCost + remC),
+    baseCollected: Math.round(a.collected), baseCost: Math.round(a.recordedCost), date: cashToday() };
+  if (existing) {
+    Object.assign(existing, fields);
+    touchRowMeta(existing);
+    recordAuditLog('update', 'cashEstimate', existing.id, before, auditClone(existing), { targetLabel: `${c.name} 預估：還可收 ${cashMoney(remR)}、還要付 ${cashMoney(remC)}`, riskLevel: 'medium' });
+  } else {
+    const row = { id: cashEstNextId++, ...fields };
+    touchRowMeta(row, true);
+    CASH_ESTIMATES.push(row);
+    recordAuditLog('create', 'cashEstimate', row.id, null, auditClone(row), { targetLabel: `${c.name} 預估：還可收 ${cashMoney(remR)}、還要付 ${cashMoney(remC)}`, riskLevel: 'medium' });
+  }
+  delete cashDrafts[`estR:${code}`];
+  delete cashDrafts[`estC:${code}`];
+  saveData();
+  cashRender();
+  showToast(`${c.name} 預估已儲存 ✓`, 'success');
+}
+
+function cashClearEstimate(code) {
+  if (!cashRequire()) return;
+  const row = cashEstimateRow(code);
+  if (!row || !confirm(`清除「${row.caseName || code}」的預估？清除後「含預估利潤」對這個案照保守排除。`)) return;
+  CASH_ESTIMATES.splice(CASH_ESTIMATES.indexOf(row), 1);
+  auditDeletedRow('cashEstimate', row, `${row.caseName || code} 預估`);
+  delete cashDrafts[`estR:${code}`];
+  delete cashDrafts[`estC:${code}`];
+  saveData();
+  cashRender();
+  showToast('已清除預估', 'success');
+}
+
+function cashSetLineMode(mode) {
+  cashLineMode = mode === 'est' ? 'est' : 'safe';
+  cashRender();
 }
 
 function cashDeleteSnapshot(id) {
@@ -540,7 +740,8 @@ function cashRender() {
   const kpi = (label, value, sub, color = 'var(--text)') => `<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-val" style="font-size:20px;color:${color}">${value}</div><div class="kpi-sub">${sub}</div></div>`;
   const warnings = [];
   if (!CASH_ITEMS.length) warnings.push(`還沒有資金項目。<button class="btn btn-primary btn-sm" onclick="cashCreateDefaults()">建立預設項目</button>（5 個公司帳戶、玉山借款；車租期票由應付帳款「期票分期」自動帶入）`);
-  if (r.missingMargin.length) warnings.push(`${r.missingMargin.length} 個進行中個案還沒填預估毛利率，超前收款沒有算進去：${r.missingMargin.map(w => `<a href="#" onclick="openEditCase('${cashEsc(w.code)}');return false">${cashEsc(w.name)}</a>`).join('、')}`);
+  if (r.overEstimates.length) warnings.push(`${r.overEstimates.map(c => cashEsc(c.name)).join('、')} 已記的成本超過預估，「還要付」先算 0，請更新預估。`);
+  if (r.staleEstimates.length) warnings.push(`${r.staleEstimates.map(c => cashEsc(c.name)).join('、')} 的預估超過 30 天沒更新。`);
   if (r.vatOverdue.length) warnings.push(`營業稅 ${r.vatOverdue.map(v => v.period).join('、')} 已過申報期但沒有登錄繳納，先當作未繳扣除；如果已經繳了，請到稅務管理登錄。`);
   const stale = CASH_ITEMS.filter(i => ['account', 'loan'].includes(i.kind) && i.include !== false && (!i.asOfDate || i.asOfDate < localDateKey(new Date(Date.now() - 35 * 86400000))));
   const movesAfter = CASH_ITEMS.length ? cashMovesSince() : [];
@@ -577,17 +778,34 @@ function cashRender() {
       <div style="font-size:11px;color:var(--text3);margin-top:6px">租賃：在左邊登錄目前剩餘金額，之後每過一個扣款日自動少一期，扣到最後一期為止。私人帳戶可以加成「銀行帳戶」並取消「計入試算」。</div>
     </div>` : '';
 
-  const wipRows = r.wip.filter(w => w.hasMargin || w.needsMargin).map(w => `<tr style="border-bottom:1px solid var(--border)">
-      <td style="padding:6px 10px;font-size:12px">${cashEsc(w.name)}</td>
-      <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${cashMoney(w.contract)}</td>
-      <td style="padding:6px 10px;text-align:right;font-size:12px">${w.hasMargin ? (w.margin * 100).toFixed(1) + '%' : `<a href="#" onclick="openEditCase('${cashEsc(w.code)}');return false" style="color:${w.needsMargin ? 'var(--error)' : 'var(--text3)'}">${w.needsMargin ? '未填' : '—'}</a>`}</td>
-      <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${w.hasMargin ? cashMoney(w.estCost) : '—'}</td>
-      <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${w.hasMargin ? cashMoney(w.cost) : '—'}</td>
-      <td style="padding:6px 10px;text-align:right;font-size:12px">${w.hasMargin ? Math.round(w.pct * 100) + '%' : '—'}</td>
-      <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${w.hasMargin ? cashMoney(w.earned) : '—'}</td>
-      <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${cashMoney(w.collected)}</td>
-      <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:${w.overbilling > 0 ? 'var(--error)' : 'var(--text3)'}">${w.hasMargin ? cashMoney(w.overbilling) : '—'}</td>
-    </tr>`).join('') || '<tr><td colspan="9" style="padding:12px;text-align:center;color:var(--text3);font-size:12px">沒有進行中個案</td></tr>';
+  const estInput = (kind, code, value) => {
+    const key = `est${kind}:${code}`;
+    const has = Object.prototype.hasOwnProperty.call(cashDrafts, key);
+    const text = has ? cashDrafts[key] : (value == null ? '' : Math.round(value).toLocaleString('zh-TW'));
+    const changed = has && (value == null ? String(cashDrafts[key]).trim() !== '' : cashParse(cashDrafts[key]) !== Math.round(value));
+    return `<input class="form-input" id="cash-est-${kind === 'R' ? 'r' : 'c'}-${cashEsc(code)}" type="text" inputmode="numeric" placeholder="未填" value="${cashEsc(text)}" oninput="cashSetDraft('${key}',this)" style="width:110px;text-align:right;padding:4px 8px;height:auto${changed ? ';border-color:var(--warning)' : ''}">`;
+  };
+  const num = v => `<td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${v}</td>`;
+  const wipRows = r.open.map(x => {
+    const { c, a, e } = x;
+    const flag = e ? [e.overCost ? '<span style="color:var(--error)">成本已超過預估</span>' : '', e.stale ? '<span style="color:var(--warning)">超過 30 天</span>' : ''].filter(Boolean).join('<br>') : '';
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 10px;font-size:12px">${cashEsc(c.name)}<div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace">${cashEsc(c.code)}</div></td>
+      ${num(cashMoney(a.collected))}
+      ${num(cashMoney(a.recordedCost))}
+      <td style="padding:6px 10px;text-align:right">${estInput('R', c.code, e ? e.remainingRevenue : null)}</td>
+      <td style="padding:6px 10px;text-align:right">${estInput('C', c.code, e ? e.remainingCost : null)}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:${!e ? 'var(--text3)' : e.gross < 0 ? 'var(--error)' : 'var(--success)'}">${e ? cashMoney(e.gross) : '—'}</td>
+      ${num(x.mine == null ? '—' : cashMoney(x.mine))}
+      <td style="padding:6px 10px;font-size:11px;color:var(--text3);white-space:nowrap">${e ? cashEsc(e.row.date || '') : ''}${flag ? '<br>' + flag : ''}</td>
+      <td style="padding:6px 10px;white-space:nowrap"><button class="btn btn-primary btn-sm" onclick="cashSaveEstimate('${cashEsc(c.code)}')">存</button>${e ? `<button class="btn btn-ghost btn-sm" onclick="cashClearEstimate('${cashEsc(c.code)}')">清除</button>` : ''}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="9" style="padding:12px;text-align:center;color:var(--text3);font-size:12px">沒有未結算個案</td></tr>';
+  const estSummary = r.run
+    ? `有預估的 ${r.open.filter(x => x.e).length} 案：預估毛利 ${cashMoney(r.open.filter(x => x.e).reduce((t, x) => t + x.e.gross, 0))}；${r.people.map(p => `${cashEsc(p.name)} 還要分 ${cashMoney(p.owed)}`).join('、') || '沒有其他人要分'}；<b>李鎮宇${r.complete ? '（含公司保留）' : ''}預估可分 ${cashMoney(r.myShare)}</b>。`
+      + `未結算的公司開銷 ${cashMoney(r.run.overheadTotal)}（${cashEsc(r.run.claimMonths)}）照毛利比例分攤到全部未結算個案（只算到這個月，之後的攤提不算）。`
+      + (r.complete ? '已扣彭、連已領薪資和已付分潤款。' : `還有 ${r.noEstimate.length} 案沒填預估：這些個案在「含預估利潤」裡照保守排除，分潤先不扣已領薪資和已付分潤款，全部填完後才精準。`)
+    : '還沒有填任何預估。填了「還可收」「還要付」的個案，會照淨利潤儀表的規則（公司開銷分攤、預留營所稅、扣已付薪資和分潤款）算出每個人預估可分多少。';
 
   const viewing = cashViewSnapshotId != null ? CASH_SNAPSHOTS.find(s => String(s.id) === String(cashViewSnapshotId)) : null;
   const historyRows = snaps.map((s, idx) => {
@@ -600,12 +818,13 @@ function cashRender() {
       <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700">${cashMoney(s.own)}</td>
       <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${d == null ? 'var(--text3)' : d < 0 ? 'var(--error)' : 'var(--success)'}">${d == null ? '—' : cashMoney(d)}</td>
       <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:${s.available < 0 ? 'var(--error)' : 'var(--text)'}">${cashMoney(s.available)}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--text2)">${s.estimate ? cashMoney(s.estimate.own) : '—'}</td>
       <td style="padding:6px 10px;font-size:11px;color:var(--text3)">${cashEsc(s.createdBy || '')}${s.note ? '・' + cashEsc(s.note) : ''}</td>
       <td style="padding:6px 10px;white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="cashViewSnapshot(${s.id})">${String(cashViewSnapshotId) === String(s.id) ? '收合' : '明細'}</button><button class="btn btn-ghost btn-sm" style="color:var(--error)" onclick="cashDeleteSnapshot(${s.id})">刪除</button></td>
-    </tr>${viewing && String(viewing.id) === String(s.id) ? `<tr><td colspan="8" style="padding:10px;background:var(--surface2)"><div style="display:flex;gap:12px;flex-wrap:wrap">
+    </tr>${viewing && String(viewing.id) === String(s.id) ? `<tr><td colspan="9" style="padding:10px;background:var(--surface2)"><div style="display:flex;gap:12px;flex-wrap:wrap">
       ${cashLinesTable((s.lines || []).filter(l => l.side === 'asset'), `${cashEsc(s.date)} 可用的錢`, s.assets, 'var(--success)')}
       ${cashLinesTable((s.lines || []).filter(l => l.side === 'liability'), `${cashEsc(s.date)} 不是自己的錢`, s.liabilities, 'var(--error)')}</div></td></tr>` : ''}`;
-  }).join('') || '<tr><td colspan="8" style="padding:12px;text-align:center;color:var(--text3);font-size:12px">還沒有結算過</td></tr>';
+  }).join('') || '<tr><td colspan="9" style="padding:12px;text-align:center;color:var(--text3);font-size:12px">還沒有結算過</td></tr>';
 
   container.innerHTML = `
     <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
@@ -614,14 +833,18 @@ function cashRender() {
     </div>
     ${warnings.length ? `<div style="border:1px solid var(--warning);background:var(--warning-bg,rgba(200,150,0,.08));border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.7">${warnings.map(w => '⚠ ' + w).join('<br>')}</div>` : ''}
     <div class="profit-kpi-grid" style="margin-bottom:14px">
-      ${kpi('自有資金', cashMoney(r.own), `可用 ${cashMoney(r.assets)} − 不是自己的 ${cashMoney(r.liabilities)}`, r.own < 0 ? 'var(--error)' : 'var(--success)')}
+      ${kpi('自有資金（保守）', cashMoney(r.own), `排除未結算個案；含預估利潤 <b>${cashMoney(r.estimate.own)}</b>`, r.own < 0 ? 'var(--error)' : 'var(--success)')}
       ${kpi('安全水位', cashMoney(r.safety), `${r.months} 個月 ×（公司開銷月均 ${cashMoney(r.overhead.average)} ＋ 老闆每月 ${cashMoney(r.ownerDraw)}）`)}
-      ${kpi('可動用金額', cashMoney(r.available), r.available < 0 ? '低於安全水位，先不要動用' : '自有資金扣掉安全水位後', r.available < 0 ? 'var(--error)' : 'var(--accent)')}
-      ${kpi('與上次結算差額', diff == null ? '—' : cashMoney(diff), last ? `上次結算 ${cashEsc(last.date)} 自有資金 ${cashMoney(last.own)}` : '結算過一次後才有比較', diff == null ? 'var(--text3)' : diff < 0 ? 'var(--error)' : 'var(--success)')}
+      ${kpi('可動用金額（保守）', cashMoney(r.available), `${r.available < 0 ? '低於安全水位，先不要動用' : '自有資金扣掉安全水位後'}；含預估利潤 <b>${cashMoney(r.estimate.available)}</b>`, r.available < 0 ? 'var(--error)' : 'var(--accent)')}
+      ${kpi('與上次結算差額', diff == null ? '—' : cashMoney(diff), last ? `保守；上次結算 ${cashEsc(last.date)} 自有資金 ${cashMoney(last.own)}` : '結算過一次後才有比較', diff == null ? 'var(--text3)' : diff < 0 ? 'var(--error)' : 'var(--success)')}
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;font-size:12px">
+      <span style="color:var(--text3)">明細：</span>
+      <button class="btn btn-sm ${cashLineMode === 'safe' ? 'btn-primary' : 'btn-ghost'}" id="cash-mode-safe" onclick="cashSetLineMode('safe')">保守（排除未結算個案）</button>
+      <button class="btn btn-sm ${cashLineMode === 'est' ? 'btn-primary' : 'btn-ghost'}" id="cash-mode-est" onclick="cashSetLineMode('est')">含預估利潤</button>
     </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px">
-      ${cashLinesTable(r.lines.filter(l => l.side === 'asset'), '可用的錢（＋）', r.assets, 'var(--success)')}
-      ${cashLinesTable(r.lines.filter(l => l.side === 'liability'), '不是自己的錢（－）', r.liabilities, 'var(--error)')}
+      ${(() => { const v = cashLineMode === 'est' ? r.estimate : r; return cashLinesTable(v.lines.filter(l => l.side === 'asset'), '可用的錢（＋）', v.assets, 'var(--success)') + cashLinesTable(v.lines.filter(l => l.side === 'liability'), '不是自己的錢（－）', v.liabilities, 'var(--error)'); })()}
     </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px">
       <div style="flex:1;min-width:340px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
@@ -647,15 +870,17 @@ function cashRender() {
       </div>
     </div>
     <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:16px">
-      <div style="padding:10px 12px;background:var(--surface2);font-size:13px;font-weight:600">進行中個案超前收款（預估總成本＝合約×(1−預估毛利率)；完工比例＝已發生成本÷預估總成本；超前收款＝已收−已賺營收，只扣不加）</div>
+      <div style="padding:10px 12px;background:var(--surface2);font-size:13px;font-weight:600">未結算個案預估（財務填「還可收」「還要付」；已收、已記成本從應收、應付、費用即時抓）</div>
+      <div style="padding:8px 12px;font-size:12px;line-height:1.7;border-bottom:1px solid var(--border)" id="cash-est-summary">${estSummary}</div>
       <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
-        <thead><tr style="border-bottom:1px solid var(--border2)">${['個案', '合約', '預估毛利率', '預估總成本', '已發生成本', '完工比例', '已賺營收', '已收', '超前收款'].map((h, i) => `<th style="padding:6px 10px;font-size:11px;color:var(--text3);text-align:${i ? 'right' : 'left'}">${h}</th>`).join('')}</tr></thead>
+        <thead><tr style="border-bottom:1px solid var(--border2)">${['個案', '已收', '已記成本', '預估還可收', '預估還要付', '預估毛利', '李鎮宇可分', '預估日', ''].map((h, i) => `<th style="padding:6px 10px;font-size:11px;color:var(--text3);text-align:${i && i < 7 ? 'right' : 'left'}">${h}</th>`).join('')}</tr></thead>
         <tbody>${wipRows}</tbody></table></div>
+      <div style="padding:8px 12px;font-size:11px;color:var(--text3);line-height:1.6">還可收＝追加減後、扣掉已收，還能收多少（含已開票未收、尾款、保固款）；還要付＝還沒進系統的廠商成本和當案費用。存的是最終總收款／總成本，之後每記一筆收款或付款，「還可收」「還要付」會自動減少。已記成本含已付、已核准、待審核的工程款和已核准費用。預估毛利已扣稅務成本（跟成本控制表同算法）。</div>
     </div>
     <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
       <div style="padding:10px 12px;background:var(--surface2);font-size:13px;font-weight:600">歷史結算</div>
       <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
-        <thead><tr style="border-bottom:1px solid var(--border2)">${['結算日', '可用的錢', '不是自己的錢', '自有資金', '與上次差額', '可動用金額', '結算人', ''].map((h, i) => `<th style="padding:6px 10px;font-size:11px;color:var(--text3);text-align:${i && i < 6 ? 'right' : 'left'}">${h}</th>`).join('')}</tr></thead>
+        <thead><tr style="border-bottom:1px solid var(--border2)">${['結算日', '可用的錢', '不是自己的錢', '自有資金', '與上次差額', '可動用金額', '含預估自有資金', '結算人', ''].map((h, i) => `<th style="padding:6px 10px;font-size:11px;color:var(--text3);text-align:${i && i < 7 ? 'right' : 'left'}">${h}</th>`).join('')}</tr></thead>
         <tbody>${historyRows}</tbody></table></div>
     </div>`;
 }

@@ -181,7 +181,7 @@ const hide = await page.evaluate(P => {
   return { a, b };
 }, P);
 check('往來帳戶的編輯個案只留名稱、負責人、狀態', !hide.a.amount && !hide.a.profit && !hide.a.margin && !hide.a.retention && hide.a.name && hide.a.status && hide.a.hint, hide.a);
-check('一般工程案的編輯個案照舊', hide.b.amount && hide.b.margin && !hide.b.hint, hide.b);
+check('一般工程案的編輯個案照舊（預估毛利率欄已停用、一律隱藏）', hide.b.amount && !hide.b.margin && !hide.b.hint, hide.b);
 await ctx.close();
 
 // 12. 其他人看不到模組。

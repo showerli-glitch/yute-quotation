@@ -23,7 +23,7 @@ let page = await openApp(ctx);
 let confirmAnswer = true;
 page.on('dialog', d => (d.type() === 'confirm' && !confirmAnswer ? d.dismiss() : d.accept()));
 const before = await counts(page);
-const missing = await page.evaluate(() => ['cashCompute', 'cashRender', 'cashSaveBalances', 'cashOpenSettle', 'cashConfirmSettle', 'cashLeaseRemaining', 'cashWipRows', 'cashCreateDefaults'].filter(n => typeof window[n] !== 'function'));
+const missing = await page.evaluate(() => ['cashCompute', 'cashRender', 'cashSaveBalances', 'cashOpenSettle', 'cashConfirmSettle', 'cashLeaseRemaining', 'cashCaseActuals', 'cashEstimateRun', 'cashSaveEstimate', 'cashCreateDefaults'].filter(n => typeof window[n] !== 'function'));
 check('資金試算函式可用、選單對老闆顯示', missing.length === 0 && await visible(page, '#nav-cash'), { missing });
 
 await page.evaluate(({ A, B, C }) => {
@@ -126,40 +126,83 @@ const safetyExp = await page.evaluate(() => {
 });
 check('安全水位＝3 個月×（最近 3 個完整月份公司開銷月均＋老闆每月 20 萬）', r1.r.months === 3 && r1.r.ownerDraw === 200000 && JSON.stringify(r1.r.overheadMonths) === JSON.stringify(safetyExp.months) && r1.r.safety === safetyExp.value, { r: r1.r, safetyExp });
 
-// WIP
-const wip = await page.evaluate(({ A, B, C }) => { const w = cashWipRows(); const g = c => w.find(x => x.code === c); return { a: g(A), b: g(B), c: g(C), missing: cashCompute().missingMargin.map(x => x.code) }; }, { A, B, C });
-check('超前收款：甲案 合約300萬、毛利30%、已收150萬、已付42萬 → 完工20%、已賺60萬、超前90萬', close(wip.a.estCost, 2100000) && close(wip.a.pct, 0.2) && close(wip.a.earned, 600000) && close(wip.a.overbilling, 900000), wip.a);
-check('落後請款（乙案成本已超過已收）不加回，超前收款為 0', wip.b.overbilling === 0 && wip.b.pct > 0.6, wip.b);
-check('沒填毛利率的個案（丙）不估算，列在提醒裡', wip.c.hasMargin === false && wip.missing.includes(C) && (await page.locator('#cash-container').innerText()).includes('QA資金丙'), { c: wip.c, missing: wip.missing });
+// 未結算個案：保守法整案排除（已收＋已開票未收−已記成本），公司先墊的不加回
+const safe = await page.evaluate(({ A, B, C }) => {
+  const r = cashCompute();
+  const line = r.lines.find(l => l.label.startsWith('未結算個案淨收款'));
+  const open = cashOpenCases().map(c => [c.code, cashCaseActuals(c).held]);
+  return { a: cashCaseActuals(CASES.find(c => c.code === A)), b: cashCaseActuals(CASES.find(c => c.code === B)), line, exp: Math.round(open.filter(x => x[1] > 0.5).reduce((t, x) => t + x[1], 0)), codes: open.map(x => x[0]),
+    noOld: !r.lines.some(l => /超前收款|未結算預估分潤/.test(l.label)), tax: r.lines.find(l => l.label === '預留營所稅') };
+}, { A, B, C });
+check('保守：甲案已收 150 萬、已付 42 萬 → 排除 108 萬；乙案公司先墊 40 萬只提醒不加回', safe.a.collected === 1500000 && safe.a.recordedCost === 420000 && safe.a.held === 1080000 && safe.b.held === -400000 && safe.line.amount === safe.exp && safe.line.detail.includes('QA資金甲 $1,080,000') && safe.line.detail.includes('公司先墊（未加回）') && safe.line.detail.includes('QA資金乙 $400,000') && [A, B, C].every(c => safe.codes.includes(c)), safe);
+check('保守：不再有超前收款、未結算預估分潤；營所稅只留已結算未繳', safe.noOld && safe.tax.detail.includes('未結算個案已整案排除'), safe.tax);
 
-// profit share overlap (no double deduction)
-const ps = await page.evaluate(A => {
-  const wipRows = cashWipRows();
-  const rows = cashProfitShareRows(wipRows);
-  const d = psComputeData();
-  const c = d.caseRows.find(x => x.code === A);
-  const factor = c && c.gross > 0 ? Math.min(1, Math.max(0, c.caseNet / c.gross)) : 0;
-  const lien = rows.find(r => r.person === 'lien');
-  const preview = d.rows.find(r => r.person === 'lien')?.unpaid || 0;
-  return { inPreview: !!c, factor, lien, expOverlapFromA: 900000 * 0.2 * factor, preview, lines: cashCompute().lines.filter(l => l.group === '未領分潤').map(l => [l.label, l.amount]) };
+// 預估：財務填「還可收／還要付」
+await page.fill(`#cash-est-r-${A}`, '1,500,000');
+await page.fill(`#cash-est-c-${A}`, '1680000');
+await page.click(`button[onclick="cashSaveEstimate('${A}')"]`);
+const est1 = await page.evaluate(A => { const c = CASES.find(x => x.code === A); const e = cashCaseEstimate(c); return { row: { ...e.row }, remR: e.remainingRevenue, remC: e.remainingCost, gross: e.gross, toast: window.__toasts[window.__toasts.length - 1], inR: document.getElementById(`cash-est-r-${A}`).value, inC: document.getElementById(`cash-est-c-${A}`).value, audit: AUDIT_LOGS[0] }; }, A);
+check('甲案存預估：最終總收款 300 萬、總成本 210 萬，畫面顯示還可收 150 萬、還要付 168 萬', est1.row.finalRevenue === 3000000 && est1.row.finalCost === 2100000 && est1.row.date === '2026-10-13' && est1.inR === '1,500,000' && est1.inC === '1,680,000' && est1.toast === 'QA資金甲 預估已儲存 ✓' && est1.audit.targetType === 'cashEstimate', est1);
+check('預估毛利＝300 萬−210 萬−稅務成本（300 萬÷1.05×5%÷2）', close(est1.gross, 3000000 - 2100000 - 3000000 / 1.05 * 0.05 / 2), est1.gross);
+const added = await page.evaluate(A => {
+  const p = { id: pyNextId++, case: A, caseName: 'QA資金甲', vendor: 'QA廠商', summary: '工程款', amount: 200000, status: 'paid', doneDate: '2026-10-10', paymentType: 'vendor' };
+  const r = { id: rvNextId++, case: A, caseName: 'QA資金甲', item: '二期', collectAmt: 300000, collectDate: '2026-10-11', invoiceAmt: 300000, status: 'collected' };
+  PAYABLES.push(p); RECEIVABLES.push(r);
+  const e = cashCaseEstimate(CASES.find(x => x.code === A));
+  return { p: p.id, r: r.id, remR: e.remainingRevenue, remC: e.remainingCost, gross: e.gross };
 }, A);
-check('彭、連未領分潤：扣回已算進超前收款的部分（依比例×淨利比例），不重複扣、不低於 0', ps.inPreview && ps.factor > 0 && ps.lien && ps.lien.overlap >= ps.expOverlapFromA - 0.6 && ps.lien.owed === Math.max(0, ps.preview - ps.lien.overlap) && ps.lines.every(l => l[1] >= 0), ps);
-
-// case margin editing
-await page.evaluate(C => openEditCase(C), C);
-await page.fill('#edit-case-est-margin', '120');
-const nameBefore = await page.evaluate(C => CASES.find(c => c.code === C).name, C);
-await page.fill('#edit-case-name', 'QA資金丙改名');
-await page.click('#modal-edit-case button[onclick="submitEditCase()"]');
-const bad = await page.evaluate(C => ({ toast: window.__toasts[window.__toasts.length - 1], c: CASES.find(c => c.code === C) }), C);
-check('個案預估毛利率填 120 → 拒絕，個案其他欄位也不被改', bad.toast === '預估毛利率請填 0～99' && bad.c.name === nameBefore && bad.c.estMarginPct === undefined, bad);
-await page.fill('#edit-case-est-margin', '25');
-await page.click('#modal-edit-case button[onclick="submitEditCase()"]');
-const good = await page.evaluate(C => ({ c: CASES.find(c => c.code === C), missing: cashCompute().missingMargin.map(x => x.code) }), C);
-check('個案預估毛利率存成 25，資金試算不再列為未填', good.c.estMarginPct === 25 && !good.missing.includes(C), { m: good.c.estMarginPct, missing: good.missing });
-await page.evaluate(C => openEditCase(C), C);
-check('再次開啟個案編輯，毛利率帶出 25', (await page.inputValue('#edit-case-est-margin')) === '25');
-await page.evaluate(() => closeModal('modal-edit-case'));
+check('之後記一筆付款 20 萬、收款 30 萬：還要付自動變 148 萬、還可收變 120 萬，預估毛利不變', added.remR === 1200000 && added.remC === 1480000 && close(added.gross, est1.gross), added);
+const run = await page.evaluate(A => {
+  const c = CASES.find(x => x.code === A); const a = cashCaseActuals(c); const e = cashCaseEstimate(c, a);
+  const nR = RECEIVABLES.length, nP = PAYABLES.length;
+  const d = cashEstimateRun([{ c, a, e }]);
+  const row = d.caseRows.find(x => x.code === A);
+  const r = cashCompute();
+  const full = r.run.caseRows.find(x => x.code === A);
+  const mine = r.open.find(x => x.c.code === A).mine;
+  return { gross: row.gross, eGross: e.gross, fullNet: full.caseNet, allCases: r.run.caseRows.length === cashOpenCases().length, mine, sel: PS_SELECTED_CASES, complete: r.complete,
+    same: RECEIVABLES.length === nR && PAYABLES.length === nP && !RECEIVABLES.some(x => String(x.id).startsWith('cash-est')) && !PAYABLES.some(x => String(x.id).startsWith('cash-est')),
+    lines: r.estimate.lines.filter(l => l.group === '未領分潤').map(l => [l.label, l.amount]), myShare: r.myShare,
+    out: r.estimate.lines.find(l => l.label.startsWith('預估還要付')), fin: r.estimate.lines.find(l => l.label.startsWith('預估還可收')), noEst: r.estimate.lines.find(l => l.label.startsWith('未填預估個案淨收款')),
+    tax: r.estimate.lines.find(l => l.label === '預留營所稅'), estTax: Math.abs(full.taxReserve), summary: document.getElementById('cash-est-summary')?.innerText || '' };
+}, A);
+check('分潤用淨利潤儀表同一套算法：甲案毛利跟預估一致，算完把暫時的收付款拿掉、選取還原', close(run.gross, run.eGross) && run.same && run.sel === null, run);
+check('公司開銷照毛利比例分攤到全部未結算個案；只有部分有預估時，李鎮宇可分＝有預估個案淨利×比例', run.allCases && !run.complete && close(run.mine, run.fullNet * 0.6) && close(run.myShare, run.mine), { mine: run.mine, fullNet: run.fullNet, myShare: run.myShare });
+check('部分有預估：彭、連只算有預估個案的分潤（先不扣薪資），還要付 148 萬、未開票還可收 120 萬，沒填預估的照保守排除', JSON.stringify(run.lines) === JSON.stringify([['彭俞豪 預估分潤', Math.round(Math.max(0, run.fullNet * 0.2))], ['連星羽 預估分潤', Math.round(Math.max(0, run.fullNet * 0.2))]]) && run.out.detail.includes('QA資金甲 $1,480,000') && run.fin.detail.includes('QA資金甲 $1,200,000') && !!run.noEst && !run.noEst.detail.includes('QA資金甲') && close(run.tax.amount - Number(run.tax.detail.match(/已結算未繳 \$([\d,]+)/)[1].replace(/,/g, '')), Math.round(run.estTax)), run);
+const full = await page.evaluate(A => {
+  const added = cashOpenCases().filter(c => !cashEstimateRow(c.code)).map(c => { const a = cashCaseActuals(c); const row = { id: cashEstNextId++, caseCode: c.code, finalRevenue: a.collected + a.billedOpen, finalCost: a.recordedCost, date: cashToday() }; CASH_ESTIMATES.push(row); return row; });
+  const r = cashCompute();
+  const res = { complete: r.complete, lines: r.estimate.lines.filter(l => l.group === '未領分潤').map(l => [l.label, l.amount]), exp: r.run.rows.filter(p => p.person !== 'shower' && (Math.abs(p.net) > 0.5 || p.unpaid > 0.5)).map(p => [`${p.name} 預估分潤`, Math.round(Math.max(0, p.unpaid))]), myShare: r.myShare, expMy: r.run.rows.find(p => p.person === 'shower').net + r.run.companyRetained, noEst: r.estimate.lines.some(l => l.label.startsWith('未填預估')) };
+  added.forEach(row => CASH_ESTIMATES.splice(CASH_ESTIMATES.indexOf(row), 1));
+  return res;
+}, A);
+check('全部個案都有預估：照結算規則扣已領薪資和已付分潤款，李鎮宇含公司保留', full.complete && JSON.stringify(full.lines) === JSON.stringify(full.exp) && close(full.myShare, full.expMy) && !full.noEst, full);
+const over = await page.evaluate(A => {
+  const p = { id: pyNextId++, case: A, caseName: 'QA資金甲', vendor: 'QA廠商', summary: '追加', amount: 1600000, status: 'paid', doneDate: '2026-10-12', paymentType: 'vendor' };
+  PAYABLES.push(p); cashRender();
+  const e = cashCaseEstimate(CASES.find(x => x.code === A));
+  const r = { remC: e.remainingCost, over: e.overCost, text: document.getElementById('cash-container').innerText };
+  PAYABLES.splice(PAYABLES.indexOf(p), 1); cashRender();
+  return r;
+}, A);
+check('已記成本超過預估：還要付停在 0，上方提醒更新預估', over.remC === 0 && over.over && over.text.includes('已記的成本超過預估') && over.text.includes('成本已超過預估'), { remC: over.remC, over: over.over });
+await page.fill(`#cash-est-r-${C}`, '50000');
+await page.click(`button[onclick="cashSaveEstimate('${C}')"]`);
+check('還要付沒填不能存', (await lastToast(page)) === '請填「預估還可收」和「預估還要付」（沒有就填 0）' && !(await page.evaluate(C => !!cashEstimateRow(C), C)));
+await page.evaluate(() => cashOpenSettle());
+check('有個案預估打了沒存時不能結算', (await lastToast(page)) === '有 1 個個案預估還沒存，請先按該列的「存」');
+await page.evaluate(C => { delete cashDrafts[`estR:${C}`]; cashRender(); }, C);
+await page.click('#cash-mode-est');
+const modeText = await page.evaluate(() => ({ t: document.getElementById('cash-container').innerText, mode: cashLineMode }));
+check('明細切到「含預估利潤」：看得到預估還要付、預估分潤；KPI 兩種數字都有', modeText.mode === 'est' && modeText.t.includes('預估還要付') && modeText.t.includes('預估分潤') && modeText.t.includes('自有資金（保守）') && modeText.t.includes('含預估利潤') && modeText.t.includes('預估可分') && modeText.t.includes('照毛利比例分攤到全部未結算個案'), modeText.t.slice(0, 400));
+await page.click('#cash-mode-safe');
+// 成本控制表多一欄預估毛利（只有老闆／財務）
+await nav(page, 'profit');
+const cc = await page.evaluate(A => { const th = [...document.querySelectorAll('#pf-case-tbody')].length ? document.getElementById('pf-case-tbody').closest('table').querySelector('thead tr').lastElementChild.textContent : ''; const tr = [...document.querySelectorAll('#pf-case-tbody tr')].find(x => (x.getAttribute('onclick') || '').includes(A)); const head = document.getElementById('pf-case-tbody').closest('table').querySelectorAll('thead th').length; const cells = tr ? tr.children.length : 0; return { th, cell: tr ? tr.lastElementChild.textContent : '', head, cells }; }, A);
+const ccExp = await page.evaluate(A => { const e = cashCaseEstimate(CASES.find(x => x.code === A)); return cashMoney(Math.abs(e.gross)); }, A);
+check('成本控制表最後一欄「預估毛利」，甲案顯示預估、欄數對齊', cc.th === '預估毛利' && cc.cell === ccExp && cc.head === cc.cells, { cc, ccExp });
+await nav(page, 'cash');
+await page.evaluate(({ A, ids }) => { [ids.p].forEach(id => { const i = PAYABLES.findIndex(x => x.id === id); if (i >= 0) PAYABLES.splice(i, 1); }); [ids.r].forEach(id => { const i = RECEIVABLES.findIndex(x => x.id === id); if (i >= 0) RECEIVABLES.splice(i, 1); }); cashRender(); }, { A, ids: { p: added.p, r: added.r } });
 
 // settings and second snapshot (difference from the previous one)
 await nav(page, 'cash');
@@ -184,7 +227,7 @@ await page.check('#cash-settle-moves-ok');
 await page.click('#cash-settle-submit');
 const hist = await page.evaluate(() => { const s = cashSortedSnapshots(); return { n: s.length, d: s[0].own - s[1].own, latest: s[0].date, text: document.getElementById('cash-container').innerText }; });
 check('第二期：歷史結算列兩期，「與上次結算差額」＝兩期自有資金相減', hist.n === 2 && hist.latest === '2026-10-13' && hist.text.includes('與上次結算差額') && hist.text.includes('歷史結算'), { n: hist.n, d: hist.d });
-check('結算紀錄記下餘額儲存時間和之後的收付款筆數', await page.evaluate(() => { const s = cashSortedSnapshots()[0]; return !!s.balanceSavedAt && s.movesAfterBalance === 1; }));
+check('結算紀錄記下餘額儲存時間、之後的收付款筆數，和含預估的數字', await page.evaluate(() => { const s = cashSortedSnapshots()[0]; return !!s.balanceSavedAt && s.movesAfterBalance === 1 && s.estimate && Number.isFinite(s.estimate.own) && s.estimate.cases === 1 && document.getElementById('cash-container').innerText.includes('含預估自有資金'); }));
 await page.fill('#cash-snap-date', '2026-12-31');
 await page.click('button[onclick="cashSaveBalances()"]');
 const futBal = await lastToast(page);
@@ -193,6 +236,7 @@ await page.evaluate(() => { cashOpenSettle(); document.getElementById('cash-sett
 check('餘額日期、結算日都不能是未來日期', futBal === '餘額日期不能是未來日期' && (await lastToast(page)) === '結算日不能是未來日期' && (await page.evaluate(() => CASH_SNAPSHOTS.length)) === 2);
 await page.evaluate(() => closeModal('modal-cash-settle'));
 
+const keepEst = await page.evaluate(() => JSON.stringify(CASH_ESTIMATES.map(e => [e.id, e.caseCode, e.finalRevenue, e.finalCost])));
 // delete with audit
 await page.evaluate(() => { const s = cashSortedSnapshots()[1]; cashDeleteSnapshot(s.id); const i = CASH_ITEMS.find(x => x.name === 'GLB'); cashDeleteItem(i.id); });
 const del = await page.evaluate(() => ({ snaps: CASH_SNAPSHOTS.length, glb: CASH_ITEMS.some(i => i.name === 'GLB'), audits: AUDIT_LOGS.filter(a => a.action === 'delete' && ['cashSnapshot', 'cashItem'].includes(a.targetType)).map(a => a.targetType) }));
@@ -210,6 +254,10 @@ const keep = () => page.evaluate(() => JSON.stringify({ i: CASH_ITEMS.map(x => [
 const k1 = await keep();
 await page.reload({ waitUntil: 'load' }); await waitReady(page);
 check('重新載入後項目、期別、設定都在', (await keep()) === k1, k1.slice(0, 200));
+check('重新載入後個案預估還在', (await page.evaluate(() => JSON.stringify(CASH_ESTIMATES.map(e => [e.id, e.caseCode, e.finalRevenue, e.finalCost])))) === keepEst && keepEst.includes('3000000'), keepEst);
+await nav(page, 'cash');
+await page.evaluate(A => cashClearEstimate(A), A);
+check('清除預估：甲案回到保守排除，留下刪除紀錄', await page.evaluate(A => !cashEstimateRow(A) && AUDIT_LOGS.some(a => a.action === 'delete' && a.targetType === 'cashEstimate') && cashCompute().estimate.lines.find(l => l.label.startsWith('未填預估個案淨收款')).detail.includes('QA資金甲'), A));
 await ctx.close();
 
 H.setScenario('B-finance(nc)');
@@ -226,9 +274,11 @@ const pengNav = await visible(page, '#nav-cash');
 await page.evaluate(() => { window.__toasts = []; navTo('cash'); });
 const pengToast = await lastToast(page);
 const pengToasts = [];
-for (const fn of ['cashCreateDefaults', 'cashSaveBalances', 'cashOpenSettle', 'cashConfirmSettle', 'cashSaveSettings']) { await page.evaluate(fn => { window.__toasts = []; window[fn](); }, fn); pengToasts.push(await lastToast(page)); }
+for (const fn of ['cashCreateDefaults', 'cashSaveBalances', 'cashOpenSettle', 'cashConfirmSettle', 'cashSaveSettings', 'cashSaveEstimate']) { await page.evaluate(fn => { window.__toasts = []; window[fn](); }, fn); pengToasts.push(await lastToast(page)); }
 const pengWrites = await page.evaluate(t => ({ toasts: t, snaps: CASH_SNAPSHOTS.length, html: document.getElementById('cash-container').innerHTML }), pengToasts);
-check('其他人（彭俞豪）看不到選單、進不去、所有寫入都被拒', !pengNav && pengToast === '您沒有此功能的權限' && pengWrites.toasts.length === 5 && pengWrites.toasts.every(t => t === '您沒有此功能的權限') && pengWrites.snaps === 1 && pengWrites.html === '', { pengNav, pengToast, pengWrites: { ...pengWrites, html: pengWrites.html.length } });
+check('其他人（彭俞豪）看不到選單、進不去、所有寫入都被拒', !pengNav && pengToast === '您沒有此功能的權限' && pengWrites.toasts.length === 6 && pengWrites.toasts.every(t => t === '您沒有此功能的權限') && pengWrites.snaps === 1 && pengWrites.html === '', { pengNav, pengToast, pengWrites: { ...pengWrites, html: pengWrites.html.length } });
+await page.evaluate(() => { try { navTo('profit'); } catch (e) {} });
+check('其他人（彭俞豪）的成本控制表沒有預估毛利欄', (await page.evaluate(() => document.querySelectorAll('.cash-est-col').length)) === 0);
 const after = await counts(page);
 check('其他集合只多了測試個案與測試收付款', after.CASES === before.CASES + 3 && after.RECEIVABLES === before.RECEIVABLES + 2 && after.PAYABLES === before.PAYABLES + 2 && after.EXPENSES === before.EXPENSES && after.VENDORS === before.VENDORS && after.PAYROLL === before.PAYROLL, { before, after });
 await ctx.close();

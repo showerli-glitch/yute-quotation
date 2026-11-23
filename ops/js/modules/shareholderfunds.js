@@ -575,7 +575,7 @@ function sfFilterPayableCases() {
   window.openEditCase = function (code) {
     const result = original.apply(this, arguments);
     const isAccount = sfIsAccountCode(code);
-    ['edit-case-amount', 'edit-case-profit-mode', 'edit-case-no-overhead', 'edit-case-est-margin', 'edit-case-retention-amt'].forEach(id => {
+    ['edit-case-amount', 'edit-case-profit-mode', 'edit-case-no-overhead', 'edit-case-retention-amt'].forEach(id => {
       const el = document.getElementById(id);
       const box = el?.closest('.form-field') || el?.parentElement;
       if (box) box.style.display = isAccount ? 'none' : '';
@@ -602,10 +602,13 @@ function sfFilterPayableCases() {
     const line = include
       ? { side: 'asset', group: '股東應還', label: `股東／親友應還（${owed.length} 個帳戶）`, amount: total, detail: `全部付完後還欠公司：${list}`, source: 'auto' }
       : { side: 'asset', group: '股東應還', label: '股東／親友應還（未計入）', amount: 0, detail: `預估 ${cashMoney(total)}：${list}。何時還、是否還現金未定，到「股東資金往來」可改為計入`, source: 'auto' };
-    let at = 0;
-    r.lines.forEach((l, i) => { if (l.side === 'asset') at = i + 1; });
-    r.lines.splice(at, 0, line);
-    if (include) { r.assets += total; r.own += total; r.available += total; }
+    // 保守與含預估利潤兩種算法都加上這一行（各自一份明細）。
+    [r, r.estimate].filter(Boolean).forEach(v => {
+      let at = 0;
+      v.lines.forEach((l, i) => { if (l.side === 'asset') at = i + 1; });
+      v.lines.splice(at, 0, { ...line });
+      if (include) { v.assets += total; v.own += total; v.available += total; }
+    });
     return r;
   };
 })();
