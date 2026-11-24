@@ -324,6 +324,33 @@
           }
         }
       }
+    },
+    "quotation": {
+      ".read": false,
+      ".write": false,
+      "yutesign": {
+        ".read": false,
+        ".write": false,
+        "items": {
+          ".read": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/)",
+          "$key": {
+            ".write": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/^[^@]+@yutesign[.]com$/) && newData.exists()",
+            ".validate": "newData.hasChildren(['n', 'by', 'at']) && newData.child('by').val() == auth.token.email && (newData.child('del').val() == true ? (auth.token.email == 'shower.li@yutesign.com' || newData.child('moved').isString()) : newData.hasChildren(['c', 'u', 'p']))",
+            "n": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 300" },
+            "c": { ".validate": "newData.isString() && newData.val().length <= 100" },
+            "u": { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "p": { ".validate": "newData.isNumber()" },
+            "lo": { ".validate": "newData.isNumber()" },
+            "hi": { ".validate": "newData.isNumber()" },
+            "f": { ".validate": "newData.isNumber()" },
+            "by": { ".validate": "newData.isString()" },
+            "at": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
+            "del": { ".validate": "newData.isBoolean()" },
+            "moved": { ".validate": "newData.isString() && newData.val().length <= 300" },
+            "$other": { ".validate": false }
+          }
+        }
+      }
     }
   }
 }

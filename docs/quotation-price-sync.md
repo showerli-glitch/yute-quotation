@@ -24,7 +24,7 @@
 - 刪除仍只有李鎮宇能做（改名例外）。
 - 同事電腦裡的工項要等**那台電腦**打開新版才會上傳，所以上線後請每位同事在平常用的電腦／手機打開一次報價系統。
 
-## 需要核准後才部署的 Firebase 規則
+## Firebase 規則（使用者 2026-11-24 同意，已寫入 `firebase-database.rules.json`）
 
 在 `firebase-database.rules.json` 的 `rules` 底下新增（`sync`、`ops`、`leads` 不動）：
 
