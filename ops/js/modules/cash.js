@@ -778,12 +778,12 @@ function cashRender() {
       <div style="font-size:11px;color:var(--text3);margin-top:6px">租賃：在左邊登錄目前剩餘金額，之後每過一個扣款日自動少一期，扣到最後一期為止。私人帳戶可以加成「銀行帳戶」並取消「計入試算」。</div>
     </div>` : '';
 
-  const estInput = (kind, code, value) => {
+  const estInput = (kind, code, value, hint = '') => {
     const key = `est${kind}:${code}`;
     const has = Object.prototype.hasOwnProperty.call(cashDrafts, key);
     const text = has ? cashDrafts[key] : (value == null ? '' : Math.round(value).toLocaleString('zh-TW'));
     const changed = has && (value == null ? String(cashDrafts[key]).trim() !== '' : cashParse(cashDrafts[key]) !== Math.round(value));
-    return `<input class="form-input" id="cash-est-${kind === 'R' ? 'r' : 'c'}-${cashEsc(code)}" type="text" inputmode="numeric" placeholder="未填" value="${cashEsc(text)}" oninput="cashSetDraft('${key}',this)" style="width:110px;text-align:right;padding:4px 8px;height:auto${changed ? ';border-color:var(--warning)' : ''}">`;
+    return `<input class="form-input" id="cash-est-${kind === 'R' ? 'r' : 'c'}-${cashEsc(code)}" type="text" inputmode="numeric" placeholder="${hint ? cashEsc(hint) : '未填'}" title="${hint ? cashEsc('未填；' + hint + '（合約總額−已收，只是參考）') : ''}" value="${cashEsc(text)}" oninput="cashSetDraft('${key}',this)" style="width:110px;text-align:right;padding:4px 8px;height:auto${changed ? ';border-color:var(--warning)' : ''}">`;
   };
   const num = v => `<td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px">${v}</td>`;
   const wipRows = r.open.map(x => {
@@ -793,7 +793,7 @@ function cashRender() {
       <td style="padding:6px 10px;font-size:12px">${cashEsc(c.name)}<div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace">${cashEsc(c.code)}</div></td>
       ${num(cashMoney(a.collected))}
       ${num(cashMoney(a.recordedCost))}
-      <td style="padding:6px 10px;text-align:right">${estInput('R', c.code, e ? e.remainingRevenue : null)}</td>
+      <td style="padding:6px 10px;text-align:right">${estInput('R', c.code, e ? e.remainingRevenue : null, !e && typeof caseContractTotal === 'function' && caseContractTotal(c) > 0 ? `參考 ${Math.max(0, Math.round(caseContractTotal(c) - a.collected)).toLocaleString('zh-TW')}` : '')}</td>
       <td style="padding:6px 10px;text-align:right">${estInput('C', c.code, e ? e.remainingCost : null)}</td>
       <td style="padding:6px 10px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:${!e ? 'var(--text3)' : e.gross < 0 ? 'var(--error)' : 'var(--success)'}">${e ? cashMoney(e.gross) : '—'}</td>
       ${num(x.mine == null ? '—' : cashMoney(x.mine))}

@@ -148,7 +148,7 @@ function renderProfit() {
     const taxCost  = Number.isFinite(c.taxCostOverride) ? c.taxCostOverride : (isFamilyPassThroughCase ? 0 : calculatedTaxCost);
     const calculatedGross = revenue - cost - expCost - taxCost;
     const gross    = useOverride && Number.isFinite(c.grossOverride) ? c.grossOverride : calculatedGross;
-    const contract = c.amount || 0;
+    const contract = caseContractTotal(c);
     const collected= recordedRevenue;
     return { ...c, revenue, cost, expCost, taxCost, recordedRevenue, recordedCost, calculatedTaxCost, calculatedGross, gross, contract, collected };
   }).filter(c => c.contract > 0 || c.revenue > 0 || c.cost > 0);

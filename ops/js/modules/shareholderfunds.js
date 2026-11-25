@@ -575,7 +575,7 @@ function sfFilterPayableCases() {
   window.openEditCase = function (code) {
     const result = original.apply(this, arguments);
     const isAccount = sfIsAccountCode(code);
-    ['edit-case-amount', 'edit-case-profit-mode', 'edit-case-no-overhead', 'edit-case-retention-amt'].forEach(id => {
+    ['edit-case-amount', 'edit-case-changes', 'edit-case-profit-mode', 'edit-case-no-overhead', 'edit-case-retention-amt'].forEach(id => {
       const el = document.getElementById(id);
       const box = el?.closest('.form-field') || el?.parentElement;
       if (box) box.style.display = isAccount ? 'none' : '';

@@ -232,8 +232,13 @@ const POST_SPLIT_CHANGES = {
     changed: ['submitAddReceivable', 'deleteReceivableConfirm', 'updateReceivableStats'],
   },
   'ops/js/modules/cases.js': {
-    reason: '預估毛利率 field for the cash position module (claude/case-settings)',
-    changed: ['openEditCase', 'submitEditCase'],
+    reason: '預估毛利率 field for the cash position module (claude/case-settings); 合約追加減 rows and contract total used in detail, overview and dashboard KPI (claude/contract-changes)',
+    changed: ['openCaseDetail', 'renderCases', 'openEditCase', 'submitEditCase', 'renderDashboard'],
+    appendedAfter: '\n// ── Post-split additions (not part of the verbatim move) ──',
+  },
+  'ops/js/modules/profit.js': {
+    reason: '成本控制表 合約金額／毛利率／收款率 use the contract total incl. 追加減 (claude/contract-changes)',
+    changed: ['renderProfit'],
   },
   'ops/js/modules/tax.js': {
     reason: 'delete audit (claude/case-settings)',

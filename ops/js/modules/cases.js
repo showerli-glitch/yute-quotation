@@ -78,11 +78,13 @@ function openCaseDetail(caseCode) {
   const collected = caseCollectedAmount(caseCode);
   const pys = casePayableRows(caseCode, { costControlOnly:true });
   const paid = casePaidPayableAmount(caseCode, { costControlOnly:true });
-  const pct = c.amount > 0 ? Math.min(100, Math.round(collected/c.amount*100)) : 0;
+  const contractTotal = caseContractTotal(c);
+  const pct = contractTotal > 0 ? Math.min(100, Math.round(collected/contractTotal*100)) : 0;
   document.getElementById('cd-kpis').innerHTML = `
     <div class="kpi-card" style="padding:12px 16px">
       <div class="kpi-label" style="font-size:11px">合約金額</div>
-      <div style="font-size:20px;font-weight:700;color:var(--text)">${c.amount ? '$'+c.amount.toLocaleString('zh-TW') : '—'}</div>
+      <div style="font-size:20px;font-weight:700;color:var(--text)">${contractTotal ? '$'+contractTotal.toLocaleString('zh-TW') : '—'}</div>
+      ${caseContractChangeNote(c)}
     </div>
     <div class="kpi-card" style="padding:12px 16px">
       <div class="kpi-label" style="font-size:11px">已收款</div>
@@ -256,7 +258,8 @@ function renderCases() {
   };
   const renderRow = c => {
     const caseCollected = caseCollectedAmount(c.code, { includeRetention: false });
-    const pct = c.amount > 0 ? Math.min(100, Math.round(caseCollected / c.amount * 100)) : (c.pct || 0);
+    const contractTotal = caseContractTotal(c);
+    const pct = contractTotal > 0 ? Math.min(100, Math.round(caseCollected / contractTotal * 100)) : (c.pct || 0);
     const retention = RECEIVABLES.find(r => r.case === c.code && (`${r.item||''} ${r.progress||''}`).includes('保固'));
     const retentionAmt = c.retentionAmt || retention?.invoiceAmt || retention?.collectAmt || 0;
     const retentionDue = retention?.retentionDue || c.retentionDue || '';
@@ -270,7 +273,7 @@ function renderCases() {
       <td><div class="case-name">${c.name}</div></td>
       <td><span class="tag tag-client">${c.clientName}</span></td>
       <td><span class="tag ${statusTag[c.status]||'tag-draft'}">${c.status === '完工' && !c.psSettled ? '完工待結算' : c.status}</span></td>
-      <td><div class="amount">${c.amount ? '$'+fmtNum(c.amount) : '—'}</div></td>
+      <td><div class="amount"${caseContractChanges(c).length ? ` title="原約 $${fmtNum(c.amount||0)}，追加減 ${caseContractChanges(c).length} 筆"` : ''}>${contractTotal ? '$'+fmtNum(contractTotal) : '—'}</div></td>
       <td style="min-width:120px">
         <div class="prog-wrap">
           <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
@@ -526,6 +529,7 @@ function openEditCase(caseCode) {
   document.getElementById('edit-case-no-overhead-amt-wrap').style.display = Number.isFinite(c.fixedOverheadShare) ? '' : 'none';
   document.getElementById('edit-case-retention-amt').value = c.retentionAmt ? c.retentionAmt.toLocaleString('zh-TW') : '';
   document.getElementById('edit-case-retention-due').value = c.retentionDue || '';
+  caseRenderContractChangeRows(caseContractChanges(c));
   const marginEl = document.getElementById('edit-case-est-margin');
   if (marginEl) marginEl.value = Number.isFinite(Number(c.estMarginPct)) && c.estMarginPct !== '' && c.estMarginPct != null ? c.estMarginPct : '';
   openModal('modal-edit-case');
@@ -549,6 +553,9 @@ function submitEditCase() {
   const pm     = document.getElementById('edit-case-profit-mode').value;
   const marginRaw = (document.getElementById('edit-case-est-margin')?.value || '').trim();
   if (marginRaw !== '' && !(Number(marginRaw) >= 0 && Number(marginRaw) < 100)) { showToast('預估毛利率請填 0～99', 'error'); return; }
+  const contractChanges = caseReadContractChangeRows();
+  if (contractChanges === null) return;
+  const changesBefore = caseContractChanges(editCaseTarget);
   editCaseTarget.name   = name;
   editCaseTarget.amount = amount;
   editCaseTarget.person = person;
@@ -585,6 +592,11 @@ function submitEditCase() {
   if (retentionDue) editCaseTarget.retentionDue = retentionDue; else delete editCaseTarget.retentionDue;
   if (marginRaw !== '') editCaseTarget.estMarginPct = Math.round(Number(marginRaw) * 10) / 10;
   else delete editCaseTarget.estMarginPct;
+  if (JSON.stringify(changesBefore) !== JSON.stringify(contractChanges)) {
+    if (contractChanges.length) editCaseTarget.contractChanges = contractChanges; else delete editCaseTarget.contractChanges;
+    recordAuditLog('update', 'caseContractChanges', editCaseTarget.code, changesBefore, contractChanges,
+      { targetLabel: `${name} 追加減：合約總額 $${caseContractTotal(editCaseTarget).toLocaleString('zh-TW')}`, riskLevel: 'medium' });
+  }
   closeModal('modal-edit-case');
   renderCases();
   renderDashboard();
@@ -667,7 +679,7 @@ function renderDashboard() {
   if (kpiCasesSub) kpiCasesSub.textContent = dcSelCases === null ? '目前可見個案' : '目前篩選個案';
 
   // KPI 2: 合約總金額
-  const totalContract = activeCases.reduce((s,c) => s+(c.amount||0), 0);
+  const totalContract = activeCases.reduce((s,c) => s+caseContractTotal(c), 0);
   const kpiContract = document.getElementById('dash-kpi-contract');
   if (kpiContract) kpiContract.innerHTML = canSeeTotals ? `${Math.round(totalContract/10000).toLocaleString('zh-TW')}<span>萬</span>` : '—';
 
@@ -732,4 +744,87 @@ function renderDashboard() {
         <td><span class="tag ${receivableIsCollected(r)?'tag-done':'tag-pending'}">${receivableIsCollected(r)?'已入帳':'待入帳'}</span></td>
       </tr>`).join('');
   }
+}
+
+// ── Post-split additions (not part of the verbatim move) ──
+// 合約追加減：case.amount 是原始合約金額；contractChanges 是多次追加／追減（名稱自己填、金額可負）。
+// 合約總額＝原約＋追加減，個案總覽、個案明細、成本控制表的毛利率與收款率都用合約總額。
+function caseContractChanges(c) {
+  return Array.isArray(c?.contractChanges) ? c.contractChanges.filter(x => x && Number.isFinite(Number(x.amount))) : [];
+}
+function caseContractChangeTotal(c) {
+  return caseContractChanges(c).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+}
+function caseContractTotal(c) {
+  return (Number(c?.amount) || 0) + caseContractChangeTotal(c);
+}
+function caseCcEsc(t) {
+  return String(t ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+function caseContractChangeNote(c) {
+  const list = caseContractChanges(c);
+  if (!list.length) return '';
+  const sign = n => (n < 0 ? '−$' : '＋$') + Math.abs(Math.round(n)).toLocaleString('zh-TW');
+  return `<div style="font-size:11px;color:var(--text3);line-height:1.5">原約 $${(Number(c.amount) || 0).toLocaleString('zh-TW')}${list.map(x => ` ${sign(Number(x.amount))}（${caseCcEsc(x.label)}）`).join('')}</div>`;
+}
+function caseRenderContractChangeRows(list) {
+  const box = document.getElementById('edit-case-changes');
+  if (!box) return;
+  box.innerHTML = list.map(x => `<div class="case-cc-row" data-id="${caseCcEsc(x.id || '')}" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+      <input class="form-input cc-label" placeholder="名稱，例：第一次追加" value="${caseCcEsc(x.label)}" style="flex:1.4;min-width:130px">
+      <input class="form-input cc-amount" inputmode="numeric" placeholder="金額（追減填負數）" value="${x.amount === '' || x.amount == null ? '' : caseCcEsc(Number(x.amount).toLocaleString('zh-TW'))}" style="flex:1;min-width:110px;text-align:right" oninput="caseUpdateContractTotal()">
+      <input class="form-input cc-date" type="date" value="${caseCcEsc(x.date || '')}" style="width:140px">
+      <input class="form-input cc-note" placeholder="備註" value="${caseCcEsc(x.note || '')}" style="flex:1;min-width:100px">
+      <button type="button" class="btn btn-ghost btn-sm" title="刪除這筆" onclick="this.closest('.case-cc-row').remove();caseUpdateContractTotal()">✕</button>
+    </div>`).join('');
+  caseUpdateContractTotal();
+}
+function caseAddContractChangeRow() {
+  const box = document.getElementById('edit-case-changes');
+  if (!box) return;
+  const current = [...box.querySelectorAll('.case-cc-row')].map(row => ({
+    id: row.dataset.id, label: row.querySelector('.cc-label').value, amount: caseParseSignedAmount(row.querySelector('.cc-amount').value),
+    date: row.querySelector('.cc-date').value, note: row.querySelector('.cc-note').value,
+  }));
+  const n = current.length + 1;
+  const zh = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][n] || String(n);
+  caseRenderContractChangeRows([...current, { id: '', label: `第${zh}次追加`, amount: '', date: '', note: '' }]);
+  box.querySelector('.case-cc-row:last-child .cc-amount')?.focus();
+}
+function caseParseSignedAmount(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return null;
+  const negative = /^[-−－]/.test(text) || /^\(.*\)$/.test(text);
+  const digits = text.replace(/[^0-9.]/g, '');
+  if (!digits) return null;
+  const n = Math.round(Number(digits));
+  return Number.isFinite(n) ? (negative ? -n : n) : null;
+}
+function caseUpdateContractTotal() {
+  const out = document.getElementById('edit-case-contract-total');
+  if (!out) return;
+  const base = parseInt((document.getElementById('edit-case-amount')?.value || '').replace(/[^0-9]/g, '')) || 0;
+  const rows = [...document.querySelectorAll('#edit-case-changes .case-cc-row')];
+  const sum = rows.reduce((s, row) => s + (caseParseSignedAmount(row.querySelector('.cc-amount').value) || 0), 0);
+  out.innerHTML = rows.length
+    ? `合約總額＝原約 $${base.toLocaleString('zh-TW')} ${sum < 0 ? '−' : '＋'} 追加減 $${Math.abs(sum).toLocaleString('zh-TW')} ＝ <b>$${(base + sum).toLocaleString('zh-TW')}</b>`
+    : '沒有追加減時，合約總額就是原始合約金額。';
+}
+// 讀畫面上的追加減；填一半的列提示並回傳 null（不存），全空的列略過。
+function caseReadContractChangeRows() {
+  const rows = [...document.querySelectorAll('#edit-case-changes .case-cc-row')];
+  const out = [];
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    const label = row.querySelector('.cc-label').value.trim();
+    const rawAmount = row.querySelector('.cc-amount').value.trim();
+    const date = row.querySelector('.cc-date').value;
+    const note = row.querySelector('.cc-note').value.trim();
+    if (!rawAmount && !date && !note && (!label || /^第.+次追加$/.test(label))) continue;
+    const amount = caseParseSignedAmount(rawAmount);
+    if (!label) { showToast(`追加減第 ${i + 1} 筆請填名稱`, 'error'); return null; }
+    if (!amount) { showToast(`「${label}」請填金額（追減填負數）`, 'error'); return null; }
+    out.push({ id: row.dataset.id || `cc-${Date.now()}-${i}`, label, amount, date, note });
+  }
+  return out;
 }
