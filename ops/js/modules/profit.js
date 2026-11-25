@@ -122,6 +122,12 @@ function renderProfit() {
   const yearOk = d => pfSelYears.size === 0 || pfSelYears.has((d || '').slice(0,4));
   const caseYearFallback = c => String(c?.code || '').match(/20\d{2}/)?.[0] || String(c?.startDate || c?.closedDate || '').slice(0,4);
   const familyDetailYearOk = (row, c) => yearOk(row.collectDate || row.invoiceDate || row.doneDate || row.wantDate || caseYearFallback(c));
+  // 整案結算總數（revenueOverride／vendorCostOverride／grossOverride／taxCostOverride）是整個個案的數字，
+  // 選了年度時只算在它的歸屬年：結案年 → 最後一筆收款年 → 編號年；其他年度只看那一年實際的收付款。
+  const caseLastCollectYear = c => caseReceivableRows(c.code, {}).filter(receivableIsCollected)
+    .map(r => String(r.collectDate || '').slice(0,4)).filter(Boolean).sort().pop() || '';
+  const caseOverrideYear = c => String(c?.closedDate || '').slice(0,4) || caseLastCollectYear(c) || caseYearFallback(c);
+  const overrideInSelectedYears = c => pfSelYears.size === 0 || pfSelYears.has(caseOverrideYear(c));
   // 案件篩選器：空 = 全部
   const caseOk = code => (pfSelCases.size === 0 || pfSelCases.has(code)) && userCanViewCaseFinancials(code, 'profit');
 
@@ -139,13 +145,16 @@ function renderProfit() {
     const casePaidPayables = casePayableRows(c.code, { dateOk: d => yearOk(d), costControlOnly: true }).filter(p => p.status === 'paid');
     const recordedRevenue = casePaidReceivables.reduce((s, r) => s + (r.collectAmt || 0), 0);
     const recordedCost = casePaidPayables.reduce((s, p) => s + (p.amount || 0), 0);
-    const useOverride = shouldUseCaseFinancialOverride(c);
+    const overrideInYear = overrideInSelectedYears(c);
+    const useOverride = shouldUseCaseFinancialOverride(c) && overrideInYear;
     const revenue  = useOverride && Number.isFinite(c.revenueOverride) ? c.revenueOverride : recordedRevenue;
     const cost     = useOverride && Number.isFinite(c.vendorCostOverride) ? c.vendorCostOverride : recordedCost;
     const caseExpenses = expApproved.filter(e => e.caseKey === c.code);
     const expCost  = caseExpenses.filter(e => e.category !== '公司分攤').reduce((s, e) => s + (e.amount || 0), 0);
     const calculatedTaxCost = casePaidReceivables.reduce((s, r) => s + ((r.invoiceAmt || 0) / 1.05 * 0.05 / 2), 0);
-    const taxCost  = Number.isFinite(c.taxCostOverride) ? c.taxCostOverride : (isFamilyPassThroughCase ? 0 : calculatedTaxCost);
+    // 稅額 0 是「這案不計稅」的標記，每個年度都適用；非 0 的稅額是整案總數，只算在歸屬年。
+    const taxOverrideApplies = Number.isFinite(c.taxCostOverride) && (c.taxCostOverride === 0 || overrideInYear);
+    const taxCost  = taxOverrideApplies ? c.taxCostOverride : (isFamilyPassThroughCase ? 0 : calculatedTaxCost);
     const calculatedGross = revenue - cost - expCost - taxCost;
     const gross    = useOverride && Number.isFinite(c.grossOverride) ? c.grossOverride : calculatedGross;
     const contract = caseContractTotal(c);
